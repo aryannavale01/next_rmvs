@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+:root {
+  /* Base */
+  --background: #F8FAFC;
+  --card: #FFFFFF;
+  --foreground: #0F172A;
+  --muted-foreground: #64748B;
+  --border: #E2E8F0;
+
+  /* Blue — the ONLY accent color in the entire system */
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-light: #EFF6FF;
+  --secondary-blue: #93C5FD;
+
+  /* Sidebar — the one intentional non-blue-white exception */
+  --sidebar: #0F1B33;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-active: #1E56A0;
+
+  /* Status colors — ONLY on badges/pills/status indicators */
+  --success: #16A34A;
+  --success-bg: #F0FDF4;
+  --success-text: #15803D;
+  --warning: #F59E0B;
+  --warning-bg: #FFFBEB;
+  --warning-text: #B45309;
+  --destructive: #DC2626;
+  --destructive-bg: #FEF2F2;
+  --destructive-text: #B91C1C;
+  --destructive-foreground: #FFFFFF;
+
+  /* Public site brand colors */
+  --brand-primary: #006a4e;
+  --brand-primary-hover: #004d39;
+  --brand-dark: #0f172a;
+  --brand-navy: #0B132B;
+  --brand-mint: #47e3a2;
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: var(--background);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-secondary-blue: var(--secondary-blue);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-text: var(--success-text);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-text: var(--warning-text);
+  --color-destructive: var(--destructive);
+  --color-destructive-bg: var(--destructive-bg);
+  --color-destructive-text: var(--destructive-text);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-hover: var(--brand-primary-hover);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-mint: var(--brand-mint);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f9fafb;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 9999px;
+  transition: background-color 0.2s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+@keyframes skeletonFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-skeleton-fade-in {
+  animation: skeletonFadeIn 0.3s ease-out;
+}

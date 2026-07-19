@@ -1,0 +1,215 @@
+export interface Member {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  age: number;
+  gender: 'Male' | 'Female' | 'Other';
+  category: 'General' | 'OBC' | 'SC' | 'ST';
+  qualification: string;
+  village: string;
+  district: string;
+  state: string;
+  status: 'Active' | 'Inactive';
+  assigned_volunteer: string;
+  created_at: string;
+  profile_image?: string;
+}
+
+export interface Teacher {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  designation: string;
+  type: 'Full Time' | 'Part Time';
+  status: 'Active' | 'Inactive';
+  join_date: string;
+  district: string;
+  specialization: string;
+  experience: string;
+  qualification: string;
+  rating: number;
+}
+
+export interface SyllabusLesson {
+  id: string;
+  title: string;
+  type: 'Video' | 'Text' | 'Quiz' | 'Assignment';
+  duration: string;
+}
+
+export interface Coupon {
+  code: string;
+  description: string;
+  type: 'Percentage' | 'Fixed';
+  value: number;
+  expiry_date: string;
+  max_uses: number;
+  uses_count: number;
+  per_user_limit: number;
+  min_order_value: number;
+  course_id: string;
+  status: 'Active' | 'Inactive';
+}
+
+export interface AdminCourse {
+  id: string;
+  title: string;
+  category: string;
+  mode: 'Online' | 'Offline' | 'Hybrid';
+  location: string;
+  teacher_id: string;
+  start_date: string;
+  end_date: string;
+  duration: string;
+  seats_total: number;
+  seats_enrolled: number;
+  access_code_required: boolean;
+  auto_approve: boolean;
+  price: number;
+  currency: string;
+  coupons: Coupon[];
+  required_docs: string[];
+  syllabus: SyllabusLesson[];
+  status: 'Draft' | 'Published';
+  meta_description: string;
+  benefits: string[];
+  eligibility: string;
+}
+
+export interface Enrollment {
+  id: string;
+  member_id: string;
+  course_id: string;
+  enrolled_date: string;
+  status: 'Enrolled' | 'Completed' | 'Dropped' | 'Pending';
+  doc_verified: boolean;
+  admin_notes: string;
+}
+
+export interface AdminCertificate {
+  id: string;
+  course_id: string;
+  member_id: string;
+  certificate_no: string;
+  issue_date: string;
+  status: 'generated' | 'accepted' | 'pending';
+}
+
+export interface AdminNotification {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  target: string;
+  created_at: string;
+}
+
+export interface AdminActivityLog {
+  id: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  icon: string;
+}
+
+export interface WebsiteItem {
+  id: string;
+  title: string;
+  description?: string;
+  image?: string;
+  visibility: 'Homepage Only' | 'Programs Page Only' | 'Both Pages';
+  details?: string;
+}
+
+export interface WebsiteContent {
+  courses: WebsiteItem[];
+  programs: WebsiteItem[];
+  leadership: WebsiteItem[];
+  testimonials: WebsiteItem[];
+  contact_social: {
+    address: string;
+    email: string;
+    phone: string;
+    facebook: string;
+    twitter: string;
+    linkedin: string;
+    instagram: string;
+  };
+  gallery: WebsiteItem[];
+  resources: WebsiteItem[];
+  locations: WebsiteItem[];
+}
+
+export interface GeneralSettings {
+  siteName: string;
+  description: string;
+  logo: string;
+  timezone: string;
+  language: string;
+}
+
+export interface EmailSettings {
+  smtpHost: string;
+  smtpPort: string;
+  smtpUser: string;
+  smtpPass?: string;
+  senderName: string;
+  senderEmail: string;
+  notifNewRegistration: boolean;
+  notifApplication: boolean;
+  notifCertificate: boolean;
+}
+
+export interface SecuritySettings {
+  pwMinLength: number;
+  pwRequiresSpecial: boolean;
+  pwRequiresNumber: boolean;
+  pwRequiresUppercase: boolean;
+  sessionTimeout: number;
+  maxLoginAttempts: number;
+  enable2FA: boolean;
+}
+
+export interface AppearanceSettings {
+  theme: 'Light' | 'Dark' | 'System';
+  brandColor: string;
+  sidebarCollapsedDefault: boolean;
+  fontSize: 'Small' | 'Medium' | 'Large';
+}
+
+export interface SystemSettings {
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+  autoBackup: boolean;
+  backupFrequency: 'Daily' | 'Weekly' | 'Monthly';
+  backupRetention: number;
+}
+
+export interface AdminSettings {
+  general: GeneralSettings;
+  email: EmailSettings;
+  security: SecuritySettings;
+  appearance: AppearanceSettings;
+  system: SystemSettings;
+}
+
+export interface AdminUser {
+  username: string;
+  email: string;
+}
+
+export interface AdminState {
+  members: Member[];
+  teachers: Teacher[];
+  courses: AdminCourse[];
+  enrollments: Enrollment[];
+  certificates: AdminCertificate[];
+  notifications: AdminNotification[];
+  coupons: Coupon[];
+  websiteContent: WebsiteContent;
+  settings: AdminSettings;
+  activityLogs: AdminActivityLog[];
+  adminUser: AdminUser | null;
+}

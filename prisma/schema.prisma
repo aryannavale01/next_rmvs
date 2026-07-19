@@ -1,0 +1,999 @@
+// =============================================================
+// COMPASSIONGLOBAL / RMVS NGO ERP — COMPLETE PRODUCTION PRISMA SCHEMA
+// Generated: 2026-07-19
+// Maps 1:1 to full_schema_production.sql
+// Excludes: Better Auth tables (managed by Better Auth migrations),
+//           RLS policies, triggers, functions (raw SQL only)
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =============================================================
+// ENUMS (27 total — matches SQL schema; excludes Better Auth "Role" enum)
+// Stage 7: Added CourseStatus, TemplateStatus, RequestStatus, TeacherCourseStatus
+// =============================================================
+
+enum UserRole {
+  member
+  admin
+
+  @@map("user_role")
+}
+
+enum ProfileStatus {
+  active
+  inactive
+  suspended
+  blocked
+  deleted
+
+  @@map("profile_status")
+}
+
+enum Gender {
+  male
+  female
+  transgender
+  other
+
+  @@map("gender")
+}
+
+enum SocialCategory {
+  general
+  sc
+  st
+  obc
+  nt
+  sbc
+  ews
+  other
+
+  @@map("category")
+}
+
+enum MaritalStatus {
+  single
+  married
+  divorced
+  widowed
+  separated
+
+  @@map("marital_status")
+}
+
+enum Occupation {
+  student
+  farmer
+  labour
+  self_employed
+  government_service
+  private_job
+  homemaker
+  unemployed
+  other
+
+  @@map("occupation")
+}
+
+enum Qualification {
+  none
+  primary
+  ssc
+  hsc
+  diploma
+  iti
+  graduate
+  post_graduate
+  doctorate
+
+  @@map("qualification")
+}
+
+enum CourseCategory {
+  health
+  tech
+  leadership
+  environment
+
+  @@map("course_category")
+}
+
+enum CourseLevel {
+  beginner
+  intermediate
+  advanced
+
+  @@map("course_level")
+}
+
+enum TrainingMode {
+  online
+  offline
+  hybrid
+
+  @@map("training_mode")
+}
+
+enum ApplicationStatus {
+  pending
+  under_review
+  approved
+  rejected
+  completed
+
+  @@map("application_status")
+}
+
+enum EnrollmentStatus {
+  enrolled
+  completed
+  dropped
+
+  @@map("enrollment_status")
+}
+
+enum CertificateStatus {
+  pending
+  approved
+  generated
+  published
+  downloaded
+  revoked
+
+  @@map("certificate_status")
+}
+
+enum PublishedStatus {
+  published
+  unpublished
+  pending
+
+  @@map("published_status")
+}
+
+enum DocumentStatus {
+  verified
+  pending
+  rejected
+  not_uploaded
+
+  @@map("document_status")
+}
+
+enum TeacherStatus {
+  active
+  inactive
+  on_leave
+  resigned
+
+  @@map("teacher_status")
+}
+
+enum TeacherType {
+  trainer
+  volunteer
+  guest_faculty
+
+  @@map("teacher_type")
+}
+
+enum CourseVisibility {
+  homepage
+  programs
+  both
+
+  @@map("course_visibility")
+}
+
+enum LocationType {
+  hub
+  office
+
+  @@map("location_type")
+}
+
+enum DiscountType {
+  percentage
+  fixed
+
+  @@map("discount_type")
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+  waived
+
+  @@map("payment_status")
+}
+
+enum LessonType {
+  video
+  text
+  quiz
+  assignment
+
+  @@map("lesson_type")
+}
+
+enum FieldType {
+  text
+  textarea
+  select
+  multiselect
+  file
+  date
+  boolean
+
+  @@map("field_type")
+}
+
+// Stage 7: New enums for stricter status typing
+
+enum CourseStatus {
+  draft
+  active
+  archived
+
+  @@map("course_status")
+}
+
+enum TemplateStatus {
+  active
+  inactive
+
+  @@map("template_status")
+}
+
+enum RequestStatus {
+  pending
+  approved
+  rejected
+
+  @@map("request_status")
+}
+
+enum TeacherCourseStatus {
+  ongoing
+  completed
+  cancelled
+
+  @@map("teacher_course_status")
+}
+
+// =============================================================
+// MODELS (33 total — maps to all non-Auth SQL tables)
+// =============================================================
+
+// -------------------------------------------------------------
+// GROUP 1: USER / BENEFICIARY (4 models)
+// -------------------------------------------------------------
+
+/// User profile — linked to Better Auth User via id (FK enforced at DB level, not Prisma)
+model Profile {
+  id                String        @id @default(uuid())
+  fullName          String        @map("full_name")
+  email             String
+  phone             String?
+  avatarUrl         String?       @map("avatar_url")
+  gender            Gender?
+  dob               DateTime?     @db.Date
+  role              UserRole      @default(member)
+  aadhaarNumber     String?       @map("aadhaar_number")
+  panNumber         String?       @map("pan_number")
+  addressLine1      String?       @map("address_line1")
+  district          String?
+  state             String?
+  pincode           String?
+  qualification     String?
+  emailVerified     Boolean       @default(false) @map("email_verified")
+  phoneVerified     Boolean       @default(false) @map("phone_verified")
+  profileCompletion Int           @default(0) @map("profile_completion")
+  verificationScore Int           @default(0) @map("verification_score")
+  status            ProfileStatus @default(active)
+  registrationDate  DateTime      @default(now()) @map("registration_date")
+  lastLogin         DateTime?     @map("last_login")
+  assignedVolunteer String?       @map("assigned_volunteer")
+  fieldOfficer      String?       @map("field_officer")
+  coordinator       String?
+  region            String?
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  beneficiaryDetail    BeneficiaryDetail?
+  beneficiaryAddresses BeneficiaryAddress[]
+  beneficiaryDocuments BeneficiaryDocument[]
+  courseApplications   CourseApplication[]
+  courseEnrollments    CourseEnrollment[]
+  certificates         Certificate[]
+  certificateRequests  CertificateRequest[]
+  notifications        Notification[]
+  activities           Activity[]
+  couponRedemptions    CouponRedemption[]
+  testimonials         Testimonial[]
+
+  @@index([email], map: "idx_profiles_email")
+  @@index([phone], map: "idx_profiles_phone")
+  @@index([role], map: "idx_profiles_role")
+  @@index([status], map: "idx_profiles_status")
+  @@index([registrationDate], map: "idx_profiles_registration_date")
+  @@map("profiles")
+}
+
+model BeneficiaryDetail {
+  id                     String          @id @default(uuid())
+  profileId              String          @unique @map("profile_id")
+  religion               String?
+  maritalStatus          MaritalStatus?  @map("marital_status")
+  occupation             Occupation?
+  annualIncome           String?         @map("annual_income")
+  disability             String?
+  bloodGroup             String?         @map("blood_group")
+  skills                 String[]        @default([])
+  languages              String[]        @default([])
+  emergencyContact       String?         @map("emergency_contact")
+  guardian               String?
+  category               SocialCategory?
+  rationCard             String?         @map("ration_card")
+  educationQualification Qualification?  @map("education_qualification")
+  educationSchool        String?         @map("education_school")
+  educationCollege       String?         @map("education_college")
+  educationPassingYear   Int?            @map("education_passing_year")
+  educationMarks         String?         @map("education_marks")
+  tags                   String[]        @default([])
+  flags                  String[]        @default([])
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId], map: "idx_beneficiary_details_profile")
+  @@map("beneficiary_details")
+}
+
+model BeneficiaryAddress {
+  id                     String   @id @default(uuid())
+  profileId              String   @map("profile_id")
+  village                String?
+  taluka                 String?
+  district               String?
+  state                  String?
+  pincode                String?
+  assemblyConstituency   String?  @map("assembly_constituency")
+  parliamentConstituency String?  @map("parliament_constituency")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("beneficiary_addresses")
+}
+
+model BeneficiaryDocument {
+  id           String         @id @default(uuid())
+  profileId    String         @map("profile_id")
+  type         String
+  label        String
+  fileUrl      String?        @map("file_url")
+  status       DocumentStatus @default(not_uploaded)
+  uploadedDate DateTime?      @map("uploaded_date")
+  verifiedDate DateTime?      @map("verified_date")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId], map: "idx_beneficiary_documents_profile")
+  @@map("beneficiary_documents")
+}
+
+// -------------------------------------------------------------
+// GROUP 2: TRAINING & CERTIFICATION (8 models)
+// -------------------------------------------------------------
+
+model Course {
+  id                 String           @id @default(uuid())
+  title              String
+  slug               String           @unique
+  category           CourseCategory
+  level              CourseLevel      @default(beginner)
+  description        String
+  image              String?
+  duration           String
+  price              Decimal?         @default(0) @db.Decimal(10, 2)
+  mode               TrainingMode     @default(online)
+  location           String?
+  startDate          DateTime?        @map("start_date") @db.Date
+  endDate            DateTime?        @map("end_date") @db.Date
+  seatsTotal         Int?             @map("seats_total")
+  seatsAvailable     Int?             @map("seats_available")
+  teacherId          String?          @map("teacher_id")
+  instructorName     String           @map("instructor_name")
+  instructorRole     String?          @map("instructor_role")
+  instructorImage    String?          @map("instructor_image")
+  benefits           String[]         @default([])
+  eligibility        String[]         @default([])
+  requiredDocuments  String[]         @default([]) @map("required_documents")
+  visibility         CourseVisibility @default(programs)
+  accessCodeRequired Boolean          @default(false) @map("access_code_required")
+  autoApprove        Boolean          @default(false) @map("auto_approve")
+  currency           String           @default("INR")
+  status             CourseStatus     @default(active)
+  metaDescription    String?          @map("meta_description")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  teacher              Teacher?              @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  applications         CourseApplication[]
+  enrollments          CourseEnrollment[]
+  syllabus             CourseSyllabus[]
+  fieldConfigs         CourseFieldConfig[]
+  certificates         Certificate[]
+  certificateTemplates CertificateTemplate[]
+  certificateRequests  CertificateRequest[]
+  coupons              Coupon[]
+  testimonials         Testimonial[]
+  teacherCourses       TeacherCourse[]
+
+  @@index([slug], map: "idx_courses_slug")
+  @@index([category], map: "idx_courses_category")
+  @@index([visibility], map: "idx_courses_visibility")
+  @@index([status], map: "idx_courses_status")
+  @@index([teacherId], map: "idx_courses_teacher_id")
+  @@map("courses")
+}
+
+model CourseApplication {
+  id              String            @id @default(uuid())
+  profileId       String            @map("profile_id")
+  courseId        String            @map("course_id")
+  appliedDate     DateTime          @default(now()) @map("applied_date")
+  status          ApplicationStatus @default(pending)
+  hasTestimonial  Boolean           @default(false) @map("has_testimonial")
+  notes           String?
+  couponApplied   Boolean           @default(false) @map("coupon_applied")
+  amountDue       Decimal?          @default(0) @map("amount_due") @db.Decimal(10, 2)
+  amountPaid      Decimal?          @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  paymentStatus   PaymentStatus     @default(pending) @map("payment_status")
+  documents       Json?
+  reviewedBy      String?           @map("reviewed_by")
+  reviewedAt      DateTime?         @map("reviewed_at")
+  rejectionReason String?           @map("rejection_reason")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  profile           Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  course            Course             @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  couponRedemptions CouponRedemption[]
+
+  @@unique([profileId, courseId])
+  @@index([profileId], map: "idx_course_applications_profile")
+  @@index([courseId], map: "idx_course_applications_course")
+  @@index([status], map: "idx_course_applications_status")
+  @@map("course_applications")
+}
+
+model CourseEnrollment {
+  id                   String           @id @default(uuid())
+  profileId            String           @map("profile_id")
+  courseId             String           @map("course_id")
+  batch                String?
+  trainer              String?
+  enrollmentDate       DateTime         @default(now()) @map("enrollment_date")
+  completionDate       DateTime?        @map("completion_date")
+  appliedAt            DateTime?        @map("applied_at")
+  status               EnrollmentStatus @default(enrolled)
+  attendance           Int              @default(0)
+  assessmentScore      Int?             @map("assessment_score")
+  certificateGenerated Boolean          @default(false) @map("certificate_generated")
+  documentsVerified    Boolean          @default(false) @map("documents_verified")
+  verificationNotes    String?          @map("verification_notes")
+  adminNotes           String?          @map("admin_notes")
+  autoApproved         Boolean          @default(false) @map("auto_approved")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+
+  @@index([profileId], map: "idx_course_enrollments_profile")
+  @@index([courseId], map: "idx_course_enrollments_course")
+  @@map("course_enrollments")
+}
+
+model CourseSyllabus {
+  id              String     @id @default(uuid())
+  courseId        String     @map("course_id")
+  title           String
+  description     String?
+  lessonType      LessonType @default(text) @map("lesson_type")
+  sortOrder       Int        @default(0) @map("sort_order")
+  isFreePreview   Boolean    @default(false) @map("is_free_preview")
+  durationMinutes Int?       @map("duration_minutes")
+  content         String?
+  videoUrl        String?    @map("video_url")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId], map: "idx_course_syllabus_course")
+  @@index([sortOrder], map: "idx_course_syllabus_order")
+  @@map("course_syllabus")
+}
+
+model CourseFieldConfig {
+  id          String    @id @default(uuid())
+  courseId    String    @map("course_id")
+  fieldKey    String    @map("field_key")
+  label       String
+  fieldType   FieldType @default(text) @map("field_type")
+  enabled     Boolean   @default(true)
+  required    Boolean   @default(false)
+  fromProfile Boolean   @default(true) @map("from_profile")
+  sortOrder   Int       @default(0) @map("sort_order")
+  options     Json      @default("[]")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, fieldKey])
+  @@map("course_field_config")
+}
+
+model Certificate {
+  id                String            @id @default(uuid())
+  certificateNumber String            @unique @map("certificate_number")
+  profileId         String            @map("profile_id")
+  courseId          String?           @map("course_id")
+  batch             String?
+  teacherName       String?           @map("teacher_name")
+  issueDate         DateTime?         @map("issue_date") @db.Date
+  completionDate    DateTime?         @map("completion_date") @db.Date
+  generationDate    DateTime?         @map("generation_date") @db.Date
+  expiryDate        DateTime?         @map("expiry_date") @db.Date
+  status            CertificateStatus @default(pending)
+  publishedStatus   PublishedStatus   @default(pending) @map("published_status")
+  templateName      String?           @map("template_name")
+  language          String            @default("English")
+  verificationUrl   String?           @map("verification_url")
+  pdfUrl            String?           @map("pdf_url")
+  generatedBy       String?           @map("generated_by")
+  verifiedBy        String?           @map("verified_by")
+  remarks           String?
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  course  Course? @relation(fields: [courseId], references: [id], onDelete: Restrict)
+
+  @@index([profileId], map: "idx_certificates_profile")
+  @@index([courseId], map: "idx_certificates_course")
+  @@index([status], map: "idx_certificates_status")
+  @@index([certificateNumber], map: "idx_certificates_number")
+  @@map("certificates")
+}
+
+model CertificateTemplate {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  courseId     String?  @map("course_id")
+  orientation  String   @default("Landscape")
+  status       TemplateStatus   @default(active)
+  isDefault    Boolean  @default(false) @map("is_default")
+  previewColor String   @default("purple") @map("preview_color")
+  lastUpdated  DateTime @default(now()) @map("last_updated")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@map("certificate_templates")
+}
+
+model CertificateRequest {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  courseId    String?  @map("course_id")
+  batch       String?
+  requestDate DateTime @default(now()) @map("request_date")
+  status      RequestStatus   @default(pending)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  course  Course? @relation(fields: [courseId], references: [id], onDelete: Restrict)
+
+  @@map("certificate_requests")
+}
+
+// -------------------------------------------------------------
+// GROUP 3: TEACHERS (3 models)
+// -------------------------------------------------------------
+
+model Teacher {
+  id              String        @id @default(uuid())
+  fullName        String        @map("full_name")
+  profilePhoto    String?       @map("profile_photo")
+  designation     String
+  qualification   String?
+  specializations String[]      @default([])
+  experienceYears Int?          @map("experience_years")
+  email           String
+  mobile          String
+  village         String?
+  taluka          String?
+  district        String?
+  state           String        @default("Maharashtra")
+  pincode         String?
+  status          TeacherStatus @default(active)
+  teacherType     TeacherType   @default(trainer) @map("teacher_type")
+  joinedDate      DateTime      @map("joined_date") @db.Date
+  lastUpdated     DateTime      @default(now()) @map("last_updated")
+  aadhaar         String?
+  pan             String?
+  bankAccount     String?       @map("bank_account")
+  totalStudents   Int           @default(0) @map("total_students")
+  certifications  Int           @default(0)
+  rating          Decimal?      @default(0.0) @db.Decimal(3, 1)
+  bio             String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  documents     TeacherDocument[]
+  courses       TeacherCourse[]
+  taughtCourses Course[]
+
+  @@index([status], map: "idx_teachers_status")
+  @@index([teacherType], map: "idx_teachers_type")
+  @@map("teachers")
+}
+
+model TeacherDocument {
+  id           String         @id @default(uuid())
+  teacherId    String         @map("teacher_id")
+  type         String
+  label        String
+  status       DocumentStatus @default(not_uploaded)
+  uploadedDate DateTime?      @map("uploaded_date")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId], map: "idx_teacher_documents_teacher")
+  @@map("teacher_documents")
+}
+
+model TeacherCourse {
+  id             String            @id @default(uuid())
+  teacherId      String            @map("teacher_id")
+  courseId       String            @map("course_id")
+  batch          String?
+  startDate      DateTime?         @map("start_date") @db.Date
+  endDate        DateTime?         @map("end_date") @db.Date
+  totalStudents  Int               @default(0) @map("total_students")
+  completionRate Int               @default(0) @map("completion_rate")
+  status         TeacherCourseStatus @default(ongoing)
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId], map: "idx_teacher_courses_teacher")
+  @@index([courseId], map: "idx_teacher_courses_course")
+  @@map("teacher_courses")
+}
+
+// -------------------------------------------------------------
+// GROUP 4: CMS / PUBLIC CONTENT (12 models)
+// -------------------------------------------------------------
+
+model Program {
+  id          String           @id @default(uuid())
+  title       String
+  category    String
+  description String
+  goal        Decimal?         @default(0) @db.Decimal(12, 2)
+  raised      Decimal?         @default(0) @db.Decimal(12, 2)
+  image       String?
+  isStrategic Boolean          @default(false) @map("is_strategic")
+  visibility  CourseVisibility @default(both)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@map("programs")
+}
+
+model Leader {
+  id         String   @id @default(uuid())
+  name       String
+  role       String
+  image      String?
+  department String?
+  bio        String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("leaders")
+}
+
+model GalleryItem {
+  id          String   @id @default(uuid())
+  title       String
+  category    String
+  image       String?
+  description String?
+  isVideo     Boolean  @default(false) @map("is_video")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("gallery_items")
+}
+
+model BlogPost {
+  id          String    @id @default(uuid())
+  title       String
+  category    String?
+  description String?
+  content     String?
+  readTime    String?   @map("read_time")
+  date        DateTime? @db.Date
+  image       String?
+  author      String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("blog_posts")
+}
+
+model Newsletter {
+  id        String    @id @default(uuid())
+  title     String
+  date      DateTime? @db.Date
+  readTime  String?   @map("read_time")
+  image     String?
+  fileUrl   String?   @map("file_url")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("newsletters")
+}
+
+model Location {
+  id             String       @id @default(uuid())
+  name           String
+  location       String?
+  type           LocationType @default(office)
+  coordinator    String?
+  staffCount     Int?         @map("staff_count")
+  activePrograms String[]     @default([]) @map("active_programs")
+  contactEmail   String?      @map("contact_email")
+  phone          String?
+  address        String?
+  coordinates    String?
+  description    String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("locations")
+}
+
+model ContactInfo {
+  id        String   @id @default(uuid())
+  email     String
+  phone     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  socialLinks SocialLink[]
+
+  @@map("contact_info")
+}
+
+model SocialLink {
+  id            String   @id @default(uuid())
+  contactInfoId String?  @map("contact_info_id")
+  label         String
+  icon          String?
+  href          String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  contactInfo ContactInfo? @relation(fields: [contactInfoId], references: [id], onDelete: Cascade)
+
+  @@map("social_links")
+}
+
+model Testimonial {
+  id        String   @id @default(uuid())
+  profileId String?  @map("profile_id")
+  courseId  String?  @map("course_id")
+  initials  String?
+  name      String
+  role      String?
+  quote     String
+  rating    Int      @default(5)
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  course  Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId], map: "idx_testimonials_course")
+  @@index([profileId], map: "idx_testimonials_profile")
+  @@map("testimonials")
+}
+
+model Milestone {
+  id          String   @id @default(uuid())
+  year        Int
+  title       String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("milestones")
+}
+
+model Scheme {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  icon        String    @default("BookOpen")
+  category    String?
+  date        DateTime? @db.Date
+  link        String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("schemes")
+}
+
+model Partner {
+  id        String   @id @default(uuid())
+  name      String
+  icon      String   @default("HeartHandshake")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("partners")
+}
+
+// -------------------------------------------------------------
+// GROUP 5: BUSINESS LOGIC (4 models)
+// -------------------------------------------------------------
+
+model Coupon {
+  id            String       @id @default(uuid())
+  code          String       @unique
+  courseId      String?      @map("course_id")
+  isActive      Boolean      @default(true) @map("is_active")
+  expiresAt     DateTime?    @map("expires_at")
+  validFrom     DateTime?    @map("valid_from")
+  maxUses       Int?         @map("max_uses")
+  usedCount     Int          @default(0) @map("used_count")
+  perUserLimit  Int?         @map("per_user_limit")
+  discountType  DiscountType @default(percentage) @map("discount_type")
+  discountValue Decimal?     @default(0) @map("discount_value") @db.Decimal(10, 2)
+  minAmount     Decimal?     @map("min_amount") @db.Decimal(10, 2)
+  description   String?
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  course      Course?            @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  redemptions CouponRedemption[]
+
+  @@index([courseId], map: "idx_coupons_course")
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id                  String   @id @default(uuid())
+  couponId            String   @map("coupon_id")
+  userId              String   @map("user_id")
+  courseApplicationId String?  @map("course_application_id")
+  redeemedAt          DateTime @default(now()) @map("redeemed_at")
+
+  // Relations
+  coupon            Coupon             @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user              Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseApplication CourseApplication? @relation(fields: [courseApplicationId], references: [id], onDelete: SetNull)
+
+  @@unique([couponId, userId, courseApplicationId])
+  @@index([userId], map: "idx_coupon_redemptions_user")
+  @@index([courseApplicationId], map: "idx_coupon_redemptions_application")
+  @@map("coupon_redemptions")
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  icon        String   @default("Bell")
+  title       String
+  description String?
+  type        String?
+  timestamp   DateTime @default(now())
+  read        Boolean  @default(false)
+  link        String?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId], map: "idx_notifications_profile")
+  @@index([read], map: "idx_notifications_read")
+  @@map("notifications")
+}
+
+model Activity {
+  id          String   @id @default(uuid())
+  profileId   String?  @map("profile_id")
+  icon        String   @default("Activity")
+  title       String
+  description String?
+  timestamp   DateTime @default(now())
+  category    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId], map: "idx_activities_profile")
+  @@map("activities")
+}
+
+// -------------------------------------------------------------
+// GROUP 6: ADMIN / SYSTEM (2 models)
+// -------------------------------------------------------------
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  action      String
+  description String?
+  timestamp   DateTime @default(now())
+  performedBy String?  @map("performed_by")
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId], map: "idx_activity_log_entity")
+  @@map("activity_log")
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  category  String
+  key       String
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([category, key])
+  @@index([category], map: "idx_settings_category")
+  @@map("settings")
+}

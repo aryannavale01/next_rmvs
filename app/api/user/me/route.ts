@@ -1,0 +1,25 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+
+export async function GET() {
+  const session = await auth.api.getSession({
+    headers: new Headers(),
+  });
+
+  if (!session) {
+    return NextResponse.json({ user: null, session: null }, { status: 401 });
+  }
+
+  return NextResponse.json({
+    user: {
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      role: (session.user as Record<string, unknown>).role ?? "MEMBER",
+    },
+    session: {
+      id: session.session.id,
+      expiresAt: session.session.expiresAt,
+    },
+  });
+}
