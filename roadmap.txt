@@ -1,0 +1,357 @@
+# MASTER BUILD ROADMAP — From Frontend-Ready to Production
+## CompassionGlobal / RMVS NGO ERP
+
+**Starting point:** Frontend UI fully built (all 3 portals), SQL schema written (with fixes pending per SCHEMA_AUDIT.md/SCHEMA_FIX_PROMPT.md), no real backend wiring yet.
+**Governing documents:** Always reference ARCHITECTURE.md, AI_AGENT_RULES.md, PLAN.md, SCHEMA_AUDIT.md, SCHEMA_FIX_PROMPT.md alongside this roadmap.
+
+**How to use this document:** Work top to bottom. Do NOT skip ahead. Each numbered step is small enough to do in one sitting and verify before moving on. Each major stage ends with a git commit/branch checkpoint — this gives you a safe rollback point if anything goes wrong later.
+
+---
+
+## STAGE 0 — Git & Project Hygiene Setup (do this before anything else)
+
+1. Confirm you have a git repository initialized in your main Next.js project folder. If not: `git init`.
+2. Confirm `.gitignore` correctly excludes: `node_modules/`, `.env`, `.env.local`, `.next/`, `*.log`. Add any missing entries now.
+3. Commit the current state as a baseline, even if messy:
+   ```
+   git add .
+   git commit -m "chore: baseline snapshot before backend wiring begins"
+   ```
+4. Create a long-lived `main` branch (if not already) representing your last known-good state.
+5. From now on, **every stage below gets its own feature branch** — never work directly on `main` for the rest of this roadmap. Pattern:
+   ```
+   git checkout -b stage/01-db-setup
+   ```
+6. Adopt this commit message convention going forward (keeps history readable):
+   - `feat: ...` — new working feature
+   - `fix: ...` — bug fix
+   - `chore: ...` — config/tooling/non-functional
+   - `refactor: ...` — code restructuring, no behavior change
+   - `test: ...` — test additions
+7. Only merge a stage branch back into `main` once that stage is fully verified working — never merge a half-finished stage.
+
+---
+
+## STAGE 1 — Database Setup (Supabase)
+
+**Branch:** `git checkout -b stage/01-db-setup`
+
+1. Go to supabase.com, log in, create a new project (or confirm your existing project if already created) — note the project region (pick one close to your users, e.g. Mumbai/Singapore for India).
+2. Once the project is provisioned, go to **Project Settings → Database** and copy:
+   - The pooled connection string (port 6543, `?pgbouncer=true`) → this becomes your `DATABASE_URL`
+   - The direct connection string (port 5432) → this becomes your `DIRECT_URL`
+3. Go to **Project Settings → API** and copy:
+   - Project URL → `SUPABASE_URL`
+   - `service_role` key (NOT the anon key) → `SUPABASE_SERVICE_ROLE_KEY` — keep this secret, never expose client-side
+4. **STOP — do not inject your SQL file yet.** Per SCHEMA_AUDIT.md, your current SQL has a critical bug (`profiles.id` references the wrong table) and several other issues. Apply the fixes from SCHEMA_FIX_PROMPT.md Stage 1 through Stage 10 to your SQL/Prisma schema FIRST, in your local project, before this ever touches the real database.
+5. Once your schema is fixed (per SCHEMA_FIX_PROMPT.md), run your Prisma migrations against this fresh Supabase database instead of manually pasting the raw SQL file — this ensures Prisma's migration history and the actual database stay in sync from day one:
+   ```
+   npx prisma migrate dev --name init
+   ```
+6. Verify tables were created correctly: `npx prisma studio` — browse the tables, confirm they match your schema.
+7. Create your Supabase Storage buckets now (per ARCHITECTURE.md Section 6): separate private buckets for Aadhaar, PAN, Ration Card, Profile Photos. Set each to **private**.
+8. Commit:
+   ```
+   git add .
+   git commit -m "chore: database provisioned, corrected schema migrated to Supabase"
+   git checkout main
+   git merge stage/01-db-setup
+   ```
+
+---
+
+## STAGE 2 — Environment Variables
+
+**Branch:** `git checkout -b stage/02-env-setup`
+
+1. Create `.env.local` in your project root (confirmed missing per your earlier project status report — this must exist now, not just `.env.example`).
+2. Populate it with real values:
+   ```
+   DATABASE_URL=<pooled connection string>
+   DIRECT_URL=<direct connection string>
+   SUPABASE_URL=<your project url>
+   SUPABASE_SERVICE_ROLE_KEY=<service role key>
+   BETTER_AUTH_SECRET=<generate a random 32+ char string>
+   BETTER_AUTH_URL=http://localhost:3000
+   RESEND_API_KEY=<get this from resend.com if using email>
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
+   ```
+3. Confirm `.env.local` is in `.gitignore` (double-check — this file must NEVER be committed).
+4. Update `.env.example` (the committed template) to list the same variable NAMES with placeholder/empty values, so future setup is clear without exposing real secrets.
+5. Run `npx prisma generate` to confirm Prisma can read the schema and generate the client with the new env vars in place.
+6. Commit (only `.env.example`, never `.env.local`):
+   ```
+   git add .env.example
+   git commit -m "chore: document required environment variables"
+   git checkout main
+   git merge stage/02-env-setup
+   ```
+
+---
+
+## STAGE 3 — Better Auth Wiring (Stage 2 of PLAN.md's Phase 4, but first real backend piece)
+
+**Branch:** `git checkout -b stage/03-auth-wiring`
+
+1. Install Better Auth and its Prisma adapter if not already present: `npm install better-auth @better-auth/prisma-adapter`.
+2. Read the Better Auth documentation for the exact server setup pattern for Next.js App Router.
+3. Create/confirm `src/lib/auth.ts` — server-side Better Auth instance, configured per ARCHITECTURE.md Section 4 (email+password, 30-day session, 5-min cookie cache, custom cookie prefix, rate limiting).
+4. Create/confirm `src/lib/auth-client.ts` — client-side Better Auth instance for use in Login/Register forms.
+5. Create `src/app/api/auth/[...all]/route.ts` — the Better Auth handler.
+6. **Remove the temporary hardcoded-credential auth scaffolding** from the previous step (the frontend-only Login/Register/Admin Login pages built earlier) — replace the fake client-side check with real `authClient.signIn.email()` / `authClient.signUp.email()` calls.
+7. Implement `ensureProfile()` — a transaction that creates a `Profile` record synchronously alongside `User` creation at signup (per ARCHITECTURE.md Section 4.3 — not lazy, not a trigger).
+8. Create the SINGLE shared `requireAuth()` / `requireAdmin()` utility in `src/lib/session.ts` (per AI_AGENT_RULES.md Section 3 — one definition, used everywhere, no per-file duplicates going forward).
+9. Seed a single superadmin account via a script (not a registration page) — create `scripts/seed-admin.ts` or similar.
+
+**Test with Playwright before committing:**
+- Sign up a new test member → confirm real User + Profile records created in the database (check via Prisma Studio).
+- Log in as that member → confirm redirect to `/dashboard`.
+- Log in as the seeded admin → confirm redirect to `/admin`.
+- Log out → confirm session actually terminates (check that `/dashboard` redirects to `/login` afterward).
+- Test rate limiting by attempting 6+ failed logins.
+
+10. Commit:
+    ```
+    git add .
+    git commit -m "feat: wire real Better Auth for member and admin login/signup"
+    git checkout main
+    git merge stage/03-auth-wiring
+    ```
+
+---
+
+## STAGE 4 — Middleware / Route Protection (proxy.ts)
+
+**Branch:** `git checkout -b stage/04-proxy-middleware`
+
+1. Create `proxy.ts` at the project root (Next.js 16 convention — NOT `middleware.ts`, which is deprecated).
+2. Implement broad matcher patterns: `/admin/:path*` and `/dashboard/:path*` (per the earlier auth-bypass lesson — broad patterns protect future routes automatically).
+3. For `/dashboard/*`: lightweight session-cookie-existence check, redirect to `/login` if absent.
+4. For `/admin/*`: session check PLUS role verification (read role from session if Better Auth's `additionalFields` exposes it directly, avoiding a redundant DB query if possible), redirect to `/admin/login` if not an ADMIN.
+5. Ensure NO direct Prisma/database calls happen inside `proxy.ts` itself (Edge runtime constraint) — role checks should read from the session object or a lightweight API call, not a direct DB query in the proxy file.
+6. Remove the temporary client-side route-gating wrapper built in the earlier scaffolding step — this real server-side proxy replaces it entirely.
+
+**Test with Playwright before committing (mandatory, per the standing auth re-check rule):**
+- Fresh unauthenticated browser: visit `/dashboard` and every sub-route → confirm redirect to `/login`.
+- Fresh unauthenticated browser: visit `/admin` and every sub-route → confirm redirect to `/admin/login`.
+- Log in as member, confirm `/admin/*` is still blocked for them.
+- Log in as admin, confirm both `/admin/*` and `/dashboard/*` behave correctly per their intended access.
+
+7. Commit:
+   ```
+   git add .
+   git commit -m "feat: implement proxy.ts with broad route protection matchers"
+   git checkout main
+   git merge stage/04-proxy-middleware
+   ```
+
+---
+
+## STAGE 5 — File Upload Pipeline
+
+**Branch:** `git checkout -b stage/05-file-upload`
+
+1. Install `sharp` (server) and `browser-image-compression` (client) if not already present.
+2. Build `/api/upload/route.ts` — server-side upload using the Supabase **service role key**, never the anon key.
+3. Implement: session check → magic-byte file validation → client compression (already applied before reaching here) → server-side compression via sharp (resize max 1600px, convert to WebP, quality 75) → upload to the correct private bucket (separate buckets per document type, per SCHEMA_AUDIT.md fix) → delete old file on replacement → generate signed URL (time-limited) for display.
+4. Wire the Profile page's document upload UI (built earlier in the frontend scaffolding) to actually call this real endpoint.
+
+**Test with Playwright:**
+- Upload a large (4-8MB) test image for each document type → confirm compressed size in the bucket, confirm signed URL displays it correctly.
+- Replace an existing document → confirm the old file is actually deleted from Storage (check the Supabase dashboard directly).
+- Attempt to upload a renamed non-image file → confirm rejection.
+
+5. Commit:
+   ```
+   git add .
+   git commit -m "feat: wire real server-side file upload with compression"
+   git checkout main
+   git merge stage/05-file-upload
+   ```
+
+---
+
+## STAGE 6 — Member-Facing Domains (one at a time, per PLAN.md Phase 4)
+
+Work through these **one at a time**, each on its own branch, each fully tested before starting the next:
+
+### 6a. Profile
+**Branch:** `stage/06a-profile`
+- Wire `updateProfile()`, `getProfile()`, `getProfileDocuments()`, `getProfileCompletionStatus()` to real Prisma queries.
+- Test: edit every profile field, save, reload, confirm persistence. Test the profile-completeness popup logic.
+- Commit + merge.
+
+### 6b. Course Browsing (public + member)
+**Branch:** `stage/06b-course-browsing`
+- Wire `getDashboardCourses()`, `getCourseById()`, `getCourseSyllabus()` to real Prisma queries against the `Course`/`CourseSyllabus` models.
+- Test: browse courses, filter/search, open course detail — confirm real data throughout.
+- Commit + merge.
+
+### 6c. Course Application Flow
+**Branch:** `stage/06c-course-application`
+- Wire the full flow per ARCHITECTURE.md Section 7: profile completeness check → dynamic fields via `CourseFieldConfig` → coupon validation → application submission.
+- Test: apply with a complete profile, with an incomplete one (confirm block), with a valid/invalid/expired coupon, and test duplicate-application prevention.
+- Commit + merge.
+
+### 6d. Applications Status Tracking
+**Branch:** `stage/06d-applications-tracking`
+- Wire `getUserApplications()`, `getUserApplicationForCourse()`.
+- Test: status displays correctly for pending/approved/rejected applications.
+- Commit + merge.
+
+### 6e. Notifications & Activity
+**Branch:** `stage/06e-notifications-activity`
+- Wire `getUserNotifications()`, `markRead()`, `markAllRead()`, `getUnreadNotificationCount()`, `getUserActivities()`.
+- Test: mark notifications read, confirm activity log shows real actions.
+- Commit + merge.
+
+---
+
+## STAGE 7 — Admin-Facing Domains (one at a time)
+
+### 7a. Members Management
+**Branch:** `stage/07a-admin-members`
+- Wire full CRUD, filters, bulk actions, export against real `Profile`/`BeneficiaryDetail`/`BeneficiaryDocument` models.
+- Test every filter, sort, create/edit/delete (including the Stage 9 soft-delete decision from SCHEMA_FIX_PROMPT.md).
+- Commit + merge.
+
+### 7b. Teachers Management
+**Branch:** `stage/07b-admin-teachers`
+- Wire full CRUD against real `Teacher` model.
+- Commit + merge.
+
+### 7c. Course Management (9-step wizard)
+**Branch:** `stage/07c-admin-courses`
+- Wire course creation with real teacher-dropdown (from `Teacher` records), real coupon creation inline, real `CourseFieldConfig` toggles.
+- Test the full wizard end-to-end, confirm Draft/Published states work.
+- Commit + merge.
+
+### 7d. Application Approval → Enrollment (CRITICAL cross-system flow)
+**Branch:** `stage/07d-approval-enrollment`
+- Wire Approve/Reject with the auto-approve vs manual logic from the certificate flow spec.
+- Test with two parallel Playwright browser contexts (admin + member) — approve an application, confirm member-side reflects it immediately (status + notification), same for reject.
+- Commit + merge.
+
+### 7e. Enrollments Management
+**Branch:** `stage/07e-admin-enrollments`
+- Wire status updates (Mark Completed/Dropped), document verification toggle.
+- Commit + merge.
+
+### 7f. Certificates (both generation paths)
+**Branch:** `stage/07f-admin-certificates`
+- Wire `@react-pdf/renderer` generation, member-initiated + admin bulk-generate (using the SAME generation function, per AI_AGENT_RULES.md Section 3), the `/verify/[certificateNumber]` public route.
+- Test both paths with parallel browser contexts, confirm zero certificate-number collisions across a batch.
+- Commit + merge.
+
+### 7g. Coupons Management
+**Branch:** `stage/07g-admin-coupons`
+- Wire full CRUD, redemption validation logic.
+- Commit + merge.
+
+### 7h. Notifications Broadcast
+**Branch:** `stage/07h-admin-notifications`
+- Wire Compose + Send to All, confirm member-side reflection.
+- Commit + merge.
+
+### 7i. Activity Logs (read-only)
+**Branch:** `stage/07i-admin-activity-logs`
+- Wire the audit trail read.
+- Commit + merge.
+
+### 7j. Website Content (CMS)
+**Branch:** `stage/07j-admin-cms`
+- Wire all 8 tabs against the CMS Prisma models, confirm visibility toggles reflect on the actual public site.
+- Commit + merge.
+
+### 7k. Settings
+**Branch:** `stage/07k-admin-settings`
+- Wire all 5 settings tabs to the `Setting` model.
+- Commit + merge.
+
+---
+
+## STAGE 8 — Full Regression Pass
+
+**Branch:** `stage/08-full-regression`
+
+1. Run the complete Playwright suite covering both dashboards end-to-end (reuse your earlier detailed page-by-page test prompts).
+2. Re-run the full unauthenticated-access test across every route one more time.
+3. Re-run the complete certificate flow end-to-end (signup → profile → apply → coupon → approve → enroll → certificate → verify).
+4. Fix anything found — small, targeted fixes only, each individually verified, per AI_AGENT_RULES.md Section 6.
+5. Commit + merge each fix separately if multiple issues are found, don't batch them.
+
+---
+
+## STAGE 9 — Performance & Code Quality
+
+**Branch:** `stage/09-performance`
+
+1. Confirm no N+1 queries (use Prisma `include`/`select` properly) across admin list pages especially.
+2. Confirm route-level code splitting is working correctly (Next.js App Router does this largely automatically — verify bundle sizes per route are reasonable).
+3. Remove any remaining artificial `setTimeout` loading delays now that real data fetching has real latency.
+4. Run a Lighthouse or similar performance check on key pages (Dashboard Home, Course Browse, Admin Members).
+5. Commit + merge.
+
+---
+
+## STAGE 10 — Multilingual Completion
+
+**Branch:** `stage/10-i18n`
+
+1. Confirm next-intl covers all priority pages (login, signup, dashboard home, enrollment form) with working English/Hindi/Marathi.
+2. Get native-speaker review of the Hindi/Marathi translations before treating them as final.
+3. Expand coverage to remaining pages incrementally.
+4. Commit + merge.
+
+---
+
+## STAGE 11 — Testing Infrastructure
+
+**Branch:** `stage/11-testing`
+
+1. Add the missing `"test": "vitest"` script to `package.json`.
+2. Write unit tests for highest-risk logic: auth/session checks, coupon validation, application-to-enrollment approval logic.
+3. Save your Playwright end-to-end flow as a repeatable test suite you can re-run on demand as a regression gate for future changes.
+4. Commit + merge.
+
+---
+
+## STAGE 12 — Pre-Production Hardening
+
+**Branch:** `stage/12-pre-prod-hardening`
+
+1. Set up a real Sentry project (get real DSN/org/project values, replace the placeholders per ARCHITECTURE.md Section 10).
+2. Do a final security pass: confirm no secrets in code, confirm every admin action uses the shared `requireAdmin()`, confirm file uploads still validate magic bytes.
+3. Confirm database backups are configured on Supabase (check backup frequency/retention settings in the Supabase dashboard).
+4. Commit + merge.
+
+---
+
+## STAGE 13 — Deployment to Vercel
+
+**Branch:** merge everything to `main` first, then deploy from `main`
+
+1. Push your `main` branch to GitHub (create the remote repo if not already done): `git remote add origin <your-repo-url>`, `git push -u origin main`.
+2. Go to vercel.com, import the GitHub repository.
+3. In Vercel's project settings, add ALL environment variables from your `.env.local` as real production values (never placeholders) — `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (update to your real production domain), `RESEND_API_KEY`, `SENTRY_DSN`, `NEXT_PUBLIC_APP_URL` (your real production domain).
+4. Trigger the deployment, confirm the build succeeds.
+5. Visit the live production URL, run through the core flows manually one more time (signup, login, apply to a course, admin approve, certificate generation) directly against production.
+
+---
+
+## STAGE 14 — Soft Launch
+
+1. Invite 2-3 real trusted test users (not just yourself) to sign up and use the real production system.
+2. Watch Sentry for any errors that surface from real usage patterns you didn't think to test.
+3. Fix anything found, following the same small-branch, tested, committed pattern as every stage above.
+4. Only after this soft launch is clean, open the platform more broadly to real beneficiaries.
+
+---
+
+## Rules that apply across every single stage above
+
+- Never skip a stage's testing step to move faster — every "Test with Playwright" instruction is mandatory, not optional.
+- Never combine two stages into one branch/commit — even if they feel related, keep them separate so you always have a clean rollback point.
+- Never merge a branch into `main` until its stage is fully verified working.
+- If a stage reveals a problem in an EARLIER stage's work, stop, fix it on its own small branch, verify, merge, THEN continue.
+- Give your AI agent `ARCHITECTURE.md`, `AI_AGENT_RULES.md`, `PLAN.md`, and this `MASTER_BUILD_ROADMAP.md` at the start of every session, and tell it explicitly which numbered stage you're on — never let it jump ahead.

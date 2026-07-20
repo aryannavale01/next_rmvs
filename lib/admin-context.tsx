@@ -46,6 +46,7 @@ interface AdminContextType {
 
   loginAdmin: (email: string, password: string) => boolean;
   logoutAdmin: () => void;
+  resetAdmin: () => void;
 
   addMember: (member: Omit<Member, 'id' | 'created_at'>) => void;
   updateMember: (id: string, updated: Partial<Member>) => void;
@@ -169,7 +170,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const logoutAdmin = useCallback(() => {
     logActivity('Admin Logged Out', 'Administrative session terminated securely.', 'Lock');
     setAdminUser(null);
+    localStorage.removeItem(STORAGE_KEY);
   }, [logActivity]);
+
+  const resetAdmin = useCallback(() => {
+    setMembers(MOCK_MEMBERS);
+    setTeachers(MOCK_TEACHERS);
+    setCourses(MOCK_COURSES);
+    setEnrollments(MOCK_ENROLLMENTS);
+    setCertificates(MOCK_CERTIFICATES);
+    setNotifications(MOCK_NOTIFICATIONS);
+    setCoupons(MOCK_COUPONS);
+    setWebsiteContent(MOCK_WEBSITE_CONTENT);
+    setSettings(DEFAULT_ADMIN_SETTINGS);
+    setActivityLogs(MOCK_ACTIVITY_LOGS);
+    setAdminUser(null);
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
 
   // Members
   const addMember = useCallback((m: Omit<Member, 'id' | 'created_at'>) => {
@@ -372,7 +389,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     <AdminContext.Provider value={{
       members, teachers, courses, enrollments, certificates,
       notifications, coupons, websiteContent, settings, activityLogs, adminUser, mounted,
-      loginAdmin, logoutAdmin,
+      loginAdmin, logoutAdmin, resetAdmin,
       addMember, updateMember, deleteMember,
       addTeacher, updateTeacher, deleteTeacher,
       addCourse, updateCourse, deleteCourse,

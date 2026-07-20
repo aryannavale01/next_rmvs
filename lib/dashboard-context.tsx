@@ -9,7 +9,13 @@ import {
   Certificate,
   AppNotification,
   Activity,
-  Profile
+  Profile,
+  INITIAL_PROFILE,
+  INITIAL_APPLICATIONS,
+  INITIAL_CERTIFICATES,
+  INITIAL_NOTIFICATIONS,
+  INITIAL_ACTIVITIES,
+  INITIAL_COURSES,
 } from './store';
 import { makeId, makeCertificateNo, getTodayIsoDate, getCurrentIsoString } from './purity-helpers';
 
@@ -34,6 +40,7 @@ interface DashboardContextType {
   markAsRead: (id: string) => void;
   setLanguage: (lang: 'en' | 'hi' | 'mr') => void;
   addActivity: (title: string, description: string, type: Activity['type']) => void;
+  resetDashboard: () => void;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -396,6 +403,20 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     saveStoredState({ language: lang });
   };
 
+  const resetDashboard = () => {
+    const keys = ['db_profile', 'db_applications', 'db_certificates', 'db_notifications', 'db_activities', 'db_courses', 'db_language'];
+    keys.forEach((key) => localStorage.removeItem(key));
+    setState({
+      profile: INITIAL_PROFILE,
+      applications: INITIAL_APPLICATIONS,
+      certificates: INITIAL_CERTIFICATES,
+      notifications: INITIAL_NOTIFICATIONS,
+      activities: INITIAL_ACTIVITIES,
+      courses: INITIAL_COURSES,
+      language: 'en',
+    });
+  };
+
   const addActivity = (title: string, description: string, type: Activity['type']) => {
     const newActivity: Activity = {
       id: makeId('act'),
@@ -422,7 +443,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         markAllAsRead,
         markAsRead,
         setLanguage,
-        addActivity
+        addActivity,
+        resetDashboard,
       }}
     >
       {children}

@@ -22,7 +22,7 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { language, setLanguage, notifications, profile } = useDashboard();
+  const { language, setLanguage, notifications, profile, resetDashboard } = useDashboard();
   const { toast } = useToast();
   
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -73,9 +73,14 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     return "Dashboard";
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = '/';
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/mock-logout', { method: 'POST' });
+    } catch {
+      // proceed with local logout even if API fails
+    }
+    resetDashboard();
+    router.replace('/login');
   };
 
   return (

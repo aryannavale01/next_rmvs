@@ -201,11 +201,11 @@ function SidebarContent({ pathname, adminUser, onLogout, onNav }: { pathname: st
 function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { adminUser, logoutAdmin, mounted, notifications } = useAdmin();
+  const { adminUser, logoutAdmin, resetAdmin, mounted, notifications } = useAdmin();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const isLoginPage = pathname === '/admin/login';
+  const isLoginPage = pathname === '/login' || pathname === '/admin/login';
 
   useEffect(() => {
     if (!mounted) return;
@@ -346,8 +346,14 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       <ConfirmDialog
         open={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
-        onConfirm={() => {
+        onConfirm={async () => {
+          try {
+            await fetch('/api/mock-logout', { method: 'POST' });
+          } catch {
+            // proceed with local logout even if API fails
+          }
           logoutAdmin();
+          resetAdmin();
           router.replace('/admin/login');
         }}
         title="Sign Out"
