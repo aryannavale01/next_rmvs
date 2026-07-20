@@ -81,6 +81,13 @@ For each page:
 **Order (simplest/lowest-risk domains first):**
 
 1. **Auth** — Better Auth wired for both member and admin login, replacing any mock/hardcoded login logic entirely. Verify: signup, login, logout, session persistence, rate limiting. Re-verify unauthenticated access is blocked on ALL routes (per `AI_AGENT_RULES.md` Section 6).
+   - **IMPORTANT — `ensureProfile()` constraint:** When building the signup callback / `ensureProfile()` function, `Profile.create()` **must always pass `id: user.id` explicitly**. The schema has `@default(uuid())` removed from `Profile.id` — there is no fallback. Omitting `id` is a compile error. This is enforced because `profiles.id` has a FK constraint referencing `"User"(id) ON DELETE CASCADE` (added as raw SQL — not expressible in Prisma schema), so every Profile.id must exactly match a real User.id. Never default or auto-generate Profile.id.
+   - **IMPORTANT — Add FK after Better Auth init:** Better Auth creates the `"User"` table on its first API call (not via Prisma). The FK `profiles.id → "User"(id) ON DELETE CASCADE` is documented in the `init` migration SQL but commented out. After Better Auth is initialized and its tables exist, run:
+     ```
+     ALTER TABLE "profiles" ADD CONSTRAINT "profiles_user_id_fkey"
+       FOREIGN KEY ("id") REFERENCES "User"("id") ON DELETE CASCADE;
+     ```
+     This can be done via `prisma db execute` or a dedicated migration.
 2. **Profile** — real `profiles` data, document upload wired to the real server-side upload pipeline (Section 6 of `ARCHITECTURE.md`).
 3. **Course browsing (public + member)** — real `courses` data from Prisma, replacing `data.ts` course arrays.
 4. **Course application flow** — the full flow from `ARCHITECTURE.md` Section 7: profile completeness check → dynamic field config → coupon validation → application submission.

@@ -282,7 +282,7 @@ enum TeacherCourseStatus {
 
 /// User profile — linked to Better Auth User via id (FK enforced at DB level, not Prisma)
 model Profile {
-  id                String        @id @default(uuid())
+  id                String        @id
   fullName          String        @map("full_name")
   email             String
   phone             String?
