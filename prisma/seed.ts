@@ -31,12 +31,13 @@ async function ensureUser(
   const now = new Date();
 
   await prisma.$executeRawUnsafe(
-    'INSERT INTO "User" (id, email, "emailVerified", name, role, "lastLoginAt", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5::"Role", $6, $7, $8)',
+    'INSERT INTO "User" (id, email, "emailVerified", name, role, "mustChangePassword", "lastLoginAt", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5::"Role", $6, $7, $8, $9)',
     id,
     email,
     true,
     name,
     role === "admin" ? "ADMIN" : "MEMBER",
+    role === "admin",
     now,
     now,
     now,
@@ -75,12 +76,8 @@ async function ensureUser(
 async function main() {
   console.log("=== Seeding Users ===\n");
 
-  const superadminPassword = process.env.SUPERADMIN_PASSWORD;
-  if (!superadminPassword) {
-    throw new Error("SUPERADMIN_PASSWORD environment variable is required");
-  }
-  await ensureUser("admin@compassionglobal.org", "Super Admin", superadminPassword, "admin");
-  await ensureUser("test.member@example.com", "Test Member", "TestMember123!", "member");
+  await ensureUser("admin@compassionglobal.org", "Super Admin", "Admin@123", "admin");
+  await ensureUser("test.member@example.com", "Test Member", "Testuser@123", "member");
 
   console.log("\n=== Seed Complete ===");
 }

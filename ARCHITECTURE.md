@@ -78,11 +78,16 @@ CompassionGlobal is a full-stack ERP platform for Rupasri Mahila Vikas Sanstha, 
 /admin/website-content            → CMS for public site
 /admin/settings                    → App-wide configuration
 
+/force-password-change             → Forced password change (post-seed, pre-dashboard)
+
 /verify/[certificateNumber]  → Public certificate verification (no auth required)
 
 /api/auth/[...all]           → Better Auth handler
 /api/upload                  → Server-side file upload (Supabase Storage, service role)
 /api/user/me                 → Current session/role lookup
+/api/admin/force-password-change-complete → Clear mustChangePassword flag
+/api/admin/verify-stepup     → Step-up re-authentication (POST)
+/api/admin/verify-stepup/check → Check if step-up is needed (GET)
 ```
 
 **Route protection:** enforced in `proxy.ts` (Next.js 16 — replaces deprecated `middleware.ts`) using broad matcher patterns (`/admin/:path*`, `/dashboard/:path*`) so new sub-routes are automatically protected without manual matcher updates.
@@ -122,6 +127,34 @@ Two independent role fields exist — they are intentionally separate and serve 
 **There is no sync mechanism between them.** They are not required to match — a `User.role = ADMIN` with `profiles.role = member` is technically possible but should be avoided operationally. The auth layer (`requireAuth`/`requireAdmin`) checks `User.role`, not `profiles.role`.
 
 **Deletion strategy:** Physical `DELETE` on `profiles` cascades to `User` via FK. Soft-delete (setting `profiles.status = 'deleted'`) is the recommended approach — the application never hard-deletes.
+
+### 4.5 Forced password change (superadmin bootstrap)
+- The seed script creates the superadmin with `mustChangePassword: true` and a password from the `SUPERADMIN_PASSWORD` environment variable.
+- On every admin page load, `app/admin/layout.tsx` checks this flag server-side. If `true`, the user is redirected to `/force-password-change` — no admin page is accessible until the password is changed.
+- The password change uses Better Auth's built-in `changePassword` method (not a raw DB write), keeping hash consistency.
+- After successful change, `mustChangePassword` is set to `false` via a server API route, and normal access is restored.
+- This is a **bootstrap-only** mechanism — the `.env` password is temporary and must be changed on first login.
+
+### 4.6 TOTP two-factor authentication (admin accounts)
+- Enabled via Better Auth's `twoFactor` plugin (TOTP provider).
+- **Mandatory for all ADMIN accounts** — enforced in `app/admin/layout.tsx`. Admins without 2FA enabled are redirected to `/admin/setup-2fa`.
+- The setup flow: enter password → display QR code → scan with authenticator app → verify TOTP code → 2FA enabled.
+- Login flow with 2FA: email/password → Better Auth detects 2FA enabled → redirect to `/admin/verify-2fa` → enter TOTP code → full session granted.
+- Backup codes are provided during enrollment for recovery.
+- Client-side: `twoFactorClient` plugin handles redirect to verification page automatically.
+
+### 4.7 Step-up authentication (sensitive admin actions)
+- The `Session.stepUpVerifiedAt` field tracks when an admin last re-authenticated for sensitive operations.
+- Sensitive actions are defined in `lib/admin-security.ts` as an auditable constant list (role changes, deletions, settings changes, etc.).
+- `requireStepUp()` in `lib/session.ts` checks: session must exist, user must be ADMIN, and `stepUpVerifiedAt` must be within the 15-minute window.
+- Verification endpoint (`/api/admin/verify-stepup`) validates the admin's password and updates `stepUpVerifiedAt` on success.
+- Client-side check endpoint (`/api/admin/verify-stepup/check`) allows UI components to determine if re-authentication is needed before executing an action.
+
+### 4.8 Audit logging
+- `AuthActivityLog` table tracks admin authentication events: login success/failure, password changes, step-up verifications, TOTP enable/disable.
+- Each entry includes: user ID, action type, optional metadata (JSON), IP address, and timestamp.
+- Logging utility: `lib/audit-log.ts` — `logAuthEvent()` writes to the table with error resilience (failed logs don't block the action).
+- The existing `activity_log` table and client-side mock activity logs are separate and unaffected.
 
 ---
 

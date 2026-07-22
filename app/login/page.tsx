@@ -6,10 +6,11 @@ import Link from "next/link";
 import { Eye, EyeOff, ShieldAlert, LogIn } from "lucide-react";
 import { motion } from "motion/react";
 import { authClient } from "@/lib/auth-client";
+import { isSafeRedirect } from "@/lib/redirect";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") || "/dashboard";
+  const redirectTo = isSafeRedirect(searchParams.get("redirectTo") || "", "/dashboard");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +36,7 @@ function LoginForm() {
       });
 
       if (authError) {
-        setError(authError.message || "Invalid email or password.");
+        setError("Invalid email or password.");
         return;
       }
 
@@ -154,6 +155,14 @@ function LoginForm() {
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
+              </div>
+              <div className="mt-1.5 text-right">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-primary hover:text-primary-hover font-semibold transition-colors"
+                >
+                  Forgot password?
+                </Link>
               </div>
             </div>
 

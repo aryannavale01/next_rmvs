@@ -34,13 +34,19 @@ model user {
   emailVerified Boolean @default(false) @map("emailVerified")
   name         String?
   image        String?
-  role         BA_Role  @default(MEMBER)
-  lastLoginAt  DateTime? @map("lastLoginAt")
-  createdAt    DateTime @default(now()) @map("createdAt")
-  updatedAt    DateTime @updatedAt @map("updatedAt")
+  role                BA_Role   @default(MEMBER)
+  mustChangePassword  Boolean   @default(false) @map("mustChangePassword")
+  twoFactorEnabled    Boolean   @default(false) @map("twoFactorEnabled")
+  lastLoginAt         DateTime? @map("lastLoginAt")
+  createdAt           DateTime  @default(now()) @map("createdAt")
+  updatedAt           DateTime  @updatedAt @map("updatedAt")
 
-  sessions session[]
-  accounts account[]
+  sessions            session[]
+  accounts            account[]
+  profiles            Profile[]
+  loginAttempts       loginAttempt[]
+  authActivityLogs    AuthActivityLog[]
+  twoFactorRecords    twoFactor[]
 
   @@map("User")
 }
@@ -48,7 +54,7 @@ model user {
 /// Better Auth — Active sessions
 model session {
   id              String    @id
-  token           String
+  token           String    @unique
   userId          String    @map("userId")
   expiresAt       DateTime  @map("expiresAt")
   ipAddress       String?   @map("ipAddress")
@@ -93,6 +99,38 @@ model verification {
   updatedAt   DateTime  @updatedAt @map("updatedAt")
 
   @@map("Verification")
+}
+
+/// Better Auth — Two-factor authentication (TOTP)
+model twoFactor {
+  id                     String    @id @default(uuid())
+  secret                 String
+  backupCodes            String
+  userId                 String    @map("userId")
+  verified               Boolean   @default(true)
+  failedVerificationCount Int      @default(0) @map("failedVerificationCount")
+  lockedUntil            DateTime? @map("lockedUntil")
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_two_factor_user")
+  @@map("twoFactor")
+}
+
+/// Better Auth — Login attempt tracking (used by rate limiter when storage: "database")
+model loginAttempt {
+  id          String    @id
+  email       String?
+  ip          String
+  successful  Boolean   @default(false)
+  userId      String?   @map("userId")
+  createdAt   DateTime  @default(now()) @map("createdAt")
+
+  user user? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt], map: "idx_login_attempt_email_time")
+  @@index([ip, createdAt], map: "idx_login_attempt_ip_time")
+  @@map("LoginAttempt")
 }
 
 // =============================================================
@@ -359,7 +397,7 @@ enum TeacherCourseStatus {
 // GROUP 1: USER / BENEFICIARY (4 models)
 // -------------------------------------------------------------
 
-/// User profile — linked to Better Auth User via id (FK enforced at DB level, not Prisma)
+/// User profile — linked to Better Auth User via id (FK: profiles.id → User.id, onDelete: Cascade)
 model Profile {
   id                String        @id
   fullName          String        @map("full_name")
@@ -391,6 +429,7 @@ model Profile {
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
   // Relations
+  user                 user?          @relation(fields: [id], references: [id], onDelete: Cascade)
   beneficiaryDetail    BeneficiaryDetail?
   beneficiaryAddresses BeneficiaryAddress[]
   beneficiaryDocuments BeneficiaryDocument[]
@@ -1046,8 +1085,24 @@ model Activity {
 }
 
 // -------------------------------------------------------------
-// GROUP 6: ADMIN / SYSTEM (2 models)
+// GROUP 6: ADMIN / SYSTEM (3 models)
 // -------------------------------------------------------------
+
+/// Auth audit log — tracks login, password change, step-up, and TOTP events
+model AuthActivityLog {
+  id        String    @id @default(uuid())
+  userId    String?   @map("userId")
+  action    String
+  metadata  String?
+  ip        String?
+  createdAt DateTime  @default(now()) @map("createdAt")
+
+  user user? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt], map: "idx_auth_activity_log_user_time")
+  @@index([action, createdAt], map: "idx_auth_activity_log_action_time")
+  @@map("AuthActivityLog")
+}
 
 model ActivityLog {
   id          String   @id @default(uuid())

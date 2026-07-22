@@ -27,6 +27,7 @@ import {
   DEFAULT_ADMIN_SETTINGS,
   MOCK_COUPONS,
 } from './mock-admin-data';
+import { requireStepUpClient } from './admin-stepup';
 
 const STORAGE_KEY = 'adminState';
 
@@ -150,6 +151,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => { /* session cookie absent or invalid — middleware will redirect if needed */ });
+
+    // Fetch real activity logs from database
+    fetch('/api/admin/activity-logs')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.logs && Array.isArray(data.logs) && data.logs.length > 0) {
+          setActivityLogs(data.logs);
+        }
+      })
+      .catch(() => { /* fallback to mock/localStorage data */ });
   }, []);
 
   // Persist to localStorage on state changes (read-only, no setState calls)
@@ -206,7 +217,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     logActivity('Beneficiary Updated', `Updated details for member ${id}.`, 'Users');
   }, [logActivity]);
 
-  const deleteMember = useCallback((id: string) => {
+  const deleteMember = useCallback(async (id: string) => {
+    if (!(await requireStepUpClient('/admin/members', 'delete_user'))) return;
     setMembers(prev => prev.filter(m => m.id !== id));
     logActivity('Beneficiary Deleted', `Removed beneficiary ${id} from record systems.`, 'Users');
   }, [logActivity]);
@@ -240,7 +252,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     logActivity('Course Updated', `Updated details/settings for "${id}".`, 'BookOpen');
   }, [logActivity]);
 
-  const deleteCourse = useCallback((id: string) => {
+  const deleteCourse = useCallback(async (id: string) => {
+    if (!(await requireStepUpClient('/admin/training', 'delete_course'))) return;
     setCourses(prev => prev.filter(c => c.id !== id));
     logActivity('Course Removed', `Archived and deleted course program "${id}".`, 'BookOpen');
   }, [logActivity]);
@@ -257,7 +270,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setEnrollments(prev => prev.map(e => e.id === id ? { ...e, ...updated } as Enrollment : e));
   }, []);
 
-  const approveEnrollment = useCallback((id: string) => {
+  const approveEnrollment = useCallback(async (id: string) => {
+    if (!(await requireStepUpClient('/admin/enrollments', 'approve_enrollment'))) return;
     setEnrollments(prev => prev.map(e => {
       if (e.id === id) {
         logActivity('Enrollment Approved', `Approved admission application ${id}.`, 'CheckCircle');
@@ -267,7 +281,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }));
   }, [logActivity]);
 
-  const rejectEnrollment = useCallback((id: string, reason: string) => {
+  const rejectEnrollment = useCallback(async (id: string, reason: string) => {
+    if (!(await requireStepUpClient('/admin/enrollments', 'reject_enrollment'))) return;
     setEnrollments(prev => prev.map(e => {
       if (e.id === id) {
         logActivity('Application Rejected', `Rejected enrollment application ${id}. Reason: ${reason}`, 'Bell');
@@ -327,13 +342,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     logActivity('Certificate Approved', `Approved and released certificate ${id}.`, 'Award');
   }, [logActivity]);
 
-  const rejectCertificate = useCallback((id: string) => {
+  const rejectCertificate = useCallback(async (id: string) => {
+    if (!(await requireStepUpClient('/admin/certificates', 'delete_certificate'))) return;
     setCertificates(prev => prev.filter(c => c.id !== id));
     logActivity('Certificate Voided', `Voided certificate ID: ${id}.`, 'Bell');
   }, [logActivity]);
 
   // Notifications
-  const addNotification = useCallback((n: Omit<AdminNotification, 'id' | 'created_at'>) => {
+  const addNotification = useCallback(async (n: Omit<AdminNotification, 'id' | 'created_at'>) => {
+    if (!(await requireStepUpClient('/admin/notifications', 'send_notification_broadcast'))) return;
     const newNotif: AdminNotification = {
       ...n,
       id: `notif-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
@@ -344,29 +361,34 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [logActivity]);
 
   // Coupons
-  const addCoupon = useCallback((coupon: Coupon) => {
+  const addCoupon = useCallback(async (coupon: Coupon) => {
+    if (!(await requireStepUpClient('/admin/coupons', 'manage_coupons'))) return;
     setCoupons(prev => [coupon, ...prev]);
     logActivity('Promo Coupon Added', `Added new promo rate structure: ${coupon.code}.`, 'Award');
   }, [logActivity]);
 
-  const updateCoupon = useCallback((code: string, updated: Partial<Coupon>) => {
+  const updateCoupon = useCallback(async (code: string, updated: Partial<Coupon>) => {
+    if (!(await requireStepUpClient('/admin/coupons', 'manage_coupons'))) return;
     setCoupons(prev => prev.map(c => c.code === code ? { ...c, ...updated } as Coupon : c));
     logActivity('Promo Coupon Updated', `Updated coupon values/limits for code ${code}.`, 'Award');
   }, [logActivity]);
 
-  const deleteCoupon = useCallback((code: string) => {
+  const deleteCoupon = useCallback(async (code: string) => {
+    if (!(await requireStepUpClient('/admin/coupons', 'manage_coupons'))) return;
     setCoupons(prev => prev.filter(c => c.code !== code));
     logActivity('Promo Coupon Deleted', `Archived promo code ${code} from active operations.`, 'Bell');
   }, [logActivity]);
 
   // Website Content
-  const updateWebsiteContent = useCallback((tab: keyof WebsiteContent, updatedItems: WebsiteContent[keyof WebsiteContent]) => {
+  const updateWebsiteContent = useCallback(async (tab: keyof WebsiteContent, updatedItems: WebsiteContent[keyof WebsiteContent]) => {
+    if (!(await requireStepUpClient('/admin/website-content', 'manage_website_content'))) return;
     setWebsiteContent(prev => ({ ...prev, [tab]: updatedItems }));
     logActivity('Website Content Modified', `Edited and saved updates on public CMS portal: ${tab}.`, 'BookOpen');
   }, [logActivity]);
 
   // Settings
-  const updateSettings = useCallback((domain: keyof AdminSettings, subSettings: any) => {
+  const updateSettings = useCallback(async (domain: keyof AdminSettings, subSettings: any) => {
+    if (!(await requireStepUpClient('/admin/settings', 'modify_system_settings'))) return;
     setSettings(prev => ({
       ...prev,
       [domain]: { ...prev[domain], ...subSettings },

@@ -1,26 +1,17 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { requireAuth } from "@/lib/session";
 
 export async function GET() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
+  const auth = await requireAuth();
+  if (!auth.success) {
     return NextResponse.json({ user: null, session: null }, { status: 401 });
   }
 
   return NextResponse.json({
-    user: {
-      id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      role: (session.user as Record<string, unknown>).role ?? "MEMBER",
-    },
+    user: auth.session.user,
     session: {
-      id: session.session.id,
-      expiresAt: session.session.expiresAt,
+      id: auth.session.session.id,
+      expiresAt: auth.session.session.expiresAt,
     },
   });
 }

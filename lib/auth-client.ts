@@ -1,4 +1,5 @@
 import { createAuthClient } from "better-auth/client";
+import { twoFactorClient } from "better-auth/client/plugins";
 
 const getBaseURL = () => {
   if (typeof window !== "undefined") {
@@ -9,4 +10,9 @@ const getBaseURL = () => {
 
 export const authClient = createAuthClient({
   baseURL: getBaseURL(),
+  plugins: [
+    twoFactorClient({
+      twoFactorPage: "/admin/verify-2fa",
+    }),
+  ],
 });

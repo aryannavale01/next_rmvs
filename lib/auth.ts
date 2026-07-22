@@ -1,21 +1,53 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { PrismaClient } from "@prisma/client";
+import { twoFactor } from "better-auth/plugins";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { validatePassword } from "./password-validation";
 
-const runtimeUrl = process.env.DIRECT_URL;
-if (!runtimeUrl) throw new Error("DIRECT_URL is required for Better Auth client");
+// --- Startup validation: fail loudly if required env vars are missing/weak ---
+function requireEnv(name: string): string {
+  const val = process.env[name];
+  if (!val) {
+    throw new Error(`[Auth] Required environment variable ${name} is not set. Cannot start.`);
+  }
+  return val;
+}
 
-const prisma = new PrismaClient({
-  datasources: { db: { url: runtimeUrl } },
-});
+const isProd = process.env.NODE_ENV === "production";
 
-prisma.$connect().catch(() => {});
+const directUrl = requireEnv("DIRECT_URL");
+const databaseUrl = requireEnv("DATABASE_URL");
+const authSecret = requireEnv("BETTER_AUTH_SECRET");
+
+if (authSecret.length < 32) {
+  throw new Error(
+    `[Auth] BETTER_AUTH_SECRET must be at least 32 characters (got ${authSecret.length}). ` +
+    `Generate one with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+  );
+}
 
 const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:3462";
 
+if (isProd && baseURL.includes("localhost")) {
+  throw new Error("[Auth] BETTER_AUTH_URL must not contain localhost in production.");
+}
+
 const trustedOrigins = process.env.TRUSTED_ORIGINS
-  ? process.env.TRUSTED_ORIGINS.split(",").map((o) => o.trim())
-  : ["http://localhost:3462", "http://localhost:3000", "http://localhost:3006"];
+  ? process.env.TRUSTED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : isProd
+    ? []
+    : ["http://localhost:3462", "http://localhost:3000", "http://localhost:3006"];
+
+if (isProd && trustedOrigins.length === 0) {
+  throw new Error("[Auth] TRUSTED_ORIGINS must be set in production (comma-separated list of allowed origins).");
+}
+
+// Use DIRECT_URL (session-mode pooler, port 5432) for Better Auth's adapter.
+// This ensures reliable connections — Supavisor session-mode avoids tenant-routing issues.
+// For migrations: use `prisma migrate` which reads DIRECT_URL from schema.prisma automatically.
+const prisma = new PrismaClient({
+  datasources: { db: { url: directUrl } },
+});
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -27,6 +59,27 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false,
     password: {},
+    sendResetPassword: async ({ user, url }) => {
+      if (process.env.NODE_ENV !== "production") {
+        const token = url.split("token=")[1]?.split("&")[0] || "unknown";
+        console.log(`[Password Reset] ${user.email} — token: ${token.substring(0, 8)}...`);
+        return;
+      }
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: "noreply@compassionglobal.org",
+          to: user.email,
+          subject: "Reset Your Password — CompassionGlobal",
+          html: `<p>Click the link below to reset your password. This link expires in 1 hour.</p>
+                 <p><a href="${url}">Reset Password</a></p>
+                 <p>If you didn't request this, ignore this email.</p>`,
+        });
+      } catch (e) {
+        console.error("[sendResetPassword] Failed to send email:", e);
+      }
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 30,
@@ -53,8 +106,87 @@ export const auth = betterAuth({
       },
     },
   },
+  plugins: [
+    twoFactor({
+      issuer: "CompassionGlobal",
+    }),
+  ],
   rateLimit: {
     window: 60,
     max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || "100", 10),
+    storage: process.env.NODE_ENV === "production" ? "database" : "memory",
+    customRules: {
+      "/sign-in/email": {
+        window: 900,
+        max: 5,
+      },
+      "/sign-up/email": {
+        window: 900,
+        max: 3,
+      },
+      "/request-password-reset": {
+        window: 900,
+        max: 3,
+      },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          const password = (user as Record<string, unknown>).password as string | undefined;
+          if (password) {
+            const result = validatePassword(password);
+            if (!result.valid) {
+              throw new Error(result.errors.join("; "));
+            }
+          }
+          return { data: user };
+        },
+        after: async (user) => {
+          try {
+            const existing = await prisma.profile.findUnique({ where: { id: user.id } });
+            if (existing) return;
+            await prisma.profile.create({
+              data: {
+                id: user.id,
+                fullName: (user as Record<string, unknown>).name as string || user.email.split("@")[0],
+                email: user.email,
+                role: "member" as const,
+              },
+            });
+          } catch (e) {
+            console.error("[ensureProfile] Failed to create profile for user:", user.id, e);
+          }
+        },
+      },
+    },
+    session: {
+      create: {
+        after: async (session, ctx) => {
+          try {
+            const userId = session.userId as string;
+            // Look up user role to log admin logins
+            const user = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { role: true },
+            });
+            if (user?.role === "ADMIN") {
+              await prisma.authActivityLog.create({
+                data: {
+                  userId,
+                  action: "admin_login_success",
+                  ip: ctx?.request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim()
+                    || ctx?.request?.headers?.get("x-real-ip")
+                    || null,
+                },
+              });
+            }
+          } catch {
+            // Audit logging failure should never break auth flow
+          }
+        },
+      },
+    },
   },
 });

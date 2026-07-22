@@ -5,10 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff, ShieldAlert, LogIn } from "lucide-react";
 import { motion } from "motion/react";
 import { authClient } from "@/lib/auth-client";
+import { isSafeRedirect } from "@/lib/redirect";
 
 function AdminLoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") || "/admin";
+  const redirectTo = isSafeRedirect(searchParams.get("redirectTo") || "", "/admin");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +35,7 @@ function AdminLoginForm() {
       });
 
       if (authError) {
-        setError(authError.message || "Invalid email or password.");
+        setError("Invalid email or password.");
         return;
       }
 
