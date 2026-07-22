@@ -1,0 +1,225 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - link "Skip to main content" [ref=f2e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=f2e4]:
+      - generic [ref=f2e5]:
+        - generic [ref=f2e6]: CG
+        - generic [ref=f2e7]:
+          - heading "CompassionGlobal" [level=1] [ref=f2e8]
+          - text: ADMIN ERP
+      - navigation [ref=f2e9]:
+        - link "Dashboard" [ref=f2e10] [cursor=pointer]:
+          - /url: /admin
+        - link "Members" [ref=f2e17] [cursor=pointer]:
+          - /url: /admin/members
+        - link "Teachers" [ref=f2e24] [cursor=pointer]:
+          - /url: /admin/teachers
+        - link "Training" [ref=f2e29] [cursor=pointer]:
+          - /url: /admin/training
+        - link "Enrollments" [ref=f2e34] [cursor=pointer]:
+          - /url: /admin/enrollments
+        - link "Certificates" [ref=f2e39] [cursor=pointer]:
+          - /url: /admin/certificates
+        - link "Notifications" [ref=f2e44] [cursor=pointer]:
+          - /url: /admin/notifications
+        - link "Activity Logs" [ref=f2e49] [cursor=pointer]:
+          - /url: /admin/activity-logs
+        - link "Coupons" [ref=f2e54] [cursor=pointer]:
+          - /url: /admin/coupons
+        - link "Website Content" [ref=f2e59] [cursor=pointer]:
+          - /url: /admin/website-content
+        - link "Settings" [ref=f2e64] [cursor=pointer]:
+          - /url: /admin/settings
+      - generic [ref=f2e69]:
+        - generic [ref=f2e70]:
+          - generic [ref=f2e71]: S
+          - generic [ref=f2e72]:
+            - paragraph [ref=f2e73]: Super Admin
+            - generic [ref=f2e74]: Supervisor
+        - button "Sign out" [ref=f2e75]
+    - generic [ref=f2e79]:
+      - banner [ref=f2e80]:
+        - heading "Overview Metrics" [level=1] [ref=f2e82]
+        - generic [ref=f2e83]:
+          - button "Search ⌘K" [ref=f2e84] [cursor=pointer]:
+            - generic [ref=f2e88]: Search
+            - generic [ref=f2e89]: ⌘K
+          - button "Notifications" [ref=f2e90]
+          - generic [ref=f2e95]:
+            - generic [ref=f2e96]: S
+            - generic [ref=f2e97]:
+              - paragraph [ref=f2e98]: Super Admin
+              - generic [ref=f2e99]: NGO ERP Coor
+      - main [ref=f2e100]:
+        - generic [ref=f2e101]:
+          - generic [ref=f2e102]:
+            - generic [ref=f2e103] [cursor=pointer]:
+              - generic [ref=f2e104]: Total Members
+              - paragraph [ref=f2e112]: "8"
+            - generic [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: Active Courses
+              - paragraph [ref=f2e119]: "3"
+            - generic [ref=f2e120] [cursor=pointer]:
+              - generic [ref=f2e121]: Certificates
+              - paragraph [ref=f2e127]: "2"
+            - generic [ref=f2e128] [cursor=pointer]:
+              - generic [ref=f2e129]: Pending Apps
+              - paragraph [ref=f2e134]: "2"
+            - generic [ref=f2e135] [cursor=pointer]:
+              - generic [ref=f2e136]: NGO Teachers
+              - paragraph [ref=f2e143]: "4"
+            - generic [ref=f2e144] [cursor=pointer]:
+              - generic [ref=f2e145]: Enrollments
+              - paragraph [ref=f2e151]: "6"
+            - generic [ref=f2e152] [cursor=pointer]:
+              - generic [ref=f2e153]: Coupons
+              - paragraph [ref=f2e160]: "4"
+            - generic [ref=f2e161] [cursor=pointer]:
+              - generic [ref=f2e162]: Alerts Sent
+              - paragraph [ref=f2e168]: "3"
+          - generic [ref=f2e169]:
+            - heading "NGO Quick Actions" [level=3] [ref=f2e170]
+            - generic [ref=f2e171]:
+              - button "Add Member" [ref=f2e172]
+              - button "New Course" [ref=f2e176]
+              - button "Issue Certificate" [ref=f2e180]
+              - button "View Enrollments" [ref=f2e185]
+              - button "Website Content" [ref=f2e190]
+          - generic [ref=f2e195]:
+            - generic [ref=f2e196]:
+              - generic [ref=f2e197]:
+                - heading "Course Applications" [level=4] [ref=f2e198]
+                - generic [ref=f2e199]: Monthly
+              - img [ref=f2e201]:
+                - generic [ref=f2e202]: Jan
+                - generic [ref=f2e205]: Feb
+                - generic [ref=f2e208]: Mar
+                - generic [ref=f2e211]: Apr
+                - generic [ref=f2e214]: May
+                - generic [ref=f2e217]: Jun
+                - generic [ref=f2e220]: Jul
+            - generic [ref=f2e223]:
+              - generic [ref=f2e224]:
+                - heading "Certificates Issued" [level=4] [ref=f2e225]
+                - generic [ref=f2e226]: Trend
+              - img [ref=f2e228]:
+                - generic [ref=f2e230]: Jan
+                - generic [ref=f2e233]: Feb
+                - generic [ref=f2e236]: Mar
+                - generic [ref=f2e239]: Apr
+                - generic [ref=f2e242]: May
+                - generic [ref=f2e245]: Jun
+                - generic [ref=f2e248]: Jul
+            - generic [ref=f2e251]:
+              - generic [ref=f2e252]:
+                - heading "Member Growth" [level=4] [ref=f2e253]
+                - generic [ref=f2e254]: Cumulative
+              - img [ref=f2e256]:
+                - generic [ref=f2e259]: Jan
+                - generic [ref=f2e262]: Feb
+                - generic [ref=f2e265]: Mar
+                - generic [ref=f2e268]: Apr
+                - generic [ref=f2e271]: May
+                - generic [ref=f2e274]: Jun
+                - generic [ref=f2e277]: Jul
+          - generic [ref=f2e280]:
+            - generic [ref=f2e281]:
+              - generic [ref=f2e282]:
+                - generic [ref=f2e283]:
+                  - generic [ref=f2e284]:
+                    - heading "Recent Applications" [level=4] [ref=f2e285]
+                    - button "View All" [ref=f2e286]
+                  - generic [ref=f2e289]:
+                    - generic [ref=f2e290]:
+                      - generic [ref=f2e291]:
+                        - paragraph [ref=f2e292]: Rohit Deshmukh
+                        - paragraph [ref=f2e293]: Organic Agricultural Practice & Farming
+                      - generic [ref=f2e294]: Completed
+                    - generic [ref=f2e295]:
+                      - generic [ref=f2e296]:
+                        - paragraph [ref=f2e297]: Priya Patil
+                        - paragraph [ref=f2e298]: UI/UX Web Design & Frontend Development Fundamentals
+                      - generic [ref=f2e299]: Enrolled
+                    - generic [ref=f2e300]:
+                      - generic [ref=f2e301]:
+                        - paragraph [ref=f2e302]: Sunita Kamble
+                        - paragraph [ref=f2e303]: Organic Agricultural Practice & Farming
+                      - generic [ref=f2e304]: Pending
+                - generic [ref=f2e305]:
+                  - generic [ref=f2e306]:
+                    - heading "Recent Members" [level=4] [ref=f2e307]
+                    - button "View All" [ref=f2e308]
+                  - generic [ref=f2e311]:
+                    - generic [ref=f2e312]:
+                      - generic [ref=f2e313]:
+                        - paragraph [ref=f2e314]: Rohit Deshmukh
+                        - paragraph [ref=f2e315]: Wai, Satara
+                      - generic [ref=f2e316]: 2026-01-10
+                    - generic [ref=f2e317]:
+                      - generic [ref=f2e318]:
+                        - paragraph [ref=f2e319]: Priya Patil
+                        - paragraph [ref=f2e320]: Karad, Satara
+                      - generic [ref=f2e321]: 2026-02-15
+                    - generic [ref=f2e322]:
+                      - generic [ref=f2e323]:
+                        - paragraph [ref=f2e324]: Sunita Kamble
+                        - paragraph [ref=f2e325]: Koregaon, Satara
+                      - generic [ref=f2e326]: 2026-03-20
+              - generic [ref=f2e327]:
+                - generic [ref=f2e328]:
+                  - generic [ref=f2e329]:
+                    - heading "Recent Certificates" [level=4] [ref=f2e330]
+                    - button "View All" [ref=f2e331]
+                  - generic [ref=f2e334]:
+                    - generic [ref=f2e335]:
+                      - generic [ref=f2e336]:
+                        - paragraph [ref=f2e337]: Rohit Deshmukh
+                        - paragraph [ref=f2e338]: MH-SKILL-2026-11942
+                      - generic [ref=f2e339]: Approved
+                    - generic [ref=f2e340]:
+                      - generic [ref=f2e341]:
+                        - paragraph [ref=f2e342]: Rahul More
+                        - paragraph [ref=f2e343]: MH-SKILL-2026-78322
+                      - generic [ref=f2e344]: Approved
+                - generic [ref=f2e345]:
+                  - generic [ref=f2e346]:
+                    - heading "Recent Notifications" [level=4] [ref=f2e347]
+                    - button "View All" [ref=f2e348]
+                  - generic [ref=f2e351]:
+                    - generic [ref=f2e352]:
+                      - paragraph [ref=f2e353]: Monsoon Agro Training Commences
+                      - paragraph [ref=f2e354]: Classes for Organic Farming begin on August 1st at Satara Center.
+                    - generic [ref=f2e355]:
+                      - paragraph [ref=f2e356]: UI/UX Access Codes Issued
+                      - paragraph [ref=f2e357]: Please check your registered WhatsApp or SMS for custom enrollment passcode key.
+                    - generic [ref=f2e358]:
+                      - paragraph [ref=f2e359]: Urgent Aadhaar Verification Alert
+                      - paragraph [ref=f2e360]: Several records have mismatched civil data. Please re-upload your primary id scan copy.
+            - generic [ref=f2e361]:
+              - generic [ref=f2e362]:
+                - heading "System Activity Log" [level=4] [ref=f2e363]
+                - button "View All" [ref=f2e367]
+              - generic [ref=f2e368]:
+                - generic [ref=f2e371]:
+                  - text: 10 minutes ago
+                  - paragraph [ref=f2e372]: Beneficiary Registered
+                  - paragraph [ref=f2e373]: Admin registered Meera Gavit from Dhadgaon village to NGO Database.
+                - generic [ref=f2e376]:
+                  - text: 2 hours ago
+                  - paragraph [ref=f2e377]: Course Updated
+                  - paragraph [ref=f2e378]: Instructor Savita Phadke updated syllabus for UI/UX Web Design.
+                - generic [ref=f2e381]:
+                  - text: 1 day ago
+                  - paragraph [ref=f2e382]: Coupon Activated
+                  - paragraph [ref=f2e383]: "System created and activated sponsor coupon code: 'AGRIFREE'."
+                - generic [ref=f2e386]:
+                  - text: 2 days ago
+                  - paragraph [ref=f2e387]: Member Enrollment Modified
+                  - paragraph [ref=f2e388]: Admin shifted Sanjay Shinde state program state to 'Inactive'.
+                - generic [ref=f2e391]:
+                  - text: 3 days ago
+                  - paragraph [ref=f2e392]: Security Rules Hardened
+                  - paragraph [ref=f2e393]: Enforced mandatory alphanumeric password requirements for teacher accounts.
+  - button "Open Next.js Dev Tools" [ref=f2e399] [cursor=pointer]
+  - alert [ref=f2e403]

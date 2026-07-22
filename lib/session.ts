@@ -1,34 +1,42 @@
 import { auth } from "./auth";
 
-type SessionUser = {
+export type SessionUser = {
   id: string;
   email: string;
   name: string;
   role?: string;
 };
 
-type Session = {
+export type Session = {
   user: SessionUser;
   session: { id: string; expiresAt: Date };
 };
 
-type AuthResult =
+export type AuthResult =
   | { success: true; session: Session }
   | { success: false; error: string };
 
 /**
  * Verify the request has a valid authenticated session.
- * Returns the session or an error response.
  *
  * Usage in Server Actions:
  *   const auth = await requireAuth();
  *   if (!auth.success) return auth.error;
  *   const { user } = auth.session;
+ *
+ * Usage in API Routes:
+ *   import { headers } from "next/headers";
+ *   const auth = await requireAuth(await headers());
  */
-export async function requireAuth(): Promise<AuthResult> {
+export async function requireAuth(headers?: Headers): Promise<AuthResult> {
   try {
+    if (!headers) {
+      const { headers: nextHeaders } = await import("next/headers");
+      headers = await nextHeaders();
+    }
+
     const session = await auth.api.getSession({
-      headers: new Headers(),
+      headers,
     });
 
     if (!session) {
@@ -57,15 +65,18 @@ export async function requireAuth(): Promise<AuthResult> {
 
 /**
  * Verify the request has a valid session with ADMIN role.
- * Returns the session or an error response.
  *
  * Usage in Server Actions:
  *   const auth = await requireAdmin();
  *   if (!auth.success) return auth.error;
  *   const { user } = auth.session;
+ *
+ * Usage in API Routes:
+ *   import { headers } from "next/headers";
+ *   const auth = await requireAdmin(await headers());
  */
-export async function requireAdmin(): Promise<AuthResult> {
-  const result = await requireAuth();
+export async function requireAdmin(headers?: Headers): Promise<AuthResult> {
+  const result = await requireAuth(headers);
 
   if (!result.success) {
     return result;

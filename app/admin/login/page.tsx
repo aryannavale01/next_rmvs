@@ -1,53 +1,52 @@
-'use client';
+"use client";
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Eye, EyeOff, ShieldAlert, LogIn } from 'lucide-react';
-import { motion } from 'motion/react';
-import { useAdmin } from '@/lib/admin-context';
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Eye, EyeOff, ShieldAlert, LogIn } from "lucide-react";
+import { motion } from "motion/react";
+import { authClient } from "@/lib/auth-client";
 
 function AdminLoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirectTo') || '/admin/dashboard';
-  const { loginAdmin } = useAdmin();
+  const redirectTo = searchParams.get("redirectTo") || "/admin";
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
-    if (!username || !password) {
-      setError('Please fill in all fields.');
+    if (!email || !password) {
+      setError("Please fill in all fields.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const res = await fetch('/api/mock-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+      const { data, error: authError } = await authClient.signIn.email({
+        email,
+        password,
       });
 
-      const data = await res.json();
-
-      if (res.ok && data.role === 'admin') {
-        loginAdmin(username, password);
-        router.replace(redirectTo);
-      } else if (res.ok && data.role === 'member') {
-        setError('This portal is for administrators only. Members use the member login.');
-      } else {
-        setError(data.message || 'Invalid username or password.');
+      if (authError) {
+        setError(authError.message || "Invalid email or password.");
+        return;
       }
+
+      const userRole = (data?.user as Record<string, unknown>)?.role;
+      if (userRole !== "ADMIN") {
+        setError("This portal is for administrators only. Members use the member login.");
+        return;
+      }
+
+      window.location.href = redirectTo;
     } catch {
-      setError('Network error. Please try again.');
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -55,12 +54,12 @@ function AdminLoginForm() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && document.activeElement instanceof HTMLElement) {
+      if (e.key === "Escape" && document.activeElement instanceof HTMLElement) {
         (document.activeElement as HTMLElement).blur();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (
@@ -71,7 +70,7 @@ function AdminLoginForm() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
         className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md"
       >
         <div className="flex justify-center items-center gap-2.5">
@@ -93,7 +92,7 @@ function AdminLoginForm() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut', delay: 0.1 }}
+        transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
       >
         <div className="bg-[#12121a] py-8 px-6 shadow-2xl border border-white/5 rounded-2xl">
@@ -101,7 +100,7 @@ function AdminLoginForm() {
             {error && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
+                animate={{ opacity: 1, height: "auto" }}
                 className="p-3 bg-red-950/50 border border-red-800/30 text-red-400 rounded-lg text-xs flex items-center gap-2"
                 role="alert"
               >
@@ -112,19 +111,19 @@ function AdminLoginForm() {
 
             <div>
               <label
-                htmlFor="admin-username"
+                htmlFor="admin-email"
                 className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5"
               >
-                Username
+                Email
               </label>
               <input
-                id="admin-username"
-                type="text"
+                id="admin-email"
+                type="email"
                 required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
-                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter admin email"
+                autoComplete="email"
                 className="block w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
@@ -139,7 +138,7 @@ function AdminLoginForm() {
               <div className="relative">
                 <input
                   id="admin-password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -151,7 +150,7 @@ function AdminLoginForm() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-300 transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -178,12 +177,6 @@ function AdminLoginForm() {
               </button>
             </div>
           </form>
-
-          <div className="mt-4 text-center">
-            <p className="text-[10px] text-gray-600">
-              Demo credentials: <span className="font-mono font-semibold text-gray-400">admin</span> / <span className="font-mono font-semibold text-gray-400">admin123</span>
-            </p>
-          </div>
         </div>
       </motion.div>
     </div>

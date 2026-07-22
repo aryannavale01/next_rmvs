@@ -1,24 +1,25 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import {
-  Eye, EyeOff, CheckCircle, UserPlus,
-} from 'lucide-react';
-import { motion } from 'motion/react';
+import { useState } from "react";
+import Link from "next/link";
+import { Eye, EyeOff, CheckCircle, UserPlus } from "lucide-react";
+import { motion } from "motion/react";
+import { authClient } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [form, setForm] = useState({
-    fullName: '',
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [apiError, setApiError] = useState("");
 
   const updateField = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -29,31 +30,30 @@ export default function RegisterPage() {
         return next;
       });
     }
+    if (apiError) setApiError("");
   };
 
   const validate = (): boolean => {
     const next: Record<string, string> = {};
 
-    if (!form.fullName.trim()) next.fullName = 'Full name is required.';
-    if (!form.username.trim()) next.username = 'Username is required.';
-    if (form.username.trim().length < 3) next.username = 'Username must be at least 3 characters.';
+    if (!form.fullName.trim()) next.fullName = "Full name is required.";
 
     if (!form.email.trim()) {
-      next.email = 'Email is required.';
+      next.email = "Email is required.";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      next.email = 'Please enter a valid email address.';
+      next.email = "Please enter a valid email address.";
     }
 
     if (!form.password) {
-      next.password = 'Password is required.';
+      next.password = "Password is required.";
     } else if (form.password.length < 6) {
-      next.password = 'Password must be at least 6 characters.';
+      next.password = "Password must be at least 6 characters.";
     }
 
     if (!form.confirmPassword) {
-      next.confirmPassword = 'Please confirm your password.';
+      next.confirmPassword = "Please confirm your password.";
     } else if (form.password !== form.confirmPassword) {
-      next.confirmPassword = 'Passwords do not match.';
+      next.confirmPassword = "Passwords do not match.";
     }
 
     setErrors(next);
@@ -66,11 +66,31 @@ export default function RegisterPage() {
     if (!validate()) return;
 
     setLoading(true);
+    setApiError("");
 
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      const { data, error } = await authClient.signUp.email({
+        email: form.email,
+        password: form.password,
+        name: form.fullName,
+      });
 
-    setLoading(false);
-    setSuccess(true);
+      if (error) {
+        setApiError(error.message || "Registration failed. Please try again.");
+        return;
+      }
+
+      // Auto-sign-in after successful registration
+      if (data) {
+        router.replace("/dashboard");
+      } else {
+        setSuccess(true);
+      }
+    } catch {
+      setApiError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (success) {
@@ -92,10 +112,6 @@ export default function RegisterPage() {
             <p className="text-sm text-muted-foreground mb-6">
               Your account has been created successfully. You can now log in with your credentials.
             </p>
-            <p className="text-xs text-muted-foreground italic mb-6">
-              Note: This is a demo — no account has been persisted. Use the hardcoded credentials
-              (<span className="font-mono text-foreground">member</span> / <span className="font-mono text-foreground">member123</span>) to log in.
-            </p>
             <Link
               href="/login"
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary-hover transition-colors"
@@ -116,7 +132,7 @@ export default function RegisterPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
         className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md"
       >
         <div className="flex justify-center items-center gap-2.5">
@@ -138,11 +154,22 @@ export default function RegisterPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut', delay: 0.1 }}
+        transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
       >
         <div className="bg-card py-8 px-6 shadow-xl border border-border rounded-2xl">
           <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+            {apiError && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="p-3 bg-destructive-bg border border-destructive/30 text-destructive-text rounded-lg text-xs flex items-center gap-2"
+                role="alert"
+              >
+                <p>{apiError}</p>
+              </motion.div>
+            )}
+
             <div>
               <label htmlFor="fullName" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Full Name
@@ -152,32 +179,13 @@ export default function RegisterPage() {
                 type="text"
                 required
                 value={form.fullName}
-                onChange={(e) => updateField('fullName', e.target.value)}
+                onChange={(e) => updateField("fullName", e.target.value)}
                 placeholder="Enter full name"
                 autoComplete="name"
                 className="block w-full px-3.5 py-2.5 rounded-lg bg-background border border-border text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               />
               {errors.fullName && (
                 <p className="mt-1 text-xs text-destructive-text">{errors.fullName}</p>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="reg-username" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Username
-              </label>
-              <input
-                id="reg-username"
-                type="text"
-                required
-                value={form.username}
-                onChange={(e) => updateField('username', e.target.value)}
-                placeholder="Choose a username"
-                autoComplete="username"
-                className="block w-full px-3.5 py-2.5 rounded-lg bg-background border border-border text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-              {errors.username && (
-                <p className="mt-1 text-xs text-destructive-text">{errors.username}</p>
               )}
             </div>
 
@@ -190,7 +198,7 @@ export default function RegisterPage() {
                 type="email"
                 required
                 value={form.email}
-                onChange={(e) => updateField('email', e.target.value)}
+                onChange={(e) => updateField("email", e.target.value)}
                 placeholder="Enter email address"
                 autoComplete="email"
                 className="block w-full px-3.5 py-2.5 rounded-lg bg-background border border-border text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
@@ -207,10 +215,10 @@ export default function RegisterPage() {
               <div className="relative">
                 <input
                   id="reg-password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   required
                   value={form.password}
-                  onChange={(e) => updateField('password', e.target.value)}
+                  onChange={(e) => updateField("password", e.target.value)}
                   placeholder="Create a password"
                   autoComplete="new-password"
                   className="block w-full pl-3.5 pr-10 py-2.5 rounded-lg bg-background border border-border text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
@@ -219,7 +227,7 @@ export default function RegisterPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -238,7 +246,7 @@ export default function RegisterPage() {
                 type="password"
                 required
                 value={form.confirmPassword}
-                onChange={(e) => updateField('confirmPassword', e.target.value)}
+                onChange={(e) => updateField("confirmPassword", e.target.value)}
                 placeholder="Confirm your password"
                 autoComplete="new-password"
                 className="block w-full px-3.5 py-2.5 rounded-lg bg-background border border-border text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
@@ -271,7 +279,7 @@ export default function RegisterPage() {
 
           <div className="mt-6 text-center">
             <p className="text-xs text-muted-foreground">
-              Already have an account?{' '}
+              Already have an account?{" "}
               <Link
                 href="/login"
                 className="text-primary hover:text-primary-hover font-semibold transition-colors"

@@ -147,8 +147,7 @@ import { Badge } from '@/components/ui/badge';
 ### Admin Dashboard (tokenized)
 - `app/admin/layout.tsx` — Sidebar + header + command palette
 - `app/admin/login/page.tsx` — Login page
-- `app/admin/page.tsx` — Loading spinner
-- `app/admin/dashboard/page.tsx` — Overview + SVG charts
+- `app/admin/page.tsx` — Dashboard overview + SVG charts
 - `app/admin/members/page.tsx` — Members CRUD
 - `app/admin/teachers/page.tsx` — Teachers CRUD
 - `app/admin/training/page.tsx` — Training + creation wizard

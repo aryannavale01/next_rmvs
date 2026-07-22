@@ -34,8 +34,7 @@
 | `/dashboard/notifications` | ✅ EXISTS | `app/(dashboard)/notifications/page.tsx` | |
 | `/dashboard/activity` | ✅ EXISTS | `app/(dashboard)/activity/page.tsx` | |
 | `/admin/login` | ✅ EXISTS | `app/admin/login/page.tsx` | |
-| `/admin` (root) | ✅ EXISTS | `app/admin/page.tsx` | Redirects to `/admin/dashboard` |
-| `/admin/dashboard` | ✅ EXISTS | `app/admin/dashboard/page.tsx` | |
+| `/admin` (root) | ✅ EXISTS | `app/admin/page.tsx` | Admin dashboard home |
 | `/admin/members` | ✅ EXISTS | `app/admin/members/page.tsx` | |
 | `/admin/teachers` | ✅ EXISTS | `app/admin/teachers/page.tsx` | |
 | `/admin/training` | ✅ EXISTS | `app/admin/training/page.tsx` | |
@@ -90,7 +89,7 @@
 |---|---|---|---|---|---|
 | Admin Login | `/admin/login` | MOCK (hardcoded creds) | ✅ Email/password form, show/hide | YES | **FIXED: Hardcoded credentials removed; now accepts any non-empty** |
 | Admin Root | `/admin` | MOCK | ✅ Redirect logic | YES | Clean |
-| Dashboard | `/admin/dashboard` | MOCK (context/localStorage) | ✅ Stats, charts, quick actions | YES (nav) | Charts are decorative |
+| Dashboard | `/admin` | MOCK (context/localStorage) | ✅ Stats, charts, quick actions | YES (nav) | Charts are decorative |
 | Members | `/admin/members` | MOCK (context/localStorage) | ✅ Full CRUD, filters, bulk actions, pagination | YES | Import/Export decorative (expected) |
 | Teachers | `/admin/teachers` | MOCK (context/localStorage) | ✅ Full CRUD, filters, pagination | YES | **FIXED: Mobile column sorted by full_name instead of phone** |
 | Training | `/admin/training` | MOCK (context/localStorage) | ✅ Course list, 9-step wizard, search/filter | YES | Detail view extracted to route (FIXED) |

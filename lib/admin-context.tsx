@@ -44,7 +44,6 @@ interface AdminContextType {
   adminUser: AdminUser | null;
   mounted: boolean;
 
-  loginAdmin: (email: string, password: string) => boolean;
   logoutAdmin: () => void;
   resetAdmin: () => void;
 
@@ -134,6 +133,25 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Fetch real session from Better Auth on mount to populate adminUser
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const path = window.location.pathname;
+    if (path === '/login' || path === '/admin/login') return;
+
+    fetch('/api/user/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.user) {
+          setAdminUser({
+            username: data.user.name || data.user.email?.split('@')[0] || 'Administrator',
+            email: data.user.email || '',
+          });
+        }
+      })
+      .catch(() => { /* session cookie absent or invalid — middleware will redirect if needed */ });
+  }, []);
+
   // Persist to localStorage on state changes (read-only, no setState calls)
   useEffect(() => {
     saveState({
@@ -154,18 +172,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     };
     setActivityLogs(prev => [newLog, ...prev]);
   }, []);
-
-  // Auth — MOCK: any non-empty email/password accepted during Phase 3 (real auth is Phase 4)
-  const loginAdmin = useCallback((email: string, password: string): boolean => {
-    if (email && password) {
-      const name = email.split('@')[0].toUpperCase();
-      const user = { username: name, email };
-      setAdminUser(user);
-      logActivity('Admin Logged In', `Administrative session initiated for ${email}.`, 'Lock');
-      return true;
-    }
-    return false;
-  }, [logActivity]);
 
   const logoutAdmin = useCallback(() => {
     logActivity('Admin Logged Out', 'Administrative session terminated securely.', 'Lock');
@@ -389,7 +395,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     <AdminContext.Provider value={{
       members, teachers, courses, enrollments, certificates,
       notifications, coupons, websiteContent, settings, activityLogs, adminUser, mounted,
-      loginAdmin, logoutAdmin, resetAdmin,
+      logoutAdmin, resetAdmin,
       addMember, updateMember, deleteMember,
       addTeacher, updateTeacher, deleteTeacher,
       addCourse, updateCourse, deleteCourse,

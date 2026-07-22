@@ -2,8 +2,6 @@
 // COMPASSIONGLOBAL / RMVS NGO ERP — COMPLETE PRODUCTION PRISMA SCHEMA
 // Generated: 2026-07-19
 // Maps 1:1 to full_schema_production.sql
-// Excludes: Better Auth tables (managed by Better Auth migrations),
-//           RLS policies, triggers, functions (raw SQL only)
 // =============================================================
 
 generator client {
@@ -17,7 +15,88 @@ datasource db {
 }
 
 // =============================================================
-// ENUMS (27 total — matches SQL schema; excludes Better Auth "Role" enum)
+// BETTER AUTH TABLES (4 core models)
+// Managed via Prisma migrations, NOT Better Auth auto-migration
+// Field definitions match full_schema_production.sql exactly
+// =============================================================
+
+enum BA_Role {
+  MEMBER
+  ADMIN
+
+  @@map("Role")
+}
+
+/// Better Auth — Authentication identity
+model user {
+  id           String   @id
+  email        String
+  emailVerified Boolean @default(false) @map("emailVerified")
+  name         String?
+  image        String?
+  role         BA_Role  @default(MEMBER)
+  lastLoginAt  DateTime? @map("lastLoginAt")
+  createdAt    DateTime @default(now()) @map("createdAt")
+  updatedAt    DateTime @updatedAt @map("updatedAt")
+
+  sessions session[]
+  accounts account[]
+
+  @@map("User")
+}
+
+/// Better Auth — Active sessions
+model session {
+  id              String    @id
+  token           String
+  userId          String    @map("userId")
+  expiresAt       DateTime  @map("expiresAt")
+  ipAddress       String?   @map("ipAddress")
+  userAgent       String?   @map("userAgent")
+  stepUpVerifiedAt DateTime? @map("stepUpVerifiedAt")
+  createdAt       DateTime  @default(now()) @map("createdAt")
+  updatedAt       DateTime  @updatedAt @map("updatedAt")
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("Session")
+}
+
+/// Better Auth — Auth provider accounts (email/password hashed here)
+model account {
+  id                    String    @id
+  userId                String    @map("userId")
+  accountId             String    @map("accountId")
+  providerId            String    @map("providerId")
+  accessToken           String?   @map("accessToken")
+  refreshToken          String?   @map("refreshToken")
+  accessTokenExpiresAt  DateTime? @map("accessTokenExpiresAt")
+  refreshTokenExpiresAt DateTime? @map("refreshTokenExpiresAt")
+  scope                 String?
+  idToken               String?   @map("idToken")
+  password              String?
+  createdAt             DateTime  @default(now()) @map("createdAt")
+  updatedAt             DateTime  @updatedAt @map("updatedAt")
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("Account")
+}
+
+/// Better Auth — Email verification tokens
+model verification {
+  id          String    @id
+  identifier  String
+  value       String
+  expiresAt   DateTime  @map("expiresAt")
+  createdAt   DateTime  @default(now()) @map("createdAt")
+  updatedAt   DateTime  @updatedAt @map("updatedAt")
+
+  @@map("Verification")
+}
+
+// =============================================================
+// APPLICATION ENUMS (27 total)
 // Stage 7: Added CourseStatus, TemplateStatus, RequestStatus, TeacherCourseStatus
 // =============================================================
 

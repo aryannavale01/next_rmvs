@@ -28,7 +28,7 @@ import { ToastProvider } from '@/components/ui/toast';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
   { id: 'members', label: 'Members', icon: Users, href: '/admin/members' },
   { id: 'teachers', label: 'Teachers', icon: GraduationCap, href: '/admin/teachers' },
   { id: 'training', label: 'Training', icon: ClipboardList, href: '/admin/training' },
@@ -42,7 +42,7 @@ const NAV_ITEMS = [
 ];
 
 const PAGE_TITLES: Record<string, string> = {
-  '/admin/dashboard': 'Overview Metrics',
+  '/admin': 'Overview Metrics',
   '/admin/members': 'Beneficiaries',
   '/admin/teachers': 'NGO Instructors',
   '/admin/training': 'Course Programs',
@@ -161,7 +161,7 @@ function SidebarContent({ pathname, adminUser, onLogout, onNav }: { pathname: st
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
         {NAV_ITEMS.map(item => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || (item.href !== '/admin/dashboard' && pathname?.startsWith(item.href));
+          const isActive = pathname === item.href || (item.href !== '/admin' && pathname?.startsWith(item.href));
           return (
             <Link
               key={item.id}
@@ -208,13 +208,6 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   const isLoginPage = pathname === '/login' || pathname === '/admin/login';
 
   useEffect(() => {
-    if (!mounted) return;
-    if (!isLoginPage && !adminUser) {
-      router.replace('/admin/login');
-    }
-  }, [mounted, adminUser, isLoginPage, router]);
-
-  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -235,14 +228,6 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 
   if (isLoginPage) {
     return <>{children}</>;
-  }
-
-  if (!adminUser) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
   }
 
   const currentPage = PAGE_TITLES[pathname || ''] || 'Admin Panel';
@@ -348,7 +333,8 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={async () => {
           try {
-            await fetch('/api/mock-logout', { method: 'POST' });
+            const { authClient } = await import('@/lib/auth-client');
+            await authClient.signOut();
           } catch {
             // proceed with local logout even if API fails
           }

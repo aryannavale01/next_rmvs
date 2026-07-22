@@ -122,14 +122,16 @@ export default function ProfilePage() {
     }, 600);
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordApiError, setPasswordApiError] = useState('');
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: { [key: string]: string } = {};
+    setPasswordApiError('');
 
     if (!currentPassword) {
       errors.current = 'Current password is required';
-    } else if (currentPassword !== 'password' && currentPassword !== '123456') {
-      errors.current = 'Incorrect current password (default demo is "password" or "123456")';
     }
 
     if (!newPassword) {
@@ -147,12 +149,30 @@ export default function ProfilePage() {
     setPasswordErrors(errors);
     setPasswordSuccess(false);
 
-    if (Object.keys(errors).length === 0) {
+    if (Object.keys(errors).length > 0) return;
+
+    setPasswordLoading(true);
+    try {
+      const { authClient } = await import('@/lib/auth-client');
+      const { error: authError } = await authClient.changePassword({
+        currentPassword,
+        newPassword,
+      });
+
+      if (authError) {
+        setPasswordApiError(authError.message || 'Failed to change password. Please check your current password.');
+        return;
+      }
+
       setPasswordSuccess(true);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordSuccess(false), 4000);
+    } catch {
+      setPasswordApiError('Network error. Please try again.');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -653,10 +673,32 @@ export default function ProfilePage() {
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow transition-colors mt-2"
+              disabled={passwordLoading}
+              className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Update Password
+              {passwordLoading ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Password'
+              )}
             </button>
+
+            <AnimatePresence>
+              {passwordApiError && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="bg-destructive-bg border border-destructive/20 text-destructive text-xs rounded-lg p-3 flex gap-2 items-start mt-2"
+                >
+                  <AlertCircle size={16} className="text-destructive shrink-0 mt-0.5" />
+                  <span>{passwordApiError}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <AnimatePresence>
               {passwordSuccess && (
@@ -664,12 +706,12 @@ export default function ProfilePage() {
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="bg-success-bg border border-success/20 text-success-text text-xs rounded-lg p-3 flex gap-2 items-start mt-4"
+                  className="bg-success-bg border border-success/20 text-success-text text-xs rounded-lg p-3 flex gap-2 items-start mt-2"
                 >
                   <CheckCircle2 size={16} className="text-success-text shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold">Password Modified!</span>
-                    <p className="text-[10px] text-success-text mt-0.5">Credentials replaced successfully on the client database.</p>
+                    <span className="font-bold">Password Updated!</span>
+                    <p className="text-[10px] text-success-text mt-0.5">Your credentials have been changed successfully.</p>
                   </div>
                 </motion.div>
               )}

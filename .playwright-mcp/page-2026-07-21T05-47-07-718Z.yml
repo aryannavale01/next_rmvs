@@ -1,0 +1,26 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e2]:
+    - generic [ref=f8e5]:
+      - generic [ref=f8e6]:
+        - generic [ref=f8e7]: C
+        - generic [ref=f8e8]: CompassionGlobal
+      - heading "Secure Admin Access" [level=2] [ref=f8e9]
+      - paragraph [ref=f8e10]: Authorized personnel only. Authenticate to access the management portal.
+    - generic [ref=f8e13]:
+      - alert [ref=f8e14]:
+        - generic [ref=f8e17]: Invalid email or password.
+      - generic [ref=f8e18]:
+        - generic [ref=f8e19]: Email
+        - textbox "Email" [ref=f8e20]:
+          - /placeholder: Enter admin email
+          - text: admin@compassionglobal.org
+      - generic [ref=f8e21]:
+        - generic [ref=f8e22]: Password
+        - generic [ref=f8e23]:
+          - textbox "Password" [ref=f8e24]:
+            - /placeholder: Enter password
+            - text: "EP6=thN^b?{'fCvl0@4ZX(RJ"
+          - button "Show password" [ref=f8e25]
+      - button "Sign In" [ref=f8e30]
+  - button "Open Next.js Dev Tools" [ref=f8e39] [cursor=pointer]
+  - alert [ref=f8e43]

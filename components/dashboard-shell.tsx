@@ -75,12 +75,13 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/mock-logout', { method: 'POST' });
+      const { authClient } = await import('@/lib/auth-client');
+      await authClient.signOut();
     } catch {
       // proceed with local logout even if API fails
     }
     resetDashboard();
-    router.replace('/login');
+    window.location.href = '/login';
   };
 
   return (
