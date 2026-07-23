@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, Fragment } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useDashboard, TRANSLATIONS } from '@/lib/dashboard-context';
 import {
   FileText,
@@ -15,8 +15,11 @@ import { EmptyState } from '@/components/dashboard-ui';
 
 export default function ApplicationsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { applications, language } = useDashboard();
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
+
+  const highlightCompleted = searchParams.get('filter') === 'completed' && applications.some(a => a.status === 'Course Completed');
 
   const getInitials = (title: string) => {
     return title
@@ -90,7 +93,11 @@ export default function ApplicationsPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => router.push(`/dashboard/training/${app.courseId}`)}
-                  className="border border-border hover:border-primary/30 rounded-xl p-5 bg-background/30 hover:bg-card transition-all duration-200 cursor-pointer group flex flex-col justify-between gap-5"
+                  className={`border rounded-xl p-5 bg-background/30 transition-all duration-200 cursor-pointer group flex flex-col justify-between gap-5 ${
+                    highlightCompleted && app.status === 'Course Completed'
+                      ? 'border-primary/40 bg-primary-light/30 shadow-sm ring-1 ring-primary/10'
+                      : 'border-border hover:border-primary/30 hover:bg-card'
+                  }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                     <div className="flex gap-4 items-start min-w-0">

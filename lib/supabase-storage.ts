@@ -43,6 +43,20 @@ export async function deleteFile(bucket: string, path: string) {
   if (error) throw error;
 }
 
+export async function uploadFile(
+  bucket: string,
+  path: string,
+  buffer: Buffer,
+  contentType: string,
+): Promise<{ path: string }> {
+  const supabase = getServiceRoleClient();
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(path, buffer, { contentType, upsert: false });
+  if (error) throw error;
+  return { path: data.path };
+}
+
 export async function listFiles(bucket: string, prefix: string) {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase.storage

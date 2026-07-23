@@ -1,7 +1,60 @@
+import { Prisma } from "@prisma/client";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
 import { STEP_UP_WINDOW_MS } from "./admin-security";
 import type { BA_Role } from "@prisma/client";
+
+// Prisma error codes that indicate transient connection issues (pooler idle
+// recycling, server restart, network blip). These are safe to retry because
+// the next attempt usually gets a fresh connection from the pool.
+const TRANSIENT_ERROR_CODES = new Set(["P1017", "P1001", "P2024"]);
+
+// Backoff delays in ms for retry attempts 2 and 3.
+const RETRY_DELAYS = [250, 500];
+
+function isTransientConnectionError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    TRANSIENT_ERROR_CODES.has(error.code)
+  );
+}
+
+/**
+ * Calls auth.api.getSession() with retry logic for transient connection errors.
+ *
+ * P1017 ("Server has closed the connection") fires when the pooler recycles an
+ * idle connection that Prisma still holds. A short wait + retry gets a fresh
+ * connection and succeeds. Non-connection errors (expired token, malformed
+ * cookie) are thrown immediately — no retry.
+ */
+async function getSessionWithRetry(headers: Headers) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 1 + RETRY_DELAYS.length; attempt++) {
+    try {
+      return await auth.api.getSession({ headers });
+    } catch (error) {
+      lastError = error;
+
+      if (
+        isTransientConnectionError(error) &&
+        attempt <= RETRY_DELAYS.length
+      ) {
+        const delay = RETRY_DELAYS[attempt - 1];
+        console.warn(
+          `[session] Transient connection error (attempt ${attempt}/${1 + RETRY_DELAYS.length}): ` +
+            `${(error as { code: string }).code}. Retrying in ${delay}ms…`
+        );
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError;
+}
 
 export type SessionUser = {
   id: string;
@@ -38,9 +91,7 @@ export async function requireAuth(headers?: Headers): Promise<AuthResult> {
       headers = await nextHeaders();
     }
 
-    const session = await auth.api.getSession({
-      headers,
-    });
+    const session = await getSessionWithRetry(headers);
 
     if (!session) {
       return { success: false, error: "Unauthorized" };

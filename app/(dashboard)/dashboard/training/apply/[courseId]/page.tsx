@@ -36,6 +36,8 @@ export default function ApplyCoursePage() {
   }>({});
 
   const [docErrors, setDocErrors] = useState<{ aadhaar?: string; pan?: string }>({});
+  const [uploadingDoc, setUploadingDoc] = useState<'aadhaar' | 'pan' | null>(null);
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'compressing' | 'uploading'>('idle');
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,9 +73,46 @@ export default function ApplyCoursePage() {
     }
   };
 
-  const handleFileAttach = (type: 'aadhaar' | 'pan', file: File) => {
-    setAttachedFiles(prev => ({ ...prev, [type]: { name: file.name, date: new Date().toISOString().split('T')[0] } }));
+  const handleFileAttach = async (type: 'aadhaar' | 'pan', file: File) => {
+    setUploadingDoc(type);
     setDocErrors(prev => ({ ...prev, [type]: undefined }));
+
+    try {
+      // Client-side compression for images
+      let uploadFile: File = file;
+      if (file.type.startsWith('image/')) {
+        setUploadPhase('compressing');
+        const imageCompression = (await import('browser-image-compression')).default;
+        uploadFile = await imageCompression(file, {
+          maxSizeMB: 8,
+          maxWidthOrHeight: 1600,
+          useWebWorker: true,
+        });
+      }
+
+      // Upload to server
+      setUploadPhase('uploading');
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('documentType', type);
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      setAttachedFiles(prev => ({
+        ...prev,
+        [type]: { name: file.name, date: new Date().toISOString().split('T')[0] },
+      }));
+    } catch (err: any) {
+      setDocErrors(prev => ({ ...prev, [type]: err.message || 'Upload failed' }));
+    } finally {
+      setUploadingDoc(null);
+      setUploadPhase('idle');
+    }
   };
 
   const handleFileRemove = (type: 'aadhaar' | 'pan') => {
@@ -205,6 +244,13 @@ export default function ApplyCoursePage() {
                     <Trash2 size={14} className="text-destructive" />
                   </button>
                 </div>
+              ) : uploadingDoc === 'aadhaar' ? (
+                <div className="flex flex-col items-center gap-2 border-2 border-dashed border-primary/30 rounded-lg p-6">
+                  <RefreshCw size={20} className="text-primary animate-spin" />
+                  <span className="text-xs text-primary font-semibold">
+                    {uploadPhase === 'compressing' ? 'Compressing...' : 'Uploading...'}
+                  </span>
+                </div>
               ) : (
                 <label className="flex flex-col items-center gap-2 border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:border-primary transition-colors">
                   <Upload size={20} className="text-muted-foreground" />
@@ -228,6 +274,13 @@ export default function ApplyCoursePage() {
                   <button type="button" onClick={() => handleFileRemove('pan')} className="p-1 hover:bg-destructive/10 rounded">
                     <Trash2 size={14} className="text-destructive" />
                   </button>
+                </div>
+              ) : uploadingDoc === 'pan' ? (
+                <div className="flex flex-col items-center gap-2 border-2 border-dashed border-primary/30 rounded-lg p-6">
+                  <RefreshCw size={20} className="text-primary animate-spin" />
+                  <span className="text-xs text-primary font-semibold">
+                    {uploadPhase === 'compressing' ? 'Compressing...' : 'Uploading...'}
+                  </span>
                 </div>
               ) : (
                 <label className="flex flex-col items-center gap-2 border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:border-primary transition-colors">

@@ -11,11 +11,6 @@ import {
   Activity,
   Profile,
   INITIAL_PROFILE,
-  INITIAL_APPLICATIONS,
-  INITIAL_CERTIFICATES,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_ACTIVITIES,
-  INITIAL_COURSES,
 } from './store';
 import { makeId, makeCertificateNo, getTodayIsoDate, getCurrentIsoString } from './purity-helpers';
 
@@ -27,6 +22,8 @@ interface DashboardContextType {
   activities: Activity[];
   courses: Course[];
   language: 'en' | 'hi' | 'mr';
+  loading: boolean;
+  error: { dashboard?: string; courses?: string } | null;
   updateProfile: (updated: Partial<Profile>) => void;
   applyToCourse: (
     courseId: string,
@@ -225,6 +222,96 @@ export const TRANSLATIONS = {
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => getStoredState());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<{ dashboard?: string; courses?: string } | null>(null);
+
+  // Fetch all dashboard data from server on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchAll() {
+      setLoading(true);
+      setError(null);
+
+      // Profile fetch
+      let profileError = false;
+      try {
+        const res = await fetch('/api/profile');
+        if (!res.ok) throw new Error('Failed to load profile');
+        const serverProfile = await res.json();
+        if (!cancelled) {
+          setState((prev) => ({
+            ...prev,
+            profile: {
+              ...prev.profile,
+              ...serverProfile,
+              documents: {
+                ...prev.profile.documents,
+                ...serverProfile.documents,
+              },
+            },
+          }));
+        }
+      } catch {
+        profileError = true;
+      }
+
+      // Dashboard data fetch (applications, certificates, notifications, activities)
+      let dashError: string | undefined;
+      try {
+        const res = await fetch('/api/dashboard');
+        if (!res.ok) throw new Error('Failed to load dashboard data');
+        const data = await res.json();
+        if (!cancelled) {
+          setState((prev) => ({
+            ...prev,
+            applications: data.applications ?? prev.applications,
+            certificates: data.certificates ?? prev.certificates,
+            notifications: data.notifications ?? prev.notifications,
+            activities: data.activities ?? prev.activities,
+          }));
+          // Save to localStorage as fallback cache
+          saveStoredState({
+            applications: data.applications,
+            certificates: data.certificates,
+            notifications: data.notifications,
+            activities: data.activities,
+          });
+        }
+      } catch {
+        dashError = 'Failed to load applications or notifications.';
+      }
+
+      // Courses fetch (isolated — failure doesn't affect dashboard data)
+      let coursesError: string | undefined;
+      try {
+        const res = await fetch('/api/dashboard/courses');
+        if (!res.ok) throw new Error('Failed to load courses');
+        const data = await res.json();
+        if (!cancelled) {
+          setState((prev) => ({
+            ...prev,
+            courses: data.courses ?? prev.courses,
+          }));
+          saveStoredState({ courses: data.courses });
+        }
+      } catch {
+        coursesError = 'Failed to load featured programs.';
+      }
+
+      if (!cancelled) {
+        const newError =
+          dashError || coursesError
+            ? { dashboard: dashError, courses: coursesError }
+            : null;
+        setError(newError);
+        setLoading(false);
+      }
+    }
+
+    fetchAll();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -408,13 +495,15 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     keys.forEach((key) => localStorage.removeItem(key));
     setState({
       profile: INITIAL_PROFILE,
-      applications: INITIAL_APPLICATIONS,
-      certificates: INITIAL_CERTIFICATES,
-      notifications: INITIAL_NOTIFICATIONS,
-      activities: INITIAL_ACTIVITIES,
-      courses: INITIAL_COURSES,
+      applications: [],
+      certificates: [],
+      notifications: [],
+      activities: [],
+      courses: [],
       language: 'en',
     });
+    setLoading(false);
+    setError(null);
   };
 
   const addActivity = (title: string, description: string, type: Activity['type']) => {
@@ -437,6 +526,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       value={{
         ...state,
         language: state.language as 'en' | 'hi' | 'mr',
+        loading,
+        error,
         updateProfile,
         applyToCourse,
         generateCertificate,

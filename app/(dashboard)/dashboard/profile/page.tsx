@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDashboard, TRANSLATIONS } from '@/lib/dashboard-context';
 import {
   User,
@@ -46,13 +46,16 @@ export default function ProfilePage() {
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
 
-  // Document Upload Mock State
+  // Document Upload State
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'compressing' | 'uploading'>('idle');
+  const [docErrors, setDocErrors] = useState<{ [key: string]: string }>({});
   const fileInputRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   // Profile Picture Upload State
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoPhase, setPhotoPhase] = useState<'idle' | 'compressing' | 'uploading'>('idle');
   const [photoError, setPhotoError] = useState('');
   const [photoSuccess, setPhotoSuccess] = useState('');
 
@@ -60,7 +63,18 @@ export default function ProfilePage() {
   const [showRemovePhotoConfirm, setShowRemovePhotoConfirm] = useState(false);
   const [deleteDocTarget, setDeleteDocTarget] = useState<'aadhaar' | 'pan' | 'rationCard' | null>(null);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Sync form fields when profile loads from server (DashboardProvider useEffect)
+  useEffect(() => {
+    setFirstName(profile.firstName);
+    setLastName(profile.lastName);
+    setEmail(profile.email);
+    setPhone(profile.phone);
+    setAadhaarNo(profile.aadhaarNo);
+    setPanNo(profile.panNo);
+    setRationCardNo(profile.rationCardNo);
+  }, [profile.firstName, profile.lastName, profile.email, profile.phone, profile.aadhaarNo, profile.panNo, profile.rationCardNo]);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -80,25 +94,57 @@ export default function ProfilePage() {
     setPhotoError('');
     setPhotoSuccess('');
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      setTimeout(() => {
-        updateProfile({ photoUrl: base64 });
-        setIsUploadingPhoto(false);
-        setPhotoSuccess('Profile picture updated successfully!');
-        setTimeout(() => setPhotoSuccess(''), 4000);
-      }, 1000);
-    };
-    reader.onerror = () => {
-      setPhotoError('Failed to read image file');
+    try {
+      // Client-side compression
+      setPhotoPhase('compressing');
+      const imageCompression = (await import('browser-image-compression')).default;
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 1.5,
+        maxWidthOrHeight: 1600,
+        useWebWorker: true,
+      });
+
+      // Upload to server
+      setPhotoPhase('uploading');
+      const formData = new FormData();
+      formData.append('file', compressed);
+      formData.append('documentType', 'profilePhoto');
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      updateProfile({ photoUrl: data.signedUrl });
+      setPhotoSuccess('Profile picture updated successfully!');
+      setTimeout(() => setPhotoSuccess(''), 4000);
+    } catch (err: any) {
+      setPhotoError(err.message || 'Failed to upload photo');
+      setTimeout(() => setPhotoError(''), 5000);
+    } finally {
       setIsUploadingPhoto(false);
-    };
-    reader.readAsDataURL(file);
+      setPhotoPhase('idle');
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
   };
 
-  const handleRemovePhoto = () => {
-    setShowRemovePhotoConfirm(true);
+  const handleRemovePhoto = async () => {
+    try {
+      const res = await fetch('/api/upload?documentType=profilePhoto', { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Delete failed');
+      }
+      updateProfile({ photoUrl: '' });
+      setPhotoSuccess('Profile picture removed successfully');
+      setTimeout(() => setPhotoSuccess(''), 4000);
+    } catch (err: any) {
+      setPhotoError(err.message || 'Failed to remove photo');
+      setTimeout(() => setPhotoError(''), 5000);
+    }
+    setShowRemovePhotoConfirm(false);
   };
 
   const handlePersonalSubmit = (e: React.FormEvent) => {
@@ -180,23 +226,55 @@ export default function ProfilePage() {
     fileInputRef.current[docType]?.click();
   };
 
-  const handleFileUpload = (docType: 'aadhaar' | 'pan' | 'rationCard', e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (docType: 'aadhaar' | 'pan' | 'rationCard', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingDoc(docType);
+    setDocErrors(prev => ({ ...prev, [docType]: '' }));
 
-    // Simulate real upload latency
-    setTimeout(() => {
+    try {
+      // Client-side compression for images only
+      let uploadFile: File = file;
+      if (file.type.startsWith('image/')) {
+        setUploadPhase('compressing');
+        const imageCompression = (await import('browser-image-compression')).default;
+        uploadFile = await imageCompression(file, {
+          maxSizeMB: 8,
+          maxWidthOrHeight: 1600,
+          useWebWorker: true,
+        });
+      }
+
+      // Upload to server
+      setUploadPhase('uploading');
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('documentType', docType);
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
       const nextDocs = { ...profile.documents };
       nextDocs[docType] = {
         uploaded: true,
         name: file.name,
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        signedUrl: data.signedUrl,
       };
       updateProfile({ documents: nextDocs });
+    } catch (err: any) {
+      setDocErrors(prev => ({ ...prev, [docType]: err.message || 'Upload failed' }));
+      setTimeout(() => setDocErrors(prev => ({ ...prev, [docType]: '' })), 5000);
+    } finally {
       setUploadingDoc(null);
-    }, 1200);
+      setUploadPhase('idle');
+      if (fileInputRef.current[docType]) fileInputRef.current[docType]!.value = '';
+    }
   };
 
   const handleDeleteDoc = (docType: 'aadhaar' | 'pan' | 'rationCard') => {
@@ -242,9 +320,12 @@ export default function ProfilePage() {
                   </div>
                 )}
                 
-                {isUploadingPhoto && (
+                      {isUploadingPhoto && (
                   <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
                     <RefreshCw size={24} className="animate-spin text-white" />
+                    <span className="absolute -bottom-5 text-[10px] text-muted-foreground font-semibold">
+                      {photoPhase === 'compressing' ? 'Compressing...' : 'Uploading...'}
+                    </span>
                   </div>
                 )}
               </div>
@@ -476,12 +557,15 @@ export default function ProfilePage() {
                       {isUploading ? (
                         <div className="space-y-2 py-2">
                           <div className="flex justify-between text-[10px] text-primary font-semibold">
-                            <span>Uploading file...</span>
+                            <span>{uploadPhase === 'compressing' ? 'Compressing...' : 'Uploading file...'}</span>
                             <span className="animate-pulse">Busy</span>
                           </div>
                           <div className="w-full bg-primary-light h-1 rounded-full overflow-hidden">
                             <div className="h-full bg-primary rounded-full animate-[shimmer_1.5s_infinite] w-3/4" />
                           </div>
+                          {docErrors[doc.key] && (
+                            <p className="text-[10px] text-destructive font-semibold">{docErrors[doc.key]}</p>
+                          )}
                         </div>
                       ) : stateDoc.uploaded ? (
                         <div className="py-2">
@@ -505,12 +589,16 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-1.5 pt-3 border-t border-border mt-auto">
                       {stateDoc.uploaded ? (
                         <>
-                          {/* View (simulate in new tab) */}
+                          {/* View — opens signed URL in new tab */}
                           <a
-                            href="#"
+                            href={stateDoc.signedUrl || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             onClick={(e) => {
-                              e.preventDefault();
-                              toast({ title: 'Viewing Document', description: `Opening ${stateDoc.name}`, variant: 'info' });
+                              if (!stateDoc.signedUrl) {
+                                e.preventDefault();
+                                toast({ title: 'Document not available', description: 'Re-upload to view this document', variant: 'info' });
+                              }
                             }}
                             className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
                             title="View Document"
@@ -518,18 +606,34 @@ export default function ProfilePage() {
                             <FileCheck size={14} />
                           </a>
 
-                          {/* Download */}
-                          <a
-                            href="#"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              toast({ title: 'Download Started', description: `Downloading ${stateDoc.name}`, variant: 'success' });
+                          {/* Download — fetches file from signed URL */}
+                          <button
+                            onClick={async () => {
+                              if (!stateDoc.signedUrl) {
+                                toast({ title: 'Document not available', description: 'Re-upload to download', variant: 'info' });
+                                return;
+                              }
+                              try {
+                                const response = await fetch(stateDoc.signedUrl);
+                                const blob = await response.blob();
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = stateDoc.name || 'document';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                                toast({ title: 'Download Complete', description: stateDoc.name, variant: 'success' });
+                              } catch {
+                                toast({ title: 'Download Failed', description: 'Could not download file', variant: 'error' });
+                              }
                             }}
                             className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                            title="Download PDF"
+                            title="Download"
                           >
                             <Download size={14} />
-                          </a>
+                          </button>
 
                           {/* Replace */}
                           <button
@@ -735,11 +839,22 @@ export default function ProfilePage() {
       <ConfirmDialog
         open={!!deleteDocTarget}
         onClose={() => setDeleteDocTarget(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteDocTarget) return;
-          const nextDocs = { ...profile.documents };
-          nextDocs[deleteDocTarget] = { uploaded: false, name: '', date: '' };
-          updateProfile({ documents: nextDocs });
+          try {
+            const res = await fetch(`/api/upload?documentType=${deleteDocTarget}`, { method: 'DELETE' });
+            if (!res.ok) {
+              const data = await res.json();
+              throw new Error(data.error || 'Delete failed');
+            }
+            const nextDocs = { ...profile.documents };
+            nextDocs[deleteDocTarget] = { uploaded: false, name: '', date: '' };
+            updateProfile({ documents: nextDocs });
+            toast({ title: 'Document Removed', description: 'Document deleted successfully', variant: 'success' });
+          } catch (err: any) {
+            toast({ title: 'Delete Failed', description: err.message || 'Could not remove document', variant: 'error' });
+          }
+          setDeleteDocTarget(null);
         }}
         title="Remove Document"
         description={`Are you sure you want to remove your uploaded ${deleteDocTarget === 'aadhaar' ? 'Aadhaar' : deleteDocTarget === 'pan' ? 'PAN' : 'Ration Card'} document?`}
