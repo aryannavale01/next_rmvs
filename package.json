@@ -20,6 +20,7 @@
     "@supabase/supabase-js": "^2.110.7",
     "autoprefixer": "^10.4.21",
     "better-auth": "^1.6.23",
+    "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.553.0",
@@ -31,6 +32,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "resend": "^6.18.0",
+    "sharp": "^0.35.3",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
