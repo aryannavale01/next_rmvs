@@ -22,6 +22,7 @@ export default function DashboardHome() {
   const router = useRouter();
   const { profile, applications, certificates, notifications, courses, language, loading, error, markAsRead } = useDashboard();
   const [mounted, setMounted] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setMounted(true));
@@ -97,12 +98,22 @@ export default function DashboardHome() {
       {/* WELCOME BANNER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-6 rounded-xl border border-border shadow-sm">
         <div className="flex items-center gap-4">
-          {profile.photoUrl ? (
+          {profile.photoUrl && profile.photoUrl !== photoError ? (
             <img
               src={profile.photoUrl}
               alt={`${profile.firstName} ${profile.lastName}`}
+              width={64}
+              height={64}
+              onError={(e) => {
+                const img = e.currentTarget;
+                if (!img.dataset.retried) {
+                  img.dataset.retried = '1';
+                  img.src = profile.photoUrl + '?retry=' + Date.now();
+                } else {
+                  setPhotoError(profile.photoUrl || null);
+                }
+              }}
               className="h-16 w-16 rounded-full object-cover border-4 border-primary-light shrink-0"
-              referrerPolicy="no-referrer"
             />
           ) : (
             <div className="h-16 w-16 rounded-full border-4 border-primary-light flex items-center justify-center bg-primary-light text-primary font-bold text-xl uppercase shrink-0">

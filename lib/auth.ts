@@ -1,8 +1,8 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { twoFactor } from "better-auth/plugins";
-import { PrismaClient, Prisma } from "@prisma/client";
 import { validatePassword } from "./password-validation";
+import { prisma } from "./prisma";
 
 // --- Startup validation: fail loudly if required env vars are missing/weak ---
 function requireEnv(name: string): string {
@@ -15,8 +15,6 @@ function requireEnv(name: string): string {
 
 const isProd = process.env.NODE_ENV === "production";
 
-const directUrl = requireEnv("DIRECT_URL");
-const databaseUrl = requireEnv("DATABASE_URL");
 const authSecret = requireEnv("BETTER_AUTH_SECRET");
 
 if (authSecret.length < 32) {
@@ -41,13 +39,6 @@ const trustedOrigins = process.env.TRUSTED_ORIGINS
 if (isProd && trustedOrigins.length === 0) {
   throw new Error("[Auth] TRUSTED_ORIGINS must be set in production (comma-separated list of allowed origins).");
 }
-
-// Use DIRECT_URL (session-mode pooler, port 5432) for Better Auth's adapter.
-// This ensures reliable connections — Supavisor session-mode avoids tenant-routing issues.
-// For migrations: use `prisma migrate` which reads DIRECT_URL from schema.prisma automatically.
-const prisma = new PrismaClient({
-  datasources: { db: { url: directUrl } },
-});
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {

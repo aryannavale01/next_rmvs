@@ -42,6 +42,7 @@ export interface Certificate {
   certificateNo: string;
   completionDate: string;
   status: 'pending' | 'accepted' | 'generated';
+  photoUrlHQ?: string;
 }
 
 export interface AppNotification {
@@ -73,6 +74,8 @@ export interface Profile {
   panNo: string;
   rationCardNo: string;
   photoUrl?: string;
+  photoUrlHQ?: string;
+  photoBlurDataUrl?: string;
   documents: {
     aadhaar: { uploaded: boolean; name: string; date: string; signedUrl?: string };
     pan: { uploaded: boolean; name: string; date: string; signedUrl?: string };
@@ -89,6 +92,8 @@ export const INITIAL_PROFILE: Profile = {
   panNo: '',
   rationCardNo: '',
   photoUrl: '',
+  photoUrlHQ: '',
+  photoBlurDataUrl: '',
   documents: {
     aadhaar: { uploaded: false, name: '', date: '' },
     pan: { uploaded: false, name: '', date: '' },
@@ -110,6 +115,12 @@ export function getStoredState() {
   }
 
   const profile = JSON.parse(localStorage.getItem('db_profile') || JSON.stringify(INITIAL_PROFILE));
+  if (profile.photoUrl && profile.photoUrl.startsWith('/api/')) {
+    profile.photoUrl = '';
+  }
+  if (profile.photoUrlHQ && profile.photoUrlHQ.startsWith('/api/')) {
+    profile.photoUrlHQ = '';
+  }
   const applications = JSON.parse(localStorage.getItem('db_applications') || '[]');
   const certificates = JSON.parse(localStorage.getItem('db_certificates') || '[]');
   const notifications = JSON.parse(localStorage.getItem('db_notifications') || '[]');

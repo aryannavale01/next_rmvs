@@ -2,34 +2,14 @@ import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
-import { uploadFile, generateSignedUrl, deleteFile } from '@/lib/supabase-storage';
-import { validateFile, fileTypeToExtension, fileTypeToMime } from '@/lib/file-validation';
-import { BUCKETS, buildStoragePath, SIGNED_URL_EXPIRY, type DocumentType } from '@/lib/upload-config';
+import { uploadFile, generateSignedUrl, deleteFile, getPublicUrl } from '@/lib/supabase-storage';
+import { validateFile } from '@/lib/file-validation';
+import { BUCKETS, SIGNED_URL_EXPIRY, type DocumentType } from '@/lib/upload-config';
 import sharp from 'sharp';
 
 const ALLOWED_DOC_TYPES: DocumentType[] = ['aadhaar', 'pan', 'rationCard', 'profilePhoto'];
 
-function extractStoragePath(fileUrl: string): string | null {
-  // The DB stores raw storage paths (e.g., "user-1/aadhaar/12345.webp"), not signed URLs.
-  // But if a signed URL was somehow stored, parse the path from it.
-  try {
-    const url = new URL(fileUrl);
-    const objectPath = url.pathname.split('/object/')[1];
-    if (!objectPath) return null;
-    const parts = objectPath.split('/');
-    if (parts.length < 3) return null;
-    return parts.slice(2).join('/');
-  } catch {
-    // Not a valid URL — treat as a raw storage path
-    if (fileUrl.includes('/') && !fileUrl.startsWith('http')) {
-      return fileUrl;
-    }
-    return null;
-  }
-}
-
 export async function POST(request: Request) {
-  // 1. Auth FIRST — before parsing any body
   const auth = await requireAuth(new Headers(request.headers));
   if (!auth.success) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -52,7 +32,6 @@ export async function POST(request: Request) {
 
     const docType = documentType as DocumentType;
 
-    // 2. Cross-check profileId — reject if client sends a different user's profileId
     if (docType !== 'profilePhoto') {
       const clientProfileId = formData.get('profileId') as string | null;
       if (clientProfileId && clientProfileId !== userId) {
@@ -60,124 +39,29 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Read file into buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 4. Validate: size + magic bytes
+    const bucket = BUCKETS[docType];
+
+    if (docType === 'profilePhoto') {
+      if (buffer.length > 20 * 1024 * 1024) {
+        return NextResponse.json({ error: 'Profile photo must be under 20MB' }, { status: 400 });
+      }
+      const { detectFileType } = await import('@/lib/file-validation');
+      const fileType = detectFileType(buffer);
+      if (!fileType || fileType === 'pdf') {
+        return NextResponse.json({ error: 'Profile photo must be a valid image (JPEG, PNG, or WebP)' }, { status: 400 });
+      }
+      return await handleProfilePhotoUpload(userId, buffer, bucket);
+    }
+
     const validation = validateFile(buffer, docType);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    // 5. Process: images → sharp resize + WebP, PDFs → pass through
-    let processedBuffer: Buffer;
-    let contentType: string;
-    let extension: string;
-
-    if (validation.fileType === 'pdf') {
-      processedBuffer = buffer;
-      contentType = 'application/pdf';
-      extension = 'pdf';
-    } else {
-      try {
-        processedBuffer = await sharp(buffer)
-          .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 75 })
-          .toBuffer();
-        contentType = 'image/webp';
-        extension = 'webp';
-      } catch {
-        return NextResponse.json({ error: 'Failed to process image — file may be corrupted' }, { status: 400 });
-      }
-    }
-
-    // 6. Build deterministic storage path — no original filename
-    const bucket = BUCKETS[docType];
-    const storagePath = buildStoragePath(userId, docType, extension);
-
-    // 7. Check for existing file to replace (looked up from DB, not client-supplied)
-    let existingStoragePath: string | null = null;
-
-    if (docType === 'profilePhoto') {
-      const profile = await prisma.profile.findUnique({
-        where: { id: userId },
-        select: { avatarUrl: true },
-      });
-      if (profile?.avatarUrl) {
-        existingStoragePath = extractStoragePath(profile.avatarUrl);
-      }
-    } else {
-      const doc = await prisma.beneficiaryDocument.findFirst({
-        where: { profileId: userId, type: docType },
-        select: { fileUrl: true },
-      });
-      if (doc?.fileUrl) {
-        existingStoragePath = extractStoragePath(doc.fileUrl);
-      }
-    }
-
-    // 8. Upload new file
-    await uploadFile(bucket, storagePath, processedBuffer, contentType);
-
-    // 9. Delete old file (after successful upload, to avoid zero-file window)
-    if (existingStoragePath) {
-      try {
-        await deleteFile(bucket, existingStoragePath);
-      } catch {
-        // Log but don't fail — old file orphaned is better than losing new upload
-        console.error('[upload] Failed to delete old file:', existingStoragePath);
-      }
-    }
-
-    // 10. Update DB
-    if (docType === 'profilePhoto') {
-      await prisma.profile.update({
-        where: { id: userId },
-        data: { avatarUrl: storagePath },
-      });
-    } else {
-      // Upsert: create if not exists, update if exists
-      const existing = await prisma.beneficiaryDocument.findFirst({
-        where: { profileId: userId, type: docType },
-        select: { id: true },
-      });
-
-      if (existing) {
-        await prisma.beneficiaryDocument.update({
-          where: { id: existing.id },
-          data: {
-            fileUrl: storagePath,
-            status: 'pending',
-            uploadedDate: new Date(),
-          },
-        });
-      } else {
-        await prisma.beneficiaryDocument.create({
-          data: {
-            profileId: userId,
-            type: docType,
-            label: docType.charAt(0).toUpperCase() + docType.slice(1),
-            fileUrl: storagePath,
-            status: 'pending',
-            uploadedDate: new Date(),
-          },
-        });
-      }
-    }
-
-    // Invalidate cached profile page so fresh data loads on next navigation
-    try { revalidatePath('/dashboard/profile'); } catch { /* no-op outside Next.js server context */ }
-
-    // 11. Generate signed URL for client display
-    const signedUrl = await generateSignedUrl(bucket, storagePath, SIGNED_URL_EXPIRY);
-
-    return NextResponse.json({
-      signedUrl,
-      expiresAt: new Date(Date.now() + SIGNED_URL_EXPIRY * 1000).toISOString(),
-      storagePath,
-      fileName: file.name,
-    });
+    return await handleDocumentUpload(userId, buffer, docType, bucket, file.name);
 
   } catch (error) {
     console.error('[upload] POST error:', error);
@@ -185,8 +69,178 @@ export async function POST(request: Request) {
   }
 }
 
+async function handleProfilePhotoUpload(
+  userId: string,
+  inputBuffer: Buffer,
+  bucket: string,
+) {
+  const timestamp = Date.now();
+
+  // If raw input exceeds 2MB, pre-compress to reduce memory usage in sharp
+  let sourceBuffer = inputBuffer;
+  if (inputBuffer.length > 2 * 1024 * 1024) {
+    try {
+      sourceBuffer = await sharp(inputBuffer)
+        .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toBuffer();
+    } catch {
+      return NextResponse.json({ error: 'Failed to process image — file may be corrupted' }, { status: 400 });
+    }
+  }
+
+  let hqBuffer: Buffer;
+  let avatarBuffer: Buffer;
+  let blurDataUrl: string;
+
+  try {
+    [hqBuffer, avatarBuffer] = await Promise.all([
+      sharp(sourceBuffer)
+        .resize(800, 800, { fit: 'cover', withoutEnlargement: true })
+        .webp({ quality: 92 })
+        .toBuffer(),
+      sharp(sourceBuffer)
+        .resize(256, 256, { fit: 'cover' })
+        .webp({ quality: 78 })
+        .toBuffer(),
+    ]);
+
+    const blurBuffer = await sharp(sourceBuffer)
+      .resize(20, 20, { fit: 'cover' })
+      .webp({ quality: 20 })
+      .toBuffer();
+    blurDataUrl = `data:image/webp;base64,${blurBuffer.toString('base64')}`;
+  } catch {
+    return NextResponse.json({ error: 'Failed to process image — file may be corrupted' }, { status: 400 });
+  }
+
+  const hqPath = `${userId}/profilePhoto/hq-${timestamp}.webp`;
+  const avatarPath = `${userId}/profilePhoto/avatar-${timestamp}.webp`;
+
+  const existingProfile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { avatarUrl: true, photoUrlHQ: true },
+  });
+
+  const oldAvatarPath = existingProfile?.avatarUrl || null;
+  const oldHqPath = existingProfile?.photoUrlHQ || null;
+
+  await Promise.all([
+    uploadFile(bucket, hqPath, hqBuffer, 'image/webp'),
+    uploadFile(bucket, avatarPath, avatarBuffer, 'image/webp'),
+  ]);
+
+  await prisma.profile.update({
+    where: { id: userId },
+    data: {
+      avatarUrl: avatarPath,
+      photoUrlHQ: hqPath,
+      photoBlurDataUrl: blurDataUrl,
+    },
+  });
+
+  const deletePaths = [oldAvatarPath, oldHqPath].filter(
+    (p): p is string => p !== null && p !== avatarPath && p !== hqPath,
+  );
+  for (const oldPath of deletePaths) {
+    try {
+      await deleteFile(bucket, oldPath);
+    } catch {
+      console.error('[upload] Failed to delete old profile photo:', oldPath);
+    }
+  }
+
+  try { revalidatePath('/dashboard/profile'); } catch { /* no-op outside Next.js server context */ }
+
+  return NextResponse.json({
+    signedUrl: getPublicUrl(BUCKETS.profilePhoto, avatarPath),
+    photoUrl: getPublicUrl(BUCKETS.profilePhoto, avatarPath),
+    photoUrlHQ: getPublicUrl(BUCKETS.profilePhoto, hqPath),
+    photoBlurDataUrl: blurDataUrl,
+    storagePath: avatarPath,
+    fileName: 'profile-photo.webp',
+  });
+}
+
+async function handleDocumentUpload(
+  userId: string,
+  buffer: Buffer,
+  docType: DocumentType,
+  bucket: string,
+  originalName: string,
+) {
+  let processedBuffer: Buffer;
+  let contentType: string;
+  let extension: string;
+
+  const validation = validateFile(buffer, docType);
+
+  if (validation.fileType === 'pdf') {
+    processedBuffer = buffer;
+    contentType = 'application/pdf';
+    extension = 'pdf';
+  } else {
+    try {
+      processedBuffer = await sharp(buffer)
+        .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 75 })
+        .toBuffer();
+      contentType = 'image/webp';
+      extension = 'webp';
+    } catch {
+      return NextResponse.json({ error: 'Failed to process image — file may be corrupted' }, { status: 400 });
+    }
+  }
+
+  const timestamp = Date.now();
+  const storagePath = `${userId}/${docType}/${timestamp}.${extension}`;
+
+  const doc = await prisma.beneficiaryDocument.findFirst({
+    where: { profileId: userId, type: docType },
+    select: { id: true, fileUrl: true },
+  });
+
+  const existingPath = doc?.fileUrl || null;
+
+  await uploadFile(bucket, storagePath, processedBuffer, contentType);
+
+  if (existingPath) {
+    try { await deleteFile(bucket, existingPath); } catch {
+      console.error('[upload] Failed to delete old document:', existingPath);
+    }
+  }
+
+  if (doc) {
+    await prisma.beneficiaryDocument.update({
+      where: { id: doc.id },
+      data: { fileUrl: storagePath, status: 'pending', uploadedDate: new Date() },
+    });
+  } else {
+    await prisma.beneficiaryDocument.create({
+      data: {
+        profileId: userId,
+        type: docType,
+        label: docType.charAt(0).toUpperCase() + docType.slice(1),
+        fileUrl: storagePath,
+        status: 'pending',
+        uploadedDate: new Date(),
+      },
+    });
+  }
+
+  try { revalidatePath('/dashboard/profile'); } catch { /* no-op outside Next.js server context */ }
+
+  const signedUrl = await generateSignedUrl(bucket, storagePath, SIGNED_URL_EXPIRY);
+
+  return NextResponse.json({
+    signedUrl,
+    expiresAt: new Date(Date.now() + SIGNED_URL_EXPIRY * 1000).toISOString(),
+    storagePath,
+    fileName: originalName,
+  });
+}
+
 export async function DELETE(request: Request) {
-  // 1. Auth FIRST
   const auth = await requireAuth(new Headers(request.headers));
   if (!auth.success) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -206,51 +260,49 @@ export async function DELETE(request: Request) {
     const docType = documentType as DocumentType;
     const bucket = BUCKETS[docType];
 
-    // 2. Verify ownership via DB — never trust client-supplied paths
-    let fileUrl: string | null = null;
-
     if (docType === 'profilePhoto') {
       const profile = await prisma.profile.findUnique({
         where: { id: userId },
-        select: { avatarUrl: true },
+        select: { avatarUrl: true, photoUrlHQ: true },
       });
-      fileUrl = profile?.avatarUrl ?? null;
-    } else {
-      if (!recordId) {
-        return NextResponse.json({ error: 'recordId required for document deletion' }, { status: 400 });
+
+      const pathsToDelete = [profile?.avatarUrl, profile?.photoUrlHQ].filter(
+        (p): p is string => !!p,
+      );
+
+      await prisma.profile.update({
+        where: { id: userId },
+        data: { avatarUrl: null, photoUrlHQ: null, photoBlurDataUrl: null },
+      });
+
+      for (const path of pathsToDelete) {
+        try { await deleteFile(bucket, path); } catch {
+          console.error('[upload] Failed to delete profile photo:', path);
+        }
       }
-      const doc = await prisma.beneficiaryDocument.findFirst({
-        where: { id: recordId, profileId: userId, type: docType },
-        select: { fileUrl: true },
-      });
-      fileUrl = doc?.fileUrl ?? null;
+
+      return NextResponse.json({ success: true });
     }
 
-    if (!fileUrl) {
+    if (!recordId) {
+      return NextResponse.json({ error: 'recordId required for document deletion' }, { status: 400 });
+    }
+
+    const doc = await prisma.beneficiaryDocument.findFirst({
+      where: { id: recordId, profileId: userId, type: docType },
+      select: { id: true, fileUrl: true },
+    });
+
+    if (!doc?.fileUrl) {
       return NextResponse.json({ error: 'File not found or access denied' }, { status: 404 });
     }
 
-    // 3. Extract storage path from the URL
-    const storagePath = extractStoragePath(fileUrl);
-    if (!storagePath) {
-      return NextResponse.json({ error: 'Invalid file reference' }, { status: 400 });
-    }
+    await deleteFile(bucket, doc.fileUrl);
 
-    // 4. Delete from Storage
-    await deleteFile(bucket, storagePath);
-
-    // 5. Update DB — clear the file reference
-    if (docType === 'profilePhoto') {
-      await prisma.profile.update({
-        where: { id: userId },
-        data: { avatarUrl: null },
-      });
-    } else {
-      await prisma.beneficiaryDocument.update({
-        where: { id: recordId! },
-        data: { fileUrl: null, status: 'not_uploaded', uploadedDate: null },
-      });
-    }
+    await prisma.beneficiaryDocument.update({
+      where: { id: doc.id },
+      data: { fileUrl: null, status: 'not_uploaded', uploadedDate: null },
+    });
 
     return NextResponse.json({ success: true });
 

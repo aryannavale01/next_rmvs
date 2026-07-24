@@ -27,6 +27,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setMounted(true));
@@ -326,12 +327,22 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                     {profile.email}
                   </span>
                 </div>
-                {profile.photoUrl ? (
+                {profile.photoUrl && profile.photoUrl !== photoError ? (
                   <img
                     src={profile.photoUrl}
-                    alt="User profile"
+                    alt={`${profile.firstName} ${profile.lastName}`}
+                    width={40}
+                    height={40}
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.dataset.retried) {
+                        img.dataset.retried = '1';
+                        img.src = profile.photoUrl + '?retry=' + Date.now();
+                      } else {
+                        setPhotoError(profile.photoUrl || null);
+                      }
+                    }}
                     className="h-10 w-10 rounded-full object-cover border-2 border-primary-light shrink-0 shadow-sm"
-                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="h-10 w-10 rounded-full bg-primary-light flex items-center justify-center font-bold text-primary border-2 border-primary-light shrink-0 uppercase shadow-sm">

@@ -245,6 +245,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             profile: {
               ...prev.profile,
               ...serverProfile,
+              photoUrl: serverProfile.photoUrl || prev.profile.photoUrl,
+              photoUrlHQ: serverProfile.photoUrlHQ || prev.profile.photoUrlHQ,
+              photoBlurDataUrl: serverProfile.photoBlurDataUrl || prev.profile.photoBlurDataUrl,
               documents: {
                 ...prev.profile.documents,
                 ...serverProfile.documents,
@@ -315,7 +318,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handleUpdate = () => {
-      setState(getStoredState());
+      setState((prev) => {
+        const stored = getStoredState();
+        return {
+          ...stored,
+          profile: {
+            ...stored.profile,
+            photoUrl: stored.profile.photoUrl || prev.profile.photoUrl,
+            photoUrlHQ: stored.profile.photoUrlHQ || prev.profile.photoUrlHQ,
+            photoBlurDataUrl: stored.profile.photoBlurDataUrl || prev.profile.photoBlurDataUrl,
+          },
+        };
+      });
     };
 
     window.addEventListener('dashboard-state-update', handleUpdate);
@@ -427,7 +441,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       courseTitle: course.title,
       certificateNo: makeCertificateNo(courseId),
       completionDate: getTodayIsoDate(),
-      status: 'generated'
+      status: 'generated',
+      photoUrlHQ: state.profile.photoUrlHQ || undefined,
     };
 
     const nextCertificates = [newCert, ...state.certificates];
@@ -463,7 +478,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     saveStoredState({
       certificates: nextCertificates,
       notifications: nextNotifs,
-      applications: nextApplications
+      applications: nextApplications,
     });
 
     addActivity(

@@ -250,12 +250,13 @@ describe('DELETE /api/upload', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 404 when file not found', async () => {
+  it('returns 200 when profile photo already absent (idempotent delete)', async () => {
     vi.mocked(requireAuth).mockResolvedValue({
       success: true,
       session: { user: { id: 'user-1', email: 'a@b.com', name: 'Test', role: 'ADMIN' }, session: { id: 's1', expiresAt: new Date() } },
     });
-    vi.mocked(prisma.profile.findUnique).mockResolvedValue({ avatarUrl: null } as any);
+    vi.mocked(prisma.profile.findUnique).mockResolvedValue({ avatarUrl: null, photoUrlHQ: null } as any);
+    vi.mocked(prisma.profile.update).mockResolvedValue({} as any);
 
     const req = makeRequest({
       method: 'DELETE',
@@ -263,8 +264,12 @@ describe('DELETE /api/upload', () => {
     });
     const res = await DELETE(req);
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     expect(deleteFile).not.toHaveBeenCalled();
+    expect(prisma.profile.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { avatarUrl: null, photoUrlHQ: null, photoBlurDataUrl: null },
+    });
   });
 
   it('deletes profile photo and clears DB', async () => {
@@ -274,6 +279,7 @@ describe('DELETE /api/upload', () => {
     });
     vi.mocked(prisma.profile.findUnique).mockResolvedValue({
       avatarUrl: 'user-1/profilePhoto/12345.webp',
+      photoUrlHQ: 'user-1/profilePhoto/hq-12345.webp',
     } as any);
     vi.mocked(prisma.profile.update).mockResolvedValue({} as any);
 
@@ -285,9 +291,10 @@ describe('DELETE /api/upload', () => {
 
     expect(res.status).toBe(200);
     expect(deleteFile).toHaveBeenCalledWith(BUCKETS.profilePhoto, 'user-1/profilePhoto/12345.webp');
+    expect(deleteFile).toHaveBeenCalledWith(BUCKETS.profilePhoto, 'user-1/profilePhoto/hq-12345.webp');
     expect(prisma.profile.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
-      data: { avatarUrl: null },
+      data: { avatarUrl: null, photoUrlHQ: null, photoBlurDataUrl: null },
     });
   });
 

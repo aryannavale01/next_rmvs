@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
-import { generateSignedUrl } from '@/lib/supabase-storage';
+import { generateSignedUrl, getPublicUrl } from '@/lib/supabase-storage';
 import { BUCKETS, SIGNED_URL_EXPIRY, type DocumentType } from '@/lib/upload-config';
 
 const DOC_TYPE_TO_BUCKET: Record<string, string> = {
   aadhaar: BUCKETS.aadhaar,
   pan: BUCKETS.pan,
   rationCard: BUCKETS.rationCard,
-  profilePhoto: BUCKETS.profilePhoto,
 };
 
 export async function GET(request: Request) {
@@ -20,7 +19,6 @@ export async function GET(request: Request) {
   const userId = auth.session.user.id;
 
   try {
-    // Load profile from DB
     const profile = await prisma.profile.findUnique({
       where: { id: userId },
       select: {
@@ -28,6 +26,8 @@ export async function GET(request: Request) {
         email: true,
         phone: true,
         avatarUrl: true,
+        photoUrlHQ: true,
+        photoBlurDataUrl: true,
         aadhaarNumber: true,
         panNumber: true,
         gender: true,
@@ -39,16 +39,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    // Generate fresh signed URL for profile photo
-    let photoUrl = '';
-    if (profile.avatarUrl) {
-      try {
-        photoUrl = await generateSignedUrl(BUCKETS.profilePhoto, profile.avatarUrl, SIGNED_URL_EXPIRY);
-      } catch {
-        // If signed URL generation fails (file missing from storage), clear the reference
-        console.error('[profile] Failed to generate signed URL for avatar:', profile.avatarUrl);
-      }
-    }
+    const responsePhotoUrl = profile.avatarUrl ? getPublicUrl(BUCKETS.profilePhoto, profile.avatarUrl) : null;
+    const responsePhotoUrlHQ = profile.photoUrlHQ ? getPublicUrl(BUCKETS.profilePhoto, profile.photoUrlHQ) : null;
+    const responseBlurDataUrl = profile.photoBlurDataUrl || null;
 
     // Load beneficiary documents
     const docs = await prisma.beneficiaryDocument.findMany({
@@ -91,7 +84,9 @@ export async function GET(request: Request) {
       aadhaarNo: profile.aadhaarNumber || '',
       panNo: profile.panNumber || '',
       rationCardNo: '',
-      photoUrl,
+      photoUrl: responsePhotoUrl,
+      photoUrlHQ: responsePhotoUrlHQ,
+      photoBlurDataUrl: responseBlurDataUrl,
       documents: {
         aadhaar: documents.aadhaar || { uploaded: false, name: '', date: '', signedUrl: '' },
         pan: documents.pan || { uploaded: false, name: '', date: '', signedUrl: '' },

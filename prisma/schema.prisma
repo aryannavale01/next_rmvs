@@ -404,6 +404,8 @@ model Profile {
   email             String
   phone             String?
   avatarUrl         String?       @map("avatar_url")
+  photoUrlHQ        String?       @map("photo_url_hq")
+  photoBlurDataUrl  String?       @map("photo_blur_data_url")
   gender            Gender?
   dob               DateTime?     @db.Date
   role              UserRole      @default(member)

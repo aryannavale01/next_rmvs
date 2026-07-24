@@ -58,6 +58,8 @@ export default function ProfilePage() {
   const [photoPhase, setPhotoPhase] = useState<'idle' | 'compressing' | 'uploading'>('idle');
   const [photoError, setPhotoError] = useState('');
   const [photoSuccess, setPhotoSuccess] = useState('');
+  const [imgLoadError, setImgLoadError] = useState<string | null>(null);
+  const [photoVersion, setPhotoVersion] = useState(0);
 
   // Confirm dialogs
   const [showRemovePhotoConfirm, setShowRemovePhotoConfirm] = useState(false);
@@ -78,8 +80,8 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      setPhotoError('Image size must be less than 2MB');
+    if (file.size > 20 * 1024 * 1024) {
+      setPhotoError('Image size must be less than 20MB');
       setTimeout(() => setPhotoError(''), 4000);
       return;
     }
@@ -95,19 +97,27 @@ export default function ProfilePage() {
     setPhotoSuccess('');
 
     try {
-      // Client-side compression
+      // Client-side compression — skip if file already small
       setPhotoPhase('compressing');
-      const imageCompression = (await import('browser-image-compression')).default;
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 1.5,
-        maxWidthOrHeight: 1600,
-        useWebWorker: true,
-      });
+      let uploadFile: File = file;
+      if (file.size > 1.5 * 1024 * 1024) {
+        try {
+          const imageCompression = (await import('browser-image-compression')).default;
+          uploadFile = await imageCompression(file, {
+            maxSizeMB: 1.5,
+            maxWidthOrHeight: 1600,
+            useWebWorker: true,
+          });
+        } catch (compressionErr) {
+          console.warn('[photo] Client compression failed, sending original:', compressionErr);
+          // Fall back to original file — server-side sharp will handle compression
+        }
+      }
 
       // Upload to server
       setPhotoPhase('uploading');
       const formData = new FormData();
-      formData.append('file', compressed);
+      formData.append('file', uploadFile);
       formData.append('documentType', 'profilePhoto');
 
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
@@ -117,7 +127,13 @@ export default function ProfilePage() {
         throw new Error(data.error || 'Upload failed');
       }
 
-      updateProfile({ photoUrl: data.signedUrl });
+      updateProfile({
+        photoUrl: data.photoUrl || data.signedUrl,
+        photoUrlHQ: data.photoUrlHQ || '',
+        photoBlurDataUrl: data.photoBlurDataUrl || '',
+      });
+      setImgLoadError(null);
+      setPhotoVersion(Date.now());
       setPhotoSuccess('Profile picture updated successfully!');
       setTimeout(() => setPhotoSuccess(''), 4000);
     } catch (err: any) {
@@ -137,7 +153,7 @@ export default function ProfilePage() {
         const data = await res.json();
         throw new Error(data.error || 'Delete failed');
       }
-      updateProfile({ photoUrl: '' });
+      updateProfile({ photoUrl: '', photoUrlHQ: '', photoBlurDataUrl: '' });
       setPhotoSuccess('Profile picture removed successfully');
       setTimeout(() => setPhotoSuccess(''), 4000);
     } catch (err: any) {
@@ -307,10 +323,21 @@ export default function ProfilePage() {
             {/* PROFILE PICTURE UPLOAD AREA */}
             <div className="mb-8 p-5 bg-background border border-border rounded-xl flex flex-col sm:flex-row items-center gap-6">
               <div className="relative group shrink-0">
-                {profile.photoUrl ? (
+                {profile.photoUrl && profile.photoUrl !== imgLoadError ? (
                   <img
-                    src={profile.photoUrl}
+                    src={`${profile.photoUrl}?v=${photoVersion}`}
                     alt={`${profile.firstName} ${profile.lastName}`}
+                    width={96}
+                    height={96}
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.dataset.retried) {
+                        img.dataset.retried = '1';
+                        img.src = `${profile.photoUrl}?v=${photoVersion}&retry=${Date.now()}`;
+                      } else {
+                        setImgLoadError(profile.photoUrl || null);
+                      }
+                    }}
                     className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"
                   />
                 ) : (
@@ -357,7 +384,7 @@ export default function ProfilePage() {
                   {profile.photoUrl && (
                     <button
                       type="button"
-                      onClick={handleRemovePhoto}
+                      onClick={() => setShowRemovePhotoConfirm(true)}
                       disabled={isUploadingPhoto}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-destructive-bg hover:bg-destructive/10 text-destructive-text text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                     >
@@ -827,11 +854,7 @@ export default function ProfilePage() {
       <ConfirmDialog
         open={showRemovePhotoConfirm}
         onClose={() => setShowRemovePhotoConfirm(false)}
-        onConfirm={() => {
-          updateProfile({ photoUrl: '' });
-          setPhotoSuccess('Profile picture removed successfully');
-          setTimeout(() => setPhotoSuccess(''), 4000);
-        }}
+        onConfirm={handleRemovePhoto}
         title="Remove Profile Picture"
         description="Are you sure you want to remove your profile picture?"
         confirmLabel="Remove"
