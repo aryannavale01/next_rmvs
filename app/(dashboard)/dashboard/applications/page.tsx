@@ -2,7 +2,9 @@
 
 import { useState, Fragment } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useDashboard, TRANSLATIONS } from '@/lib/dashboard-context';
+import { TRANSLATIONS } from '@/lib/dashboard-context';
+import { useDashboardData } from '@/lib/hooks/useDashboardData';
+import { useLanguage } from '@/lib/hooks/useLanguage';
 import {
   FileText,
   Calendar,
@@ -16,7 +18,8 @@ import { EmptyState } from '@/components/dashboard-ui';
 export default function ApplicationsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { applications, language } = useDashboard();
+  const { applications } = useDashboardData();
+  const { language } = useLanguage();
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   const highlightCompleted = searchParams.get('filter') === 'completed' && applications.some(a => a.status === 'Course Completed');

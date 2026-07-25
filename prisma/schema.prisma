@@ -510,6 +510,10 @@ model BeneficiaryDocument {
   fileUrl      String?        @map("file_url")
   status       DocumentStatus @default(not_uploaded)
   uploadedDate DateTime?      @map("uploaded_date")
+  /// Set when a document's status transitions to `verified` or `rejected`.
+  /// As of 2026-07-24, no admin document-review UI exists — this is only
+  /// written via automated flows if applicable. Check for null before use;
+  /// most documents will have this as null.
   verifiedDate DateTime?      @map("verified_date")
   createdAt    DateTime       @default(now()) @map("created_at")
 

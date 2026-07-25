@@ -88,7 +88,7 @@ const emptyWizard = {
   teacher_id: '', start_date: '', end_date: '', duration: '',
   seats_total: 30, access_code_required: false, auto_approve: false,
   price: 0, currency: 'INR',
-  coupons: [] as Omit<Coupon, 'course_id' | 'uses_count' | 'per_user_limit' | 'min_order_value' | 'status'>[],
+  coupons: [] as { code: string; description: string; discountType: 'percentage' | 'fixed'; discountValue: number; maxUses: number; expiresAt: string }[],
   required_docs: [] as string[],
   syllabus: [] as SyllabusLesson[],
   status: 'Draft' as AdminCourse['status'], benefits: '', eligibility: '',
@@ -106,7 +106,7 @@ export default function AdminTrainingPage() {
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [wiz, setWiz] = useState(emptyWizard);
-  const [couponDraft, setCouponDraft] = useState({ code: '', description: '', type: 'Percentage' as 'Percentage' | 'Fixed', value: 0, max_uses: 10, expiry_date: '' });
+  const [couponDraft, setCouponDraft] = useState({ code: '', description: '', discountType: 'percentage' as 'percentage' | 'fixed', discountValue: 0, maxUses: 10, expiresAt: '' });
   const [lessonDraft, setLessonDraft] = useState({ title: '', type: 'Video' as SyllabusLesson['type'], duration: '' });
 
   const filtered = useMemo(() => {
@@ -132,7 +132,7 @@ export default function AdminTrainingPage() {
   const addCouponToWizard = () => {
     if (!couponDraft.code) return;
     setWiz(f => ({ ...f, coupons: [...f.coupons, { ...couponDraft }] }));
-    setCouponDraft({ code: '', description: '', type: 'Percentage', value: 0, max_uses: 10, expiry_date: '' });
+    setCouponDraft({ code: '', description: '', discountType: 'percentage', discountValue: 0, maxUses: 10, expiresAt: '' });
   };
 
   const removeCoupon = (idx: number) => setWiz(f => ({ ...f, coupons: f.coupons.filter((_, i) => i !== idx) }));
@@ -163,7 +163,12 @@ export default function AdminTrainingPage() {
       start_date: wiz.start_date, end_date: wiz.end_date, duration: wiz.duration,
       seats_total: wiz.seats_total, access_code_required: wiz.access_code_required,
       auto_approve: wiz.auto_approve, price: wiz.price, currency: wiz.currency,
-      coupons: wiz.coupons.map(c => ({ ...c, description: '', uses_count: 0, per_user_limit: 1, min_order_value: 0, course_id: '', status: 'Active' as const })),
+      coupons: wiz.coupons.map(c => ({
+        id: '', code: c.code, description: c.description, discountType: c.discountType, discountValue: c.discountValue,
+        expiresAt: c.expiresAt || null, validFrom: null, maxUses: c.maxUses, usedCount: 0,
+        perUserLimit: null, minAmount: null, courseId: null, isActive: true,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      })),
       required_docs: wiz.required_docs, syllabus: wiz.syllabus,
       status: wiz.status, benefits: wiz.benefits.split(',').map(b => b.trim()).filter(Boolean), eligibility: wiz.eligibility,
     });
@@ -266,14 +271,14 @@ export default function AdminTrainingPage() {
               </div>
               <div>
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Type</label>
-                <select value={couponDraft.type} onChange={e => setCouponDraft(d => ({ ...d, type: e.target.value as 'Percentage' | 'Fixed' }))}
+                <select value={couponDraft.discountType} onChange={e => setCouponDraft(d => ({ ...d, discountType: e.target.value as 'percentage' | 'fixed' }))}
                   className="w-full px-3 py-2 text-sm border border-border rounded-lg outline-none bg-card">
-                  <option>Percentage</option><option>Fixed</option>
+                  <option value="percentage">Percentage</option><option value="fixed">Fixed</option>
                 </select>
               </div>
               <div>
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Value</label>
-                <input type="number" value={couponDraft.value} onChange={e => setCouponDraft(d => ({ ...d, value: Number(e.target.value) }))}
+                <input type="number" value={couponDraft.discountValue} onChange={e => setCouponDraft(d => ({ ...d, discountValue: Number(e.target.value) }))}
                   className="w-full px-3 py-2 text-sm border border-border rounded-lg outline-none" />
               </div>
               <button onClick={addCouponToWizard} className="px-3 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg h-[38px]">
@@ -281,8 +286,8 @@ export default function AdminTrainingPage() {
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2 items-end">
-              <WizInput label="Max Uses" value={couponDraft.max_uses} onChange={v => setCouponDraft(d => ({ ...d, max_uses: Number(v) }))} type="number" />
-              <WizInput label="Expiry Date" value={couponDraft.expiry_date} onChange={v => setCouponDraft(d => ({ ...d, expiry_date: v }))} type="date" />
+              <WizInput label="Max Uses" value={couponDraft.maxUses} onChange={v => setCouponDraft(d => ({ ...d, maxUses: Number(v) }))} type="number" />
+              <WizInput label="Expiry Date" value={couponDraft.expiresAt} onChange={v => setCouponDraft(d => ({ ...d, expiresAt: v }))} type="date" />
             </div>
             {wiz.coupons.length > 0 && (
               <div className="space-y-2">
@@ -290,8 +295,8 @@ export default function AdminTrainingPage() {
                   <div key={i} className="flex items-center gap-3 bg-background border border-border rounded-lg px-3 py-2">
                     <Tag className="w-3.5 h-3.5 text-primary" />
                     <span className="text-xs font-bold text-foreground">{c.code}</span>
-                    <span className="text-[10px] text-muted-foreground">{c.type === 'Percentage' ? `${c.value}%` : `${wiz.currency} ${c.value}`}</span>
-                    <span className="text-[10px] text-muted-foreground">Max: {c.max_uses}</span>
+                    <span className="text-[10px] text-muted-foreground">{c.discountType === 'percentage' ? `${c.discountValue}%` : `${wiz.currency} ${c.discountValue}`}</span>
+                    <span className="text-[10px] text-muted-foreground">Max: {c.maxUses}</span>
                     <button onClick={() => removeCoupon(i)} className="ml-auto p-1 rounded hover:bg-destructive-bg text-muted-foreground hover:text-destructive">
                       <Trash2 className="w-3 h-3" />
                     </button>

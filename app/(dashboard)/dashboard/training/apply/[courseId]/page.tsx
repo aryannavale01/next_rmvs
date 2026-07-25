@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDashboard, TRANSLATIONS } from '@/lib/dashboard-context';
 import {
   ChevronLeft, Laptop, Check, Percent, Upload, AlertCircle,
-  FileCheck, RefreshCw, Trash2,
+  FileCheck, RefreshCw, Trash2, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '@/components/ui/toast';
+import type { DocumentInfo } from '@/lib/store';
 
 export default function ApplyCoursePage() {
   const params = useParams();
@@ -30,16 +31,35 @@ export default function ApplyCoursePage() {
     motivation: '',
   });
 
+  const [profileDocs, setProfileDocs] = useState<{
+    aadhaar: DocumentInfo;
+    pan: DocumentInfo;
+  }>({
+    aadhaar: profile?.documents?.aadhaar || { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null },
+    pan: profile?.documents?.pan || { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null },
+  });
+
+  const refreshProfileDocs = useCallback(() => {
+    if (profile?.documents) {
+      setProfileDocs({ aadhaar: profile.documents.aadhaar, pan: profile.documents.pan });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.documents?.aadhaar?.recordId, profile?.documents?.aadhaar?.uploaded, profile?.documents?.aadhaar?.status, profile?.documents?.pan?.recordId, profile?.documents?.pan?.uploaded, profile?.documents?.pan?.status]);
+
+  useEffect(() => { refreshProfileDocs(); }, [refreshProfileDocs]);
+
   const [attachedFiles, setAttachedFiles] = useState<{
-    aadhaar?: { name: string; date: string };
-    pan?: { name: string; date: string };
+    aadhaar?: { name: string; date: string; recordId: string };
+    pan?: { name: string; date: string; recordId: string };
   }>({});
 
   const [docErrors, setDocErrors] = useState<{ aadhaar?: string; pan?: string }>({});
   const [uploadingDoc, setUploadingDoc] = useState<'aadhaar' | 'pan' | null>(null);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'compressing' | 'uploading'>('idle');
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountType: string; discountValue: number } | null>(null);
+  const [couponValidating, setCouponValidating] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -57,19 +77,51 @@ export default function ApplyCoursePage() {
     );
   }
 
-  const couponDiscounts: Record<string, number> = { FREE2026: 100, DISCOUNT50: 50, SKILLUP: 20 };
   const basePrice = course.price;
-  const discountPercent = appliedCoupon?.discount || 0;
-  const discountAmount = Math.round((basePrice * discountPercent) / 100);
+  const discountPercent = appliedCoupon
+    ? (appliedCoupon.discountType === 'percentage' ? appliedCoupon.discountValue : 0)
+    : 0;
+  const discountAmount = appliedCoupon
+    ? (appliedCoupon.discountType === 'percentage'
+        ? Math.round((basePrice * appliedCoupon.discountValue) / 100)
+        : Math.min(appliedCoupon.discountValue, basePrice))
+    : 0;
   const finalPrice = Math.max(0, basePrice - discountAmount);
 
-  const handleCouponValidate = () => {
-    const code = couponCode.trim().toUpperCase();
-    if (couponDiscounts[code] !== undefined) {
-      setAppliedCoupon({ code, discount: couponDiscounts[code] });
-    } else {
-      setAppliedCoupon(null);
-      toast({ title: 'Invalid Coupon', description: 'The coupon code entered is not valid.', variant: 'error' });
+  const COUPON_MESSAGES: Record<string, string> = {
+    not_found: 'Coupon expired or invalid.',
+    inactive: 'Coupon expired or invalid.',
+    not_yet_valid: 'Coupon expired or invalid.',
+    expired: 'Coupon expired or invalid.',
+    wrong_course: 'Coupon expired or invalid.',
+    exhausted: 'Coupon expired or invalid.',
+    user_limit_reached: 'Coupon expired or invalid.',
+    below_min_amount: 'Coupon expired or invalid.',
+    course_not_found: 'Coupon expired or invalid.',
+  };
+
+  const handleCouponValidate = async () => {
+    const code = couponCode.trim();
+    if (!code) return;
+    setCouponValidating(true);
+    setCouponError(null);
+    setAppliedCoupon(null);
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, courseId }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setAppliedCoupon({ code: code.toUpperCase(), discountType: data.discountType, discountValue: data.discountValue });
+      } else {
+        setCouponError(COUPON_MESSAGES[data.reason] || 'Coupon expired or invalid.');
+      }
+    } catch {
+      setCouponError('Coupon expired or invalid.');
+    } finally {
+      setCouponValidating(false);
     }
   };
 
@@ -78,7 +130,6 @@ export default function ApplyCoursePage() {
     setDocErrors(prev => ({ ...prev, [type]: undefined }));
 
     try {
-      // Client-side compression for images
       let uploadFile: File = file;
       if (file.type.startsWith('image/')) {
         setUploadPhase('compressing');
@@ -90,7 +141,6 @@ export default function ApplyCoursePage() {
         });
       }
 
-      // Upload to server
       setUploadPhase('uploading');
       const formData = new FormData();
       formData.append('file', uploadFile);
@@ -105,7 +155,7 @@ export default function ApplyCoursePage() {
 
       setAttachedFiles(prev => ({
         ...prev,
-        [type]: { name: file.name, date: new Date().toISOString().split('T')[0] },
+        [type]: { name: file.name, date: new Date().toISOString().split('T')[0], recordId: data.recordId },
       }));
     } catch (err: any) {
       setDocErrors(prev => ({ ...prev, [type]: err.message || 'Upload failed' }));
@@ -119,15 +169,34 @@ export default function ApplyCoursePage() {
     setAttachedFiles(prev => { const n = { ...prev }; delete n[type]; return n; });
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const isDocOnFile = (type: 'aadhaar' | 'pan'): boolean => {
+    const doc = profileDocs[type];
+    return doc.uploaded === true && doc.recordId !== null && doc.status !== 'rejected';
+  };
+
+  const isDocRejected = (type: 'aadhaar' | 'pan'): boolean => {
+    return profileDocs[type].status === 'rejected';
+  };
+
+  const hasRejectedDocs = isDocRejected('aadhaar') || (course.price > 0 && finalPrice > 0 && isDocRejected('pan'));
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setDocErrors({});
 
+    if (hasRejectedDocs) {
+      const errors: typeof docErrors = {};
+      if (isDocRejected('aadhaar')) errors.aadhaar = 'This document was rejected — please update it in your profile before applying.';
+      if (course.price > 0 && finalPrice > 0 && isDocRejected('pan')) errors.pan = 'This document was rejected — please update it in your profile before applying.';
+      setDocErrors(errors);
+      return;
+    }
+
     const errors: typeof docErrors = {};
-    if (!attachedFiles.aadhaar) {
+    if (!isDocOnFile('aadhaar') && !attachedFiles.aadhaar) {
       errors.aadhaar = 'Aadhaar Card document is mandatory to register under government schemes.';
     }
-    if (course.price > 0 && !attachedFiles.pan && finalPrice > 0) {
+    if (course.price > 0 && finalPrice > 0 && !isDocOnFile('pan') && !attachedFiles.pan) {
       errors.pan = 'PAN Card document is required for paid course tax audits.';
     }
 
@@ -137,21 +206,29 @@ export default function ApplyCoursePage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      applyToCourse(
-        course.id,
-        appliedCoupon?.code,
-        discountAmount,
-        finalPrice,
-        {
-          aadhaar: attachedFiles.aadhaar?.name,
-          pan: attachedFiles.pan?.name,
-        },
-      );
-      setIsSubmitting(false);
+    const success = await applyToCourse(
+      course.id,
+      appliedCoupon?.code,
+      discountAmount,
+      finalPrice,
+      {
+        aadhaar: isDocOnFile('aadhaar')
+          ? { name: profileDocs.aadhaar.name || undefined, recordId: profileDocs.aadhaar.recordId || undefined }
+          : attachedFiles.aadhaar
+            ? { name: attachedFiles.aadhaar.name, recordId: attachedFiles.aadhaar.recordId }
+            : undefined,
+        pan: isDocOnFile('pan')
+          ? { name: profileDocs.pan.name || undefined, recordId: profileDocs.pan.recordId || undefined }
+          : attachedFiles.pan
+            ? { name: attachedFiles.pan.name, recordId: attachedFiles.pan.recordId }
+            : undefined,
+      },
+    );
+    setIsSubmitting(false);
+    if (success) {
       setShowSuccess(true);
       setTimeout(() => router.push('/dashboard/applications'), 2000);
-    }, 1200);
+    }
   };
 
   if (showSuccess) {
@@ -233,7 +310,29 @@ export default function ApplyCoursePage() {
             {/* Aadhaar */}
             <div className={`border rounded-lg p-4 ${docErrors.aadhaar ? 'border-destructive' : 'border-border'}`}>
               <p className="text-xs font-bold text-foreground mb-2">Aadhaar Card *</p>
-              {attachedFiles.aadhaar ? (
+              {isDocRejected('aadhaar') ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Document rejected</p>
+                      <p className="text-xs text-gray-500">Please update it in your profile before applying.</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => router.push('/dashboard/profile')} className="text-xs font-medium text-blue-600 hover:underline shrink-0">Fix</button>
+                </div>
+              ) : isDocOnFile('aadhaar') ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Aadhaar Card on file</p>
+                      <p className="text-xs text-gray-500">{profileDocs.aadhaar.name} · Uploaded {profileDocs.aadhaar.date}</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => router.push('/dashboard/profile')} className="text-xs font-medium text-blue-600 hover:underline shrink-0">Replace</button>
+                </div>
+              ) : attachedFiles.aadhaar ? (
                 <div className="flex items-center gap-2 bg-success-bg/50 rounded-lg p-3">
                   <FileCheck size={16} className="text-success shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -264,7 +363,29 @@ export default function ApplyCoursePage() {
             {/* PAN */}
             <div className={`border rounded-lg p-4 ${docErrors.pan ? 'border-destructive' : 'border-border'}`}>
               <p className="text-xs font-bold text-foreground mb-2">PAN Card {course.price > 0 ? '*' : '(Optional)'}</p>
-              {attachedFiles.pan ? (
+              {isDocRejected('pan') ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Document rejected</p>
+                      <p className="text-xs text-gray-500">Please update it in your profile before applying.</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => router.push('/dashboard/profile')} className="text-xs font-medium text-blue-600 hover:underline shrink-0">Fix</button>
+                </div>
+              ) : isDocOnFile('pan') ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">PAN Card on file</p>
+                      <p className="text-xs text-gray-500">{profileDocs.pan.name} · Uploaded {profileDocs.pan.date}</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => router.push('/dashboard/profile')} className="text-xs font-medium text-blue-600 hover:underline shrink-0">Replace</button>
+                </div>
+              ) : attachedFiles.pan ? (
                 <div className="flex items-center gap-2 bg-success-bg/50 rounded-lg p-3">
                   <FileCheck size={16} className="text-success shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -303,14 +424,17 @@ export default function ApplyCoursePage() {
             {appliedCoupon ? (
               <div className="flex items-center gap-2 bg-success-bg/50 rounded-lg p-3">
                 <Check size={16} className="text-success" />
-                <span className="text-xs font-semibold text-success-text">Coupon {appliedCoupon.code} applied — {appliedCoupon.discount}% off</span>
+                <span className="text-xs font-semibold text-success-text">Coupon {appliedCoupon.code} applied — {appliedCoupon.discountType === 'percentage' ? `${appliedCoupon.discountValue}% off` : `₹${appliedCoupon.discountValue} off`}</span>
                 <button type="button" onClick={() => { setAppliedCoupon(null); setCouponCode(''); }} className="ml-auto text-xs text-destructive hover:underline">Remove</button>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <input type="text" value={couponCode} onChange={e => setCouponCode(e.target.value)} placeholder="Enter coupon code"
-                  className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
-                <button type="button" onClick={handleCouponValidate} className="px-4 py-2 text-xs font-bold bg-primary-light text-primary rounded-lg hover:bg-primary/10">Validate</button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input type="text" value={couponCode} onChange={e => setCouponCode(e.target.value)} placeholder="Enter coupon code"
+                    className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+                  <button type="button" onClick={handleCouponValidate} disabled={couponValidating} className="px-4 py-2 text-xs font-bold bg-primary-light text-primary rounded-lg hover:bg-primary/10 disabled:opacity-50">{couponValidating ? 'Checking...' : 'Validate'}</button>
+                </div>
+                {couponError && <p className="text-xs text-destructive font-medium">{couponError}</p>}
               </div>
             )}
           </div>
@@ -327,17 +451,17 @@ export default function ApplyCoursePage() {
         </div>
 
         {/* Submit - Mobile */}
-        <button type="submit" disabled={isSubmitting}
-          className="lg:hidden w-full py-3 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-colors flex items-center justify-center gap-2">
-          {isSubmitting ? <><RefreshCw size={14} className="animate-spin" /> Submitting...</> : 'Submit Application'}
+        <button type="submit" disabled={isSubmitting || hasRejectedDocs}
+          className="lg:hidden w-full py-3 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          {isSubmitting ? <><RefreshCw size={14} className="animate-spin" /> Submitting...</> : hasRejectedDocs ? 'Fix rejected documents first' : 'Submit Application'}
         </button>
       </form>
 
       {/* Submit - Desktop (outside form, linked via form attribute) */}
       <div className="hidden lg:block">
-        <button type="submit" form="apply-form" disabled={isSubmitting}
-          className="w-full py-3 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-colors flex items-center justify-center gap-2">
-          {isSubmitting ? <><RefreshCw size={14} className="animate-spin" /> Submitting Application...</> : 'Submit Application'}
+        <button type="submit" form="apply-form" disabled={isSubmitting || hasRejectedDocs}
+          className="w-full py-3 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          {isSubmitting ? <><RefreshCw size={14} className="animate-spin" /> Submitting Application...</> : hasRejectedDocs ? 'Fix rejected documents first' : 'Submit Application'}
         </button>
       </div>
     </motion.div>

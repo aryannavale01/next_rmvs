@@ -1,6 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
+import useSWR from 'swr';
+import { fetcher, SWR_DEFAULTS } from './swr-fetcher';
 import {
   getStoredState,
   saveStoredState,
@@ -13,6 +15,17 @@ import {
   INITIAL_PROFILE,
 } from './store';
 import { makeId, makeCertificateNo, getTodayIsoDate, getCurrentIsoString } from './purity-helpers';
+
+interface DashboardResponse {
+  applications: Application[];
+  certificates: Certificate[];
+  notifications: AppNotification[];
+  activities: Activity[];
+}
+
+interface CoursesResponse {
+  courses: Course[];
+}
 
 interface DashboardContextType {
   profile: Profile;
@@ -30,11 +43,11 @@ interface DashboardContextType {
     couponCode?: string,
     discountAmount?: number,
     finalPrice?: number,
-    docs?: { aadhaar?: string; pan?: string; rationCard?: string }
-  ) => boolean;
+    docs?: { aadhaar?: { name?: string; recordId?: string }; pan?: { name?: string; recordId?: string }; rationCard?: { name?: string; recordId?: string } }
+  ) => Promise<boolean>;
   generateCertificate: (courseId: string) => void;
-  markAllAsRead: () => void;
-  markAsRead: (id: string) => void;
+  markAllAsRead: () => Promise<void>;
+  markAsRead: (id: string) => Promise<void>;
   setLanguage: (lang: 'en' | 'hi' | 'mr') => void;
   addActivity: (title: string, description: string, type: Activity['type']) => void;
   resetDashboard: () => void;
@@ -42,7 +55,6 @@ interface DashboardContextType {
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
-// Localized translation text helper
 export const TRANSLATIONS = {
   en: {
     dashboard: "Dashboard",
@@ -221,218 +233,171 @@ export const TRANSLATIONS = {
 };
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState(() => getStoredState());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{ dashboard?: string; courses?: string } | null>(null);
+  const initialStored = useMemo(() => getStoredState(), []);
 
-  // Fetch all dashboard data from server on mount
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchAll() {
-      setLoading(true);
-      setError(null);
-
-      // Profile fetch
-      let profileError = false;
-      try {
-        const res = await fetch('/api/profile');
-        if (!res.ok) throw new Error('Failed to load profile');
-        const serverProfile = await res.json();
-        if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
-            profile: {
-              ...prev.profile,
-              ...serverProfile,
-              photoUrl: serverProfile.photoUrl || prev.profile.photoUrl,
-              photoUrlHQ: serverProfile.photoUrlHQ || prev.profile.photoUrlHQ,
-              photoBlurDataUrl: serverProfile.photoBlurDataUrl || prev.profile.photoBlurDataUrl,
-              documents: {
-                ...prev.profile.documents,
-                ...serverProfile.documents,
-              },
-            },
-          }));
-        }
-      } catch {
-        profileError = true;
-      }
-
-      // Dashboard data fetch (applications, certificates, notifications, activities)
-      let dashError: string | undefined;
-      try {
-        const res = await fetch('/api/dashboard');
-        if (!res.ok) throw new Error('Failed to load dashboard data');
-        const data = await res.json();
-        if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
-            applications: data.applications ?? prev.applications,
-            certificates: data.certificates ?? prev.certificates,
-            notifications: data.notifications ?? prev.notifications,
-            activities: data.activities ?? prev.activities,
-          }));
-          // Save to localStorage as fallback cache
-          saveStoredState({
-            applications: data.applications,
-            certificates: data.certificates,
-            notifications: data.notifications,
-            activities: data.activities,
-          });
-        }
-      } catch {
-        dashError = 'Failed to load applications or notifications.';
-      }
-
-      // Courses fetch (isolated — failure doesn't affect dashboard data)
-      let coursesError: string | undefined;
-      try {
-        const res = await fetch('/api/dashboard/courses');
-        if (!res.ok) throw new Error('Failed to load courses');
-        const data = await res.json();
-        if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
-            courses: data.courses ?? prev.courses,
-          }));
-          saveStoredState({ courses: data.courses });
-        }
-      } catch {
-        coursesError = 'Failed to load featured programs.';
-      }
-
-      if (!cancelled) {
-        const newError =
-          dashError || coursesError
-            ? { dashboard: dashError, courses: coursesError }
-            : null;
-        setError(newError);
-        setLoading(false);
-      }
+  const [language, setLanguageState] = useState<'en' | 'hi' | 'mr'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('db_language') as 'en' | 'hi' | 'mr') || 'en';
     }
+    return 'en';
+  });
 
-    fetchAll();
-    return () => { cancelled = true; };
-  }, []);
+  const dashboardSWR = useSWR<DashboardResponse>('/api/dashboard', fetcher, SWR_DEFAULTS);
+  const coursesSWR = useSWR<CoursesResponse>('/api/dashboard/courses', fetcher, SWR_DEFAULTS);
+  const profileSWR = useSWR<Profile>('/api/profile', fetcher, SWR_DEFAULTS);
 
-  useEffect(() => {
-    const handleUpdate = () => {
-      setState((prev) => {
-        const stored = getStoredState();
-        return {
-          ...stored,
-          profile: {
-            ...stored.profile,
-            photoUrl: stored.profile.photoUrl || prev.profile.photoUrl,
-            photoUrlHQ: stored.profile.photoUrlHQ || prev.profile.photoUrlHQ,
-            photoBlurDataUrl: stored.profile.photoBlurDataUrl || prev.profile.photoBlurDataUrl,
-          },
-        };
-      });
-    };
+  const isLoadingAll = dashboardSWR.isLoading && coursesSWR.isLoading && profileSWR.isLoading;
 
-    window.addEventListener('dashboard-state-update', handleUpdate);
-    return () => {
-      window.removeEventListener('dashboard-state-update', handleUpdate);
-    };
-  }, []);
+  const profile = useMemo((): Profile => {
+    if (profileSWR.data) {
+      return {
+        ...initialStored.profile,
+        ...profileSWR.data,
+        photoUrl: profileSWR.data.photoUrl || initialStored.profile.photoUrl,
+        photoUrlHQ: profileSWR.data.photoUrlHQ || initialStored.profile.photoUrlHQ,
+        photoBlurDataUrl: profileSWR.data.photoBlurDataUrl || initialStored.profile.photoBlurDataUrl,
+        documents: {
+          ...initialStored.profile.documents,
+          ...profileSWR.data.documents,
+        },
+      };
+    }
+    return initialStored.profile;
+  }, [profileSWR.data, initialStored.profile]);
 
-  const updateProfile = (updated: Partial<Profile>) => {
-    const nextProfile = { ...state.profile, ...updated };
-    // update documents object based on uploaded state
+  const applications = useMemo((): Application[] => {
+    return dashboardSWR.data?.applications ?? initialStored.applications;
+  }, [dashboardSWR.data, initialStored.applications]);
+
+  const certificates = useMemo((): Certificate[] => {
+    return dashboardSWR.data?.certificates ?? initialStored.certificates;
+  }, [dashboardSWR.data, initialStored.certificates]);
+
+  const notifications = useMemo((): AppNotification[] => {
+    return dashboardSWR.data?.notifications ?? initialStored.notifications;
+  }, [dashboardSWR.data, initialStored.notifications]);
+
+  const activities = useMemo((): Activity[] => {
+    return dashboardSWR.data?.activities ?? initialStored.activities;
+  }, [dashboardSWR.data, initialStored.activities]);
+
+  const courses = useMemo((): Course[] => {
+    return coursesSWR.data?.courses ?? initialStored.courses;
+  }, [coursesSWR.data, initialStored.courses]);
+
+  const error = useMemo(() => {
+    if (dashboardSWR.error || coursesSWR.error) {
+      return {
+        dashboard: dashboardSWR.error ? 'Failed to load dashboard data.' : undefined,
+        courses: coursesSWR.error ? 'Failed to load courses.' : undefined,
+      };
+    }
+    return null;
+  }, [dashboardSWR.error, coursesSWR.error]);
+
+  const updateProfile = useCallback((updated: Partial<Profile>) => {
+    profileSWR.mutate(
+      (current) => ({
+        ...(current ?? INITIAL_PROFILE),
+        ...updated,
+        documents: updated.documents ? { ...(current ?? INITIAL_PROFILE).documents, ...updated.documents } : (current ?? INITIAL_PROFILE).documents,
+      }),
+      { revalidate: false }
+    );
+    const merged = { ...profile, ...updated };
     if (updated.documents) {
-      nextProfile.documents = { ...state.profile.documents, ...updated.documents };
+      merged.documents = { ...profile.documents, ...updated.documents };
     }
-    const nextState = { ...state, profile: nextProfile };
-    setState(nextState);
-    saveStoredState({ profile: nextProfile });
-    addActivity('Updated Profile Details', 'Modified personal identification and contact info on profile.', 'profile');
-  };
+    saveStoredState({ profile: merged });
+  }, [profile, profileSWR]);
 
-  const applyToCourse = (
+  const applyToCourse = useCallback(async (
     courseId: string,
     couponCode?: string,
-    discountAmount = 0,
-    finalPrice?: number,
-    docs?: { aadhaar?: string; pan?: string; rationCard?: string }
-  ): boolean => {
-    const course = state.courses.find((c: Course) => c.id === courseId);
+    _discountAmount = 0,
+    _finalPrice?: number,
+    docs?: { aadhaar?: { name?: string; recordId?: string }; pan?: { name?: string; recordId?: string }; rationCard?: { name?: string; recordId?: string } }
+  ): Promise<boolean> => {
+    const course = courses.find((c: Course) => c.id === courseId);
     if (!course) return false;
 
-    // Check if already applied
-    const alreadyApplied = state.applications.some((a: Application) => a.courseId === courseId);
+    const alreadyApplied = applications.some((a: Application) => a.courseId === courseId);
     if (alreadyApplied) return false;
 
     const todayStr = getTodayIsoDate();
-    // Add new application
-    const newApp: Application = {
+    const profileDocAadhaar = profile.documents.aadhaar;
+    const profileDocPan = profile.documents.pan;
+    const profileDocRation = profile.documents.rationCard;
+
+    const serverDocuments: Record<string, { name: string; date: string; recordId?: string }> = {};
+    if (docs?.aadhaar?.recordId) {
+      serverDocuments.aadhaar = { name: docs.aadhaar.name || profileDocAadhaar.name || 'aadhaar', date: todayStr, recordId: docs.aadhaar.recordId };
+    } else if (profileDocAadhaar.uploaded && profileDocAadhaar.recordId) {
+      serverDocuments.aadhaar = { name: profileDocAadhaar.name || 'aadhaar', date: profileDocAadhaar.date || todayStr, recordId: profileDocAadhaar.recordId };
+    }
+    if (docs?.pan?.recordId) {
+      serverDocuments.pan = { name: docs.pan.name || profileDocPan.name || 'pan', date: todayStr, recordId: docs.pan.recordId };
+    } else if (profileDocPan.uploaded && profileDocPan.recordId) {
+      serverDocuments.pan = { name: profileDocPan.name || 'pan', date: profileDocPan.date || todayStr, recordId: profileDocPan.recordId };
+    }
+    if (docs?.rationCard?.recordId) {
+      serverDocuments.rationCard = { name: docs.rationCard.name || profileDocRation.name || 'rationCard', date: todayStr, recordId: docs.rationCard.recordId };
+    } else if (profileDocRation.uploaded && profileDocRation.recordId) {
+      serverDocuments.rationCard = { name: profileDocRation.name || 'rationCard', date: profileDocRation.date || todayStr, recordId: profileDocRation.recordId };
+    }
+
+    const optimisticApp: Application = {
       id: makeId('app'),
       courseId,
       courseTitle: course.title,
       appliedDate: todayStr,
       status: 'Documents Under Verification',
       couponApplied: couponCode,
-      discountAmount,
-      finalPrice: finalPrice !== undefined ? finalPrice : course.price,
+      discountAmount: _discountAmount,
+      finalPrice: _finalPrice !== undefined ? _finalPrice : course.price,
       documents: {
-        aadhaar: docs?.aadhaar ? { name: docs.aadhaar, date: todayStr } : (state.profile.documents.aadhaar.uploaded ? { name: state.profile.documents.aadhaar.name, date: state.profile.documents.aadhaar.date } : undefined),
-        pan: docs?.pan ? { name: docs.pan, date: todayStr } : (state.profile.documents.pan.uploaded ? { name: state.profile.documents.pan.name, date: state.profile.documents.pan.date } : undefined),
-        rationCard: docs?.rationCard ? { name: docs.rationCard, date: todayStr } : undefined
-      }
+        aadhaar: serverDocuments.aadhaar ? { name: serverDocuments.aadhaar.name, date: serverDocuments.aadhaar.date, recordId: serverDocuments.aadhaar.recordId } : undefined,
+        pan: serverDocuments.pan ? { name: serverDocuments.pan.name, date: serverDocuments.pan.date, recordId: serverDocuments.pan.recordId } : undefined,
+        rationCard: serverDocuments.rationCard ? { name: serverDocuments.rationCard.name, date: serverDocuments.rationCard.date, recordId: serverDocuments.rationCard.recordId } : undefined,
+      },
     };
 
-    const nextApplications = [newApp, ...state.applications];
-    
-    // Decrement seatsLeft of course
-    const nextCourses = state.courses.map((c: Course) => {
-      if (c.id === courseId) {
-        return { ...c, seatsLeft: Math.max(0, c.seatsLeft - 1) };
-      }
-      return c;
-    });
-
-    // Create custom notification
-    const newNotif: AppNotification = {
-      id: makeId('notif'),
-      title: 'Application Received',
-      description: `Your application for ${course.title} has been successfully submitted and is under verification.`,
-      type: 'success',
-      time: 'Just now',
-      group: 'Today',
-      read: false
-    };
-
-    const nextNotifs = [newNotif, ...state.notifications];
-
-    setState(prev => ({
-      ...prev,
-      applications: nextApplications,
-      courses: nextCourses,
-      notifications: nextNotifs
-    }));
-
-    saveStoredState({
-      applications: nextApplications,
-      courses: nextCourses,
-      notifications: nextNotifs
-    });
-
-    addActivity(
-      `Applied for ${course.title}`,
-      `Submitted course application form${couponCode ? ` with coupon ${couponCode} applied` : ''}.`,
-      'enrollment'
+    dashboardSWR.mutate(
+      (current) => ({
+        applications: [optimisticApp, ...(current?.applications ?? [])],
+        certificates: current?.certificates ?? [],
+        notifications: current?.notifications ?? [],
+        activities: current?.activities ?? [],
+      }),
+      { revalidate: false }
     );
 
-    return true;
-  };
+    try {
+      const res = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId, couponCode: couponCode || undefined, documents: Object.keys(serverDocuments).length > 0 ? serverDocuments : undefined }),
+      });
 
-  const generateCertificate = (courseId: string) => {
-    const course = state.courses.find((c: Course) => c.id === courseId);
+      if (!res.ok) {
+        dashboardSWR.mutate();
+        return false;
+      }
+
+      dashboardSWR.mutate();
+      coursesSWR.mutate();
+      return true;
+    } catch {
+      dashboardSWR.mutate();
+      return false;
+    }
+  }, [courses, applications, profile, dashboardSWR, coursesSWR]);
+
+  const generateCertificate = useCallback((courseId: string) => {
+    const course = courses.find((c: Course) => c.id === courseId);
     if (!course) return;
 
-    // Check if already has a certificate
-    const exists = state.certificates.some((c: Certificate) => c.courseId === courseId);
+    const exists = certificates.some((c: Certificate) => c.courseId === courseId);
     if (exists) return;
 
     const newCert: Certificate = {
@@ -442,12 +407,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       certificateNo: makeCertificateNo(courseId),
       completionDate: getTodayIsoDate(),
       status: 'generated',
-      photoUrlHQ: state.profile.photoUrlHQ || undefined,
+      photoUrlHQ: profile.photoUrlHQ || undefined,
     };
 
-    const nextCertificates = [newCert, ...state.certificates];
-
-    // Create notification
     const newNotif: AppNotification = {
       id: makeId('notif'),
       title: 'Certificate Generated Successfully',
@@ -455,104 +417,140 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       type: 'success',
       time: 'Just now',
       group: 'Today',
-      read: false
+      read: false,
     };
 
-    const nextNotifs = [newNotif, ...state.notifications];
-
-    // Update application status to Course Completed if enrolled
-    const nextApplications = state.applications.map((a: Application) => {
-      if (a.courseId === courseId) {
-        return { ...a, status: 'Course Completed' as const };
-      }
-      return a;
-    });
-
-    setState(prev => ({
-      ...prev,
-      certificates: nextCertificates,
-      notifications: nextNotifs,
-      applications: nextApplications
-    }));
-
-    saveStoredState({
-      certificates: nextCertificates,
-      notifications: nextNotifs,
-      applications: nextApplications,
-    });
-
-    addActivity(
-      `Generated Certificate`,
-      `Created legal completion certificate for ${course.title}.`,
-      'certificate'
+    dashboardSWR.mutate(
+      (current) => ({
+        certificates: [newCert, ...(current?.certificates ?? [])],
+        notifications: [newNotif, ...(current?.notifications ?? [])],
+        applications: (current?.applications ?? []).map((a: Application) => a.courseId === courseId ? { ...a, status: 'Course Completed' as const } : a),
+        activities: current?.activities ?? [],
+      }),
+      { revalidate: false }
     );
-  };
+  }, [courses, certificates, profile.photoUrlHQ, dashboardSWR]);
 
-  const markAllAsRead = () => {
-    const nextNotifs = state.notifications.map((n: AppNotification) => ({ ...n, read: true }));
-    setState(prev => ({ ...prev, notifications: nextNotifs }));
-    saveStoredState({ notifications: nextNotifs });
-  };
+  const markAsRead = useCallback(async (id: string) => {
+    dashboardSWR.mutate(
+      (current) => ({
+        applications: current?.applications ?? [],
+        certificates: current?.certificates ?? [],
+        notifications: (current?.notifications ?? []).map(n => n.id === id ? { ...n, read: true } : n),
+        activities: current?.activities ?? [],
+      }),
+      { revalidate: false }
+    );
 
-  const markAsRead = (id: string) => {
-    const nextNotifs = state.notifications.map((n: AppNotification) => n.id === id ? { ...n, read: true } : n);
-    setState(prev => ({ ...prev, notifications: nextNotifs }));
-    saveStoredState({ notifications: nextNotifs });
-  };
+    try {
+      const res = await fetch('/api/notifications/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [id] }),
+      });
 
-  const setLanguage = (lang: 'en' | 'hi' | 'mr') => {
-    setState(prev => ({ ...prev, language: lang }));
-    saveStoredState({ language: lang });
-  };
+      if (!res.ok) {
+        dashboardSWR.mutate();
+        return;
+      }
 
-  const resetDashboard = () => {
-    const keys = ['db_profile', 'db_applications', 'db_certificates', 'db_notifications', 'db_activities', 'db_courses', 'db_language'];
-    keys.forEach((key) => localStorage.removeItem(key));
-    setState({
-      profile: INITIAL_PROFILE,
-      applications: [],
-      certificates: [],
-      notifications: [],
-      activities: [],
-      courses: [],
-      language: 'en',
-    });
-    setLoading(false);
-    setError(null);
-  };
+      dashboardSWR.mutate();
+    } catch {
+      dashboardSWR.mutate();
+    }
+  }, [dashboardSWR]);
 
-  const addActivity = (title: string, description: string, type: Activity['type']) => {
+  const markAllAsRead = useCallback(async () => {
+    dashboardSWR.mutate(
+      (current) => ({
+        applications: current?.applications ?? [],
+        certificates: current?.certificates ?? [],
+        notifications: (current?.notifications ?? []).map(n => ({ ...n, read: true })),
+        activities: current?.activities ?? [],
+      }),
+      { revalidate: false }
+    );
+
+    try {
+      const res = await fetch('/api/notifications/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true }),
+      });
+
+      if (!res.ok) {
+        dashboardSWR.mutate();
+        return;
+      }
+
+      dashboardSWR.mutate();
+    } catch {
+      dashboardSWR.mutate();
+    }
+  }, [dashboardSWR]);
+
+  const setLanguage = useCallback((lang: 'en' | 'hi' | 'mr') => {
+    setLanguageState(lang);
+    localStorage.setItem('db_language', lang);
+  }, []);
+
+  const addActivity = useCallback((title: string, description: string, type: Activity['type']) => {
     const newActivity: Activity = {
       id: makeId('act'),
       title,
       description,
       time: getCurrentIsoString(),
       type,
-      group: 'Today'
+      group: 'Today',
     };
 
-    const nextActivities = [newActivity, ...state.activities];
-    setState(prev => ({ ...prev, activities: nextActivities }));
-    saveStoredState({ activities: nextActivities });
-  };
+    dashboardSWR.mutate(
+      (current) => ({
+        applications: current?.applications ?? [],
+        certificates: current?.certificates ?? [],
+        notifications: current?.notifications ?? [],
+        activities: [newActivity, ...(current?.activities ?? [])],
+      }),
+      { revalidate: false }
+    );
+  }, [dashboardSWR]);
+
+  const resetDashboard = useCallback(() => {
+    const keys = ['db_profile', 'db_applications', 'db_certificates', 'db_notifications', 'db_activities', 'db_courses', 'db_language'];
+    keys.forEach((key) => localStorage.removeItem(key));
+    setLanguageState('en');
+    dashboardSWR.mutate();
+    coursesSWR.mutate();
+    profileSWR.mutate();
+  }, [dashboardSWR, coursesSWR, profileSWR]);
+
+  const value = useMemo(() => ({
+    profile,
+    applications,
+    certificates,
+    notifications,
+    activities,
+    courses,
+    language,
+    loading: isLoadingAll,
+    error,
+    updateProfile,
+    applyToCourse,
+    generateCertificate,
+    markAllAsRead,
+    markAsRead,
+    setLanguage,
+    addActivity,
+    resetDashboard,
+  }), [
+    profile, applications, certificates, notifications, activities, courses,
+    language, isLoadingAll, error,
+    updateProfile, applyToCourse, generateCertificate,
+    markAllAsRead, markAsRead, setLanguage, addActivity, resetDashboard,
+  ]);
 
   return (
-    <DashboardContext.Provider
-      value={{
-        ...state,
-        language: state.language as 'en' | 'hi' | 'mr',
-        loading,
-        error,
-        updateProfile,
-        applyToCourse,
-        generateCertificate,
-        markAllAsRead,
-        markAsRead,
-        setLanguage,
-        addActivity,
-        resetDashboard,
-      }}
-    >
+    <DashboardContext.Provider value={value}>
       {children}
     </DashboardContext.Provider>
   );

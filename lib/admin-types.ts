@@ -40,17 +40,21 @@ export interface SyllabusLesson {
 }
 
 export interface Coupon {
+  id: string;
   code: string;
   description: string;
-  type: 'Percentage' | 'Fixed';
-  value: number;
-  expiry_date: string;
-  max_uses: number;
-  uses_count: number;
-  per_user_limit: number;
-  min_order_value: number;
-  course_id: string;
-  status: 'Active' | 'Inactive';
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  expiresAt: string | null;
+  validFrom: string | null;
+  maxUses: number | null;
+  usedCount: number;
+  perUserLimit: number | null;
+  minAmount: number | null;
+  courseId: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AdminCourse {

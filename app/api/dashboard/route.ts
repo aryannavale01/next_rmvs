@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 function toRelativeTime(date: Date): string {
   const now = Date.now();
   const diffMs = now - date.getTime();

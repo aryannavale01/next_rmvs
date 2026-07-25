@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useAdmin } from '@/lib/admin-context';
+import { useState, useMemo, useEffect } from 'react';
 import { Coupon } from '@/lib/admin-types';
 import {
   Ticket, Search, Plus, Pencil, Trash2, X, Copy, Check, Percent,
@@ -11,25 +10,39 @@ import MetricCards from '@/components/MetricCards';
 import { EmptyState } from '@/components/ui/empty-state';
 
 export default function AdminCouponsPage() {
-  const { coupons, courses, addCoupon, updateCoupon, deleteCoupon } = useAdmin();
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [courses, setCourses] = useState<{ id: string; title: string }[]>([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editCoupon, setEditCoupon] = useState<Coupon | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const emptyForm: Omit<Coupon, 'uses_count'> & { uses_count: number } = {
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/admin/coupons').then(r => r.json()),
+      fetch('/api/admin/courses').then(r => r.json()),
+    ]).then(([cData, coData]) => {
+      setCoupons(Array.isArray(cData) ? cData : []);
+      setCourses(Array.isArray(coData) ? coData : []);
+    }).catch(() => setError('Failed to load data'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const emptyForm = {
     code: '',
     description: '',
-    type: 'Percentage',
-    value: 0,
-    expiry_date: '',
-    max_uses: 100,
-    uses_count: 0,
-    per_user_limit: 1,
-    min_order_value: 0,
-    course_id: 'global',
-    status: 'Active',
+    discountType: 'percentage' as 'percentage' | 'fixed',
+    discountValue: 0,
+    expiresAt: '',
+    validFrom: '',
+    maxUses: 100,
+    perUserLimit: 1,
+    minAmount: 0,
+    courseId: '',
+    isActive: true,
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -44,31 +57,91 @@ export default function AdminCouponsPage() {
 
   const counts = useMemo(() => ({
     total: coupons.length,
-    active: coupons.filter(c => c.status === 'Active').length,
-    expired: coupons.filter(c => c.status === 'Inactive').length,
-    totalRedemptions: coupons.reduce((s, c) => s + c.uses_count, 0),
+    active: coupons.filter(c => c.isActive).length,
+    expired: coupons.filter(c => !c.isActive).length,
+    totalRedemptions: coupons.reduce((s, c) => s + c.usedCount, 0),
   }), [coupons]);
 
   const openAdd = () => { setForm(emptyForm); setEditCoupon(null); setShowModal(true); };
 
   const openEdit = (c: Coupon) => {
-    setForm({ ...c });
+    setForm({
+      code: c.code,
+      description: c.description,
+      discountType: c.discountType,
+      discountValue: c.discountValue,
+      expiresAt: c.expiresAt ? c.expiresAt.split('T')[0] : '',
+      validFrom: c.validFrom ? c.validFrom.split('T')[0] : '',
+      maxUses: c.maxUses ?? 100,
+      perUserLimit: c.perUserLimit ?? 1,
+      minAmount: c.minAmount ?? 0,
+      courseId: c.courseId ?? '',
+      isActive: c.isActive,
+    });
     setEditCoupon(c);
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.code || !form.description) return;
-    if (editCoupon) {
-      updateCoupon(editCoupon.code, form);
-    } else {
-      addCoupon(form as Coupon);
+    const payload = {
+      code: form.code.trim().toUpperCase(),
+      description: form.description.trim(),
+      discountType: form.discountType,
+      discountValue: form.discountValue,
+      expiresAt: form.expiresAt || null,
+      validFrom: form.validFrom || null,
+      maxUses: form.maxUses || null,
+      perUserLimit: form.perUserLimit || null,
+      minAmount: form.minAmount || null,
+      courseId: form.courseId || null,
+      isActive: form.isActive,
+    };
+
+    try {
+      if (editCoupon) {
+        const res = await fetch(`/api/admin/coupons/${editCoupon.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setError(data.error || 'Failed to update coupon');
+          return;
+        }
+      } else {
+        const res = await fetch('/api/admin/coupons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setError(data.error || 'Failed to create coupon');
+          return;
+        }
+      }
+      const refreshed = await fetch('/api/admin/coupons').then(r => r.json());
+      setCoupons(Array.isArray(refreshed) ? refreshed : []);
+      setShowModal(false);
+    } catch {
+      setError('Failed to save coupon');
     }
-    setShowModal(false);
   };
 
-  const handleDelete = (code: string) => {
-    deleteCoupon(code);
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.deactivated) {
+        setError('Coupon has redemptions — deactivated instead of deleted.');
+      }
+      const refreshed = await fetch('/api/admin/coupons').then(r => r.json());
+      setCoupons(Array.isArray(refreshed) ? refreshed : []);
+    } catch {
+      setError('Failed to delete coupon');
+    }
     setDeleteConfirm(null);
   };
 
@@ -78,23 +151,44 @@ export default function AdminCouponsPage() {
     setTimeout(() => setCopiedCode(null), 1500);
   };
 
-  const toggleStatus = (c: Coupon) => {
-    updateCoupon(c.code, { status: c.status === 'Active' ? 'Inactive' : 'Active' });
+  const toggleStatus = async (c: Coupon) => {
+    try {
+      await fetch(`/api/admin/coupons/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !c.isActive }),
+      });
+      const refreshed = await fetch('/api/admin/coupons').then(r => r.json());
+      setCoupons(Array.isArray(refreshed) ? refreshed : []);
+    } catch {
+      setError('Failed to toggle status');
+    }
   };
 
-  const getCourseTitle = (courseId: string) => {
-    if (courseId === 'global') return 'Global';
+  const getCourseTitle = (courseId: string | null) => {
+    if (!courseId) return 'Global';
     const course = courses.find(co => co.id === courseId);
     return course ? course.title : courseId;
   };
 
   const formatDiscount = (c: Coupon) => {
-    return c.type === 'Percentage' ? `${c.value}%` : `\u20B9${c.value.toLocaleString()}`;
+    return c.discountType === 'percentage' ? `${c.discountValue}%` : `\u20B9${c.discountValue.toLocaleString()}`;
+  };
+
+  const formatDate = (d: string | null) => {
+    if (!d) return '\u2014';
+    return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   return (
     <div className="space-y-4 font-sans">
-      {/* Stat Cards */}
+      {error && (
+        <div className="bg-destructive-bg/50 border border-destructive/20 rounded-xl p-3 text-sm text-destructive flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-destructive hover:underline">Dismiss</button>
+        </div>
+      )}
+
       <MetricCards
         activeFilter="total"
         onFilterChange={() => {}}
@@ -102,12 +196,11 @@ export default function AdminCouponsPage() {
         cards={[
           { id: 'total', label: 'Total Coupons', value: counts.total, icon: Ticket },
           { id: 'active', label: 'Active', value: counts.active, icon: Check },
-          { id: 'expired', label: 'Expired', value: counts.expired, icon: X },
+          { id: 'expired', label: 'Inactive', value: counts.expired, icon: X },
           { id: 'redemptions', label: 'Total Redemptions', value: counts.totalRedemptions, icon: BarChart3 },
         ]}
       />
 
-      {/* Toolbar */}
       <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -120,7 +213,6 @@ export default function AdminCouponsPage() {
         </button>
       </div>
 
-      {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -142,7 +234,7 @@ export default function AdminCouponsPage() {
                 </td></tr>
               )}
               {filtered.map(c => (
-                <tr key={c.code} className="hover:bg-primary-light/30 transition-colors">
+                <tr key={c.id} className="hover:bg-primary-light/30 transition-colors">
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-foreground font-mono">{c.code}</span>
@@ -150,27 +242,27 @@ export default function AdminCouponsPage() {
                         {copiedCode === c.code ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{getCourseTitle(c.course_id)}</p>
+                    <p className="text-[10px] text-muted-foreground">{getCourseTitle(c.courseId)}</p>
                   </td>
                   <td className="px-3 py-3 text-sm text-foreground max-w-[200px] truncate">{c.description}</td>
                   <td className="px-3 py-3">
                     <span className="inline-flex items-center gap-1 text-sm font-bold text-foreground">
-                      {c.type === 'Percentage' ? <Percent className="w-3 h-3 text-muted-foreground" /> : null}
+                      {c.discountType === 'percentage' ? <Percent className="w-3 h-3 text-muted-foreground" /> : null}
                       {formatDiscount(c)}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-sm text-muted-foreground">{c.expiry_date || '\u2014'}</td>
-                  <td className="px-3 py-3 text-sm text-foreground">{c.uses_count}/{c.max_uses}</td>
+                  <td className="px-3 py-3 text-sm text-muted-foreground">{formatDate(c.expiresAt)}</td>
+                  <td className="px-3 py-3 text-sm text-foreground">{c.usedCount}/{c.maxUses ?? '∞'}</td>
                   <td className="px-3 py-3">
                     <button onClick={() => toggleStatus(c)}
-                      className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-colors ${c.status === 'Active' ? 'bg-success-bg text-success-text hover:bg-success/10' : 'bg-destructive-bg text-destructive-text hover:bg-destructive/10'}`}>
-                      {c.status}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-full transition-colors ${c.isActive ? 'bg-success-bg text-success-text hover:bg-success/10' : 'bg-destructive-bg text-destructive-text hover:bg-destructive/10'}`}>
+                      {c.isActive ? 'Active' : 'Inactive'}
                     </button>
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button onClick={() => openEdit(c)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary" aria-label="Edit coupon"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => setDeleteConfirm(c.code)} className="p-1.5 rounded-md hover:bg-destructive-bg text-muted-foreground hover:text-destructive" aria-label="Delete coupon"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setDeleteConfirm(c.id)} className="p-1.5 rounded-md hover:bg-destructive-bg text-muted-foreground hover:text-destructive" aria-label="Delete coupon"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </td>
                 </tr>
@@ -180,7 +272,6 @@ export default function AdminCouponsPage() {
         </div>
       </div>
 
-      {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
@@ -199,9 +290,9 @@ export default function AdminCouponsPage() {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Status</label>
-                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as Coupon['status'] }))}
+                  <select value={form.isActive ? 'true' : 'false'} onChange={e => setForm(f => ({ ...f, isActive: e.target.value === 'true' }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none bg-card">
-                    <option>Active</option><option>Inactive</option>
+                    <option value="true">Active</option><option value="false">Inactive</option>
                   </select>
                 </div>
                 <div className="col-span-2">
@@ -211,41 +302,41 @@ export default function AdminCouponsPage() {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Discount Type</label>
-                  <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as Coupon['type'] }))}
+                  <select value={form.discountType} onChange={e => setForm(f => ({ ...f, discountType: e.target.value as 'percentage' | 'fixed' }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none bg-card">
-                    <option>Percentage</option><option>Fixed</option>
+                    <option value="percentage">Percentage</option><option value="fixed">Fixed</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Value {form.type === 'Percentage' ? '(%)' : `(\u20B9)`}</label>
-                  <input type="number" min="0" value={form.value} onChange={e => setForm(f => ({ ...f, value: Number(e.target.value) }))}
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Value {form.discountType === 'percentage' ? '(%)' : `(\u20B9)`}</label>
+                  <input type="number" min="0" max={form.discountType === 'percentage' ? 100 : undefined} value={form.discountValue} onChange={e => setForm(f => ({ ...f, discountValue: Number(e.target.value) }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Expiry Date</label>
-                  <input type="date" value={form.expiry_date} onChange={e => setForm(f => ({ ...f, expiry_date: e.target.value }))}
+                  <input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Max Uses</label>
-                  <input type="number" min="0" value={form.max_uses} onChange={e => setForm(f => ({ ...f, max_uses: Number(e.target.value) }))}
+                  <input type="number" min="0" value={form.maxUses} onChange={e => setForm(f => ({ ...f, maxUses: Number(e.target.value) }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Per-User Limit</label>
-                  <input type="number" min="1" value={form.per_user_limit} onChange={e => setForm(f => ({ ...f, per_user_limit: Number(e.target.value) }))}
+                  <input type="number" min="1" value={form.perUserLimit} onChange={e => setForm(f => ({ ...f, perUserLimit: Number(e.target.value) }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Min Order Value ({`\u20B9`})</label>
-                  <input type="number" min="0" value={form.min_order_value} onChange={e => setForm(f => ({ ...f, min_order_value: Number(e.target.value) }))}
+                  <input type="number" min="0" value={form.minAmount} onChange={e => setForm(f => ({ ...f, minAmount: Number(e.target.value) }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Course</label>
-                  <select value={form.course_id} onChange={e => setForm(f => ({ ...f, course_id: e.target.value }))}
+                  <select value={form.courseId} onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none bg-card">
-                    <option value="global">Global (All Courses)</option>
+                    <option value="">Global (All Courses)</option>
                     {courses.map(co => (
                       <option key={co.id} value={co.id}>{co.title}</option>
                     ))}
@@ -261,7 +352,6 @@ export default function AdminCouponsPage() {
         </div>
       )}
 
-      {/* Delete Confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
@@ -270,8 +360,7 @@ export default function AdminCouponsPage() {
               <Trash2 className="w-6 h-6 text-destructive" />
             </div>
             <h3 className="text-sm font-bold text-foreground mb-2">Delete Coupon?</h3>
-            <p className="text-xs text-muted-foreground mb-1">This will permanently remove coupon</p>
-            <p className="text-xs font-mono font-bold text-foreground mb-6">{deleteConfirm}</p>
+            <p className="text-xs text-muted-foreground mb-6">This will permanently remove the coupon (or deactivate if it has redemptions).</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-4 py-2.5 text-xs font-semibold border border-border rounded-lg hover:bg-accent">Cancel</button>
               <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-destructive hover:bg-destructive/90 rounded-lg">Delete</button>

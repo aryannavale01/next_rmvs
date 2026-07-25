@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { generateSignedUrl, getPublicUrl } from '@/lib/supabase-storage';
 import { BUCKETS, SIGNED_URL_EXPIRY, type DocumentType } from '@/lib/upload-config';
 
+export const dynamic = 'force-dynamic';
+
 const DOC_TYPE_TO_BUCKET: Record<string, string> = {
   aadhaar: BUCKETS.aadhaar,
   pan: BUCKETS.pan,
@@ -46,28 +48,32 @@ export async function GET(request: Request) {
     // Load beneficiary documents
     const docs = await prisma.beneficiaryDocument.findMany({
       where: { profileId: userId },
-      select: { type: true, label: true, fileUrl: true, status: true, uploadedDate: true },
+      select: { id: true, type: true, label: true, fileUrl: true, status: true, uploadedDate: true, verifiedDate: true },
     });
 
     // Generate fresh signed URLs for each document
-    const documents: Record<string, { uploaded: boolean; name: string; date: string; signedUrl: string }> = {};
+    const documents: Record<string, { recordId: string; uploaded: boolean; name: string | null; date: string | null; signedUrl: string | null; status: string; verifiedDate: string | null }> = {};
 
     for (const doc of docs) {
       const bucket = DOC_TYPE_TO_BUCKET[doc.type];
-      if (!bucket || !doc.fileUrl) continue;
+      let signedUrl: string | null = null;
 
-      let signedUrl = '';
-      try {
-        signedUrl = await generateSignedUrl(bucket, doc.fileUrl, SIGNED_URL_EXPIRY);
-      } catch {
-        console.error(`[profile] Failed to generate signed URL for ${doc.type}:`, doc.fileUrl);
+      if (bucket && doc.fileUrl) {
+        try {
+          signedUrl = await generateSignedUrl(bucket, doc.fileUrl, SIGNED_URL_EXPIRY);
+        } catch {
+          console.error(`[profile] Failed to generate signed URL for ${doc.type}:`, doc.fileUrl);
+        }
       }
 
       documents[doc.type] = {
-        uploaded: true,
+        recordId: doc.id,
+        uploaded: doc.fileUrl !== null,
         name: doc.label,
-        date: doc.uploadedDate ? doc.uploadedDate.toISOString().split('T')[0] : '',
+        date: doc.uploadedDate ? doc.uploadedDate.toISOString().split('T')[0] : null,
         signedUrl,
+        status: doc.status,
+        verifiedDate: doc.verifiedDate?.toISOString() ?? null,
       };
     }
 
@@ -88,9 +94,9 @@ export async function GET(request: Request) {
       photoUrlHQ: responsePhotoUrlHQ,
       photoBlurDataUrl: responseBlurDataUrl,
       documents: {
-        aadhaar: documents.aadhaar || { uploaded: false, name: '', date: '', signedUrl: '' },
-        pan: documents.pan || { uploaded: false, name: '', date: '', signedUrl: '' },
-        rationCard: documents.rationCard || { uploaded: false, name: '', date: '', signedUrl: '' },
+        aadhaar: documents.aadhaar || { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null },
+        pan: documents.pan || { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null },
+        rationCard: documents.rationCard || { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null },
       },
     });
 

@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDashboard, TRANSLATIONS } from '@/lib/dashboard-context';
+import { TRANSLATIONS } from '@/lib/dashboard-context';
+import { useDashboardData } from '@/lib/hooks/useDashboardData';
+import { useLanguage } from '@/lib/hooks/useLanguage';
 import {
   Search,
   BookOpen,
@@ -20,7 +22,8 @@ import { CourseCardSkeleton, EmptyState } from '@/components/dashboard-ui';
 
 export default function TrainingPage() {
   const router = useRouter();
-  const { courses, applications, language } = useDashboard();
+  const { courses, applications } = useDashboardData();
+  const { language } = useLanguage();
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   // Tabs: 'browse' | 'my-courses'

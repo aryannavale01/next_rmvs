@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useDashboard, TRANSLATIONS } from '@/lib/dashboard-context';
+import { TRANSLATIONS } from '@/lib/dashboard-context';
+import { useDashboardData } from '@/lib/hooks/useDashboardData';
+import { useLanguage } from '@/lib/hooks/useLanguage';
 import { getPastTimestamp } from '@/lib/purity-helpers';
 import {
   History,
@@ -16,7 +18,8 @@ import { motion } from 'motion/react';
 import { EmptyState, TimelineSkeleton } from '@/components/dashboard-ui';
 
 export default function ActivityPage() {
-  const { activities, language } = useDashboard();
+  const { activities } = useDashboardData();
+  const { language } = useLanguage();
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   // Filter tabs: 'All' | 'Today' | 'This Week' | 'This Month'

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 const CATEGORY_DISPLAY: Record<string, string> = {
   tech: 'Technology',
   health: 'Health',

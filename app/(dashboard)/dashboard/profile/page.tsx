@@ -277,10 +277,13 @@ export default function ProfilePage() {
 
       const nextDocs = { ...profile.documents };
       nextDocs[docType] = {
+        recordId: data.recordId,
         uploaded: true,
         name: file.name,
         date: new Date().toISOString().split('T')[0],
         signedUrl: data.signedUrl,
+        status: 'pending',
+        verifiedDate: null,
       };
       updateProfile({ documents: nextDocs });
     } catch (err: any) {
@@ -568,14 +571,22 @@ export default function ProfilePage() {
                     />
 
                     <div>
-                      <div className="flex justify-between items-start mb-3">
+                      <div className="flex flex-col gap-1.5 mb-3">
                         <span className="text-xs font-bold text-foreground leading-none">{doc.label}</span>
-                        {stateDoc.uploaded ? (
+                        {stateDoc.status === 'verified' ? (
                           <span className="text-[10px] font-semibold text-success-text bg-success-bg px-2 py-0.5 rounded-full border border-success/10">
                             Verified
                           </span>
-                        ) : (
+                        ) : stateDoc.status === 'pending' ? (
+                          <span className="text-[10px] font-semibold text-warning-text bg-warning-bg px-2 py-0.5 rounded-full border border-warning/20">
+                            Under Review
+                          </span>
+                        ) : stateDoc.status === 'rejected' ? (
                           <span className="text-[10px] font-semibold text-destructive bg-destructive-bg px-2 py-0.5 rounded-full border border-destructive/10">
+                            Rejected
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
                             Missing
                           </span>
                         )}
@@ -596,7 +607,7 @@ export default function ProfilePage() {
                         </div>
                       ) : stateDoc.uploaded ? (
                         <div className="py-2">
-                          <p className="text-xs font-semibold text-foreground truncate" title={stateDoc.name}>
+                          <p className="text-xs font-semibold text-foreground truncate" title={stateDoc.name ?? undefined}>
                             {stateDoc.name}
                           </p>
                           <p className="text-[10px] text-muted-foreground mt-1">
@@ -651,7 +662,7 @@ export default function ProfilePage() {
                                 a.click();
                                 document.body.removeChild(a);
                                 URL.revokeObjectURL(url);
-                                toast({ title: 'Download Complete', description: stateDoc.name, variant: 'success' });
+                                toast({ title: 'Download Complete', description: stateDoc.name ?? 'document', variant: 'success' });
                               } catch {
                                 toast({ title: 'Download Failed', description: 'Could not download file', variant: 'error' });
                               }
@@ -864,14 +875,21 @@ export default function ProfilePage() {
         onClose={() => setDeleteDocTarget(null)}
         onConfirm={async () => {
           if (!deleteDocTarget) return;
+          const recordId = profile.documents[deleteDocTarget].recordId;
+          if (!recordId) {
+            console.error(`Cannot delete ${deleteDocTarget}: recordId is missing`);
+            toast({ title: 'Delete Failed', description: 'Document record not found', variant: 'error' });
+            setDeleteDocTarget(null);
+            return;
+          }
           try {
-            const res = await fetch(`/api/upload?documentType=${deleteDocTarget}`, { method: 'DELETE' });
+            const res = await fetch(`/api/upload?documentType=${deleteDocTarget}&recordId=${recordId}`, { method: 'DELETE' });
             if (!res.ok) {
               const data = await res.json();
               throw new Error(data.error || 'Delete failed');
             }
             const nextDocs = { ...profile.documents };
-            nextDocs[deleteDocTarget] = { uploaded: false, name: '', date: '' };
+            nextDocs[deleteDocTarget] = { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null };
             updateProfile({ documents: nextDocs });
             toast({ title: 'Document Removed', description: 'Document deleted successfully', variant: 'success' });
           } catch (err: any) {

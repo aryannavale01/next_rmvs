@@ -29,9 +29,9 @@ export interface Application {
   discountAmount?: number;
   finalPrice?: number;
   documents: {
-    aadhaar?: { name: string; date: string };
-    pan?: { name: string; date: string };
-    rationCard?: { name: string; date: string };
+    aadhaar?: { name: string; date: string; recordId?: string };
+    pan?: { name: string; date: string; recordId?: string };
+    rationCard?: { name: string; date: string; recordId?: string };
   };
 }
 
@@ -65,6 +65,18 @@ export interface Activity {
   group: 'All' | 'Today' | 'This Week' | 'This Month';
 }
 
+export type DocumentStatus = 'not_uploaded' | 'pending' | 'verified' | 'rejected';
+
+export interface DocumentInfo {
+  recordId: string | null;
+  uploaded: boolean;
+  name: string | null;
+  date: string | null;
+  signedUrl: string | null;
+  status: DocumentStatus;
+  verifiedDate: string | null;
+}
+
 export interface Profile {
   firstName: string;
   lastName: string;
@@ -77,9 +89,9 @@ export interface Profile {
   photoUrlHQ?: string;
   photoBlurDataUrl?: string;
   documents: {
-    aadhaar: { uploaded: boolean; name: string; date: string; signedUrl?: string };
-    pan: { uploaded: boolean; name: string; date: string; signedUrl?: string };
-    rationCard: { uploaded: boolean; name: string; date: string; signedUrl?: string };
+    aadhaar: DocumentInfo;
+    pan: DocumentInfo;
+    rationCard: DocumentInfo;
   };
 }
 
@@ -95,9 +107,9 @@ export const INITIAL_PROFILE: Profile = {
   photoUrlHQ: '',
   photoBlurDataUrl: '',
   documents: {
-    aadhaar: { uploaded: false, name: '', date: '' },
-    pan: { uploaded: false, name: '', date: '' },
-    rationCard: { uploaded: false, name: '', date: '' }
+    aadhaar: { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null },
+    pan: { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null },
+    rationCard: { recordId: null, uploaded: false, name: null, date: null, signedUrl: null, status: 'not_uploaded', verifiedDate: null }
   }
 };
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useDashboard } from '@/lib/dashboard-context';
+import { useDashboardData } from '@/lib/hooks/useDashboardData';
 import {
   ChevronLeft, Clock, Users, MapPin, Star, BookOpen,
   Calendar, AlertCircle, ChevronDown, ChevronUp,
@@ -13,7 +13,7 @@ export default function CourseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const courseId = params.courseId as string;
-  const { courses, applications } = useDashboard();
+  const { courses, applications } = useDashboardData();
 
   const course = courses.find(c => c.id === courseId);
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
@@ -47,14 +47,13 @@ export default function CourseDetailPage() {
       </button>
 
       <div className="bg-card border border-border rounded-xl p-6">
-        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] font-bold text-primary bg-primary-light px-2.5 py-0.5 rounded-full uppercase tracking-wider">{course.category}</span>
               <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">{course.level}</span>
             </div>
-            <h1 className="text-xl font-bold text-foreground mb-2">{course.title}</h1>
-            <p className="text-sm text-muted-foreground">{course.description}</p>
+            <h1 className="text-xl font-bold text-foreground">{course.title}</h1>
           </div>
           <div className="flex flex-col gap-2 min-w-[200px]">
             {isApplied ? (
@@ -74,6 +73,10 @@ export default function CourseDetailPage() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-6">
+        <p className="text-sm text-muted-foreground leading-relaxed">{course.description}</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

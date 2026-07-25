@@ -34,6 +34,14 @@ function isSafeRedirect(url: string, base: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Prevent browser caching of all API responses (defense in depth)
+  const isApiRoute = pathname.startsWith('/api/');
+  if (isApiRoute) {
+    const response = NextResponse.next();
+    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    return response;
+  }
+
   const isAdminRoute = pathnameStartsWith(pathname, "/admin");
   const isDashboardRoute = pathnameStartsWith(pathname, "/dashboard");
   const isPublic =

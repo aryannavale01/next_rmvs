@@ -210,13 +210,15 @@ async function handleDocumentUpload(
     }
   }
 
+  let recordId: string;
   if (doc) {
     await prisma.beneficiaryDocument.update({
       where: { id: doc.id },
       data: { fileUrl: storagePath, status: 'pending', uploadedDate: new Date() },
     });
+    recordId = doc.id;
   } else {
-    await prisma.beneficiaryDocument.create({
+    const newDoc = await prisma.beneficiaryDocument.create({
       data: {
         profileId: userId,
         type: docType,
@@ -226,6 +228,7 @@ async function handleDocumentUpload(
         uploadedDate: new Date(),
       },
     });
+    recordId = newDoc.id;
   }
 
   try { revalidatePath('/dashboard/profile'); } catch { /* no-op outside Next.js server context */ }
@@ -233,6 +236,7 @@ async function handleDocumentUpload(
   const signedUrl = await generateSignedUrl(bucket, storagePath, SIGNED_URL_EXPIRY);
 
   return NextResponse.json({
+    recordId,
     signedUrl,
     expiresAt: new Date(Date.now() + SIGNED_URL_EXPIRY * 1000).toISOString(),
     storagePath,
@@ -301,7 +305,7 @@ export async function DELETE(request: Request) {
 
     await prisma.beneficiaryDocument.update({
       where: { id: doc.id },
-      data: { fileUrl: null, status: 'not_uploaded', uploadedDate: null },
+      data: { fileUrl: null, status: 'not_uploaded', uploadedDate: null, verifiedDate: null },
     });
 
     return NextResponse.json({ success: true });

@@ -3,6 +3,8 @@ import { requireAdmin } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { STEP_UP_WINDOW_MS } from '@/lib/admin-security';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.success) {
