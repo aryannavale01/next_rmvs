@@ -192,10 +192,10 @@ export default function AdminTrainingPage() {
       case 1:
         return (
           <div className="space-y-4">
-            <WizInput label="Course Title *" value={wiz.title} onChange={v => setWiz(f => ({ ...f, title: v }))} placeholder="e.g. Sustainable Farming Basics" />
+            <WizInput label="Training Title *" value={wiz.title} onChange={v => setWiz(f => ({ ...f, title: v }))} placeholder="e.g. Sustainable Farming Basics" />
             <div>
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Description / Meta</label>
-              <textarea value={wiz.meta_description} onChange={e => setWiz(f => ({ ...f, meta_description: e.target.value }))} rows={3} placeholder="Short course description..."
+              <textarea value={wiz.meta_description} onChange={e => setWiz(f => ({ ...f, meta_description: e.target.value }))} rows={3} placeholder="Short training description..."
                 className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none resize-none" />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -256,7 +256,7 @@ export default function AdminTrainingPage() {
             <div className="bg-background border border-border rounded-lg p-4 text-center">
               <DollarSign className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
               <p className="text-2xl font-bold text-foreground">{wiz.currency} {wiz.price.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground mt-1">Course Fee</p>
+              <p className="text-xs text-muted-foreground mt-1">Training Fee</p>
             </div>
           </div>
         );
@@ -411,7 +411,7 @@ export default function AdminTrainingPage() {
       <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search courses by title, category..."
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search trainings by title, category..."
             className="flex-1 text-sm outline-none placeholder:text-muted-foreground min-w-0" />
         </div>
         <div className="flex gap-1">
@@ -421,7 +421,7 @@ export default function AdminTrainingPage() {
           ))}
         </div>
         <button onClick={openWizard} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg">
-          <Plus className="w-3.5 h-3.5" /> Add Course
+          <Plus className="w-3.5 h-3.5" /> Add Training
         </button>
       </div>
 
@@ -441,7 +441,7 @@ export default function AdminTrainingPage() {
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 && (
                 <tr><td colSpan={5} className="py-12">
-                  <EmptyState icon={BookOpen} title="No courses" description="Create your first course to start training beneficiaries." />
+                  <EmptyState icon={BookOpen} title="No trainings" description="Create your first training to start enrolling beneficiaries." />
                 </td></tr>
               )}
               {filtered.map(c => (
@@ -480,7 +480,7 @@ export default function AdminTrainingPage() {
               className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] overflow-hidden flex flex-col">
               <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">Add New Course</h3>
+                  <h3 className="text-sm font-bold text-foreground">Add New Training</h3>
                   <p className="text-[10px] text-muted-foreground">Step {currentStep} of 9: {STEP_LABELS[currentStep - 1]}</p>
                 </div>
                 <button onClick={() => setShowWizard(false)} className="p-1.5 rounded-md hover:bg-muted" aria-label="Close wizard"><X className="w-4 h-4" /></button>
@@ -504,7 +504,7 @@ export default function AdminTrainingPage() {
                 ) : (
                   <button onClick={handleWizardSubmit} disabled={!wiz.title}
                     className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg disabled:opacity-30">
-                    <Check className="w-3.5 h-3.5" /> Create Course
+                    <Check className="w-3.5 h-3.5" /> Create Training
                   </button>
                 )}
               </div>
@@ -521,8 +521,8 @@ export default function AdminTrainingPage() {
             <div className="w-12 h-12 rounded-full bg-destructive-bg flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-destructive" />
             </div>
-            <h3 className="text-sm font-bold text-foreground mb-2">Delete Course?</h3>
-            <p className="text-xs text-muted-foreground mb-6">This action cannot be undone. The course and all its data will be permanently removed.</p>
+            <h3 className="text-sm font-bold text-foreground mb-2">Delete Training?</h3>
+            <p className="text-xs text-muted-foreground mb-6">This action cannot be undone. The training and all its data will be permanently removed.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-4 py-2.5 text-xs font-semibold border border-border rounded-lg hover:bg-muted">Cancel</button>
               <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-destructive hover:bg-destructive/90 rounded-lg">Delete</button>

@@ -45,7 +45,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin': 'Overview Metrics',
   '/admin/members': 'Beneficiaries',
   '/admin/teachers': 'NGO Instructors',
-  '/admin/training': 'Course Programs',
+  '/admin/training': 'Training Programs',
   '/admin/enrollments': 'Admissions & Stats',
   '/admin/certificates': 'Credentials & Seals',
   '/admin/notifications': 'SMS & Email Broadcast',
@@ -59,19 +59,6 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
   const { members, teachers, courses } = useAdmin();
   const [query, setQuery] = useState('');
   const router = useRouter();
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        if (open) onClose();
-        else onClose();
-      }
-      if (e.key === 'Escape' && open) onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose]);
 
   const q = query.toLowerCase();
   const results: { type: string; name: string; detail: string; href: string }[] = [];
@@ -89,7 +76,7 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
     });
     courses.forEach(c => {
       if (c.title.toLowerCase().includes(q) || c.category.toLowerCase().includes(q)) {
-        results.push({ type: 'Course', name: c.title, detail: c.category, href: '/admin/training' });
+        results.push({ type: 'Training', name: c.title, detail: c.category, href: '/admin/training' });
       }
     });
   }
@@ -106,7 +93,7 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
             autoFocus
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search members, teachers, courses..."
+            placeholder="Search members, teachers, training..."
             className="flex-1 text-sm outline-none placeholder:text-muted-foreground"
           />
           <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground bg-primary-light border border-border rounded">
@@ -231,7 +218,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   const currentPage = PAGE_TITLES[pathname || ''] || 'Admin Panel';
-  const unreadCount = notifications.filter(n => !n.created_at.includes('2026-07-12')).length || 0;
+  const unreadCount = notifications.length || 0;
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -306,7 +293,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 
             <button className="p-2 hover:bg-primary-light rounded-lg relative border border-border" aria-label="Notifications">
               <Bell className="w-4 h-4 text-muted-foreground" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-destructive rounded-full" />
+              {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-destructive rounded-full" />}
             </button>
 
             <div className="flex items-center gap-2.5 pl-3 border-l border-border">
@@ -327,7 +314,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
+      {cmdOpen && <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />}
       <ConfirmDialog
         open={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}

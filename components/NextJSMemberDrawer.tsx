@@ -259,12 +259,12 @@ export default function MemberProfileDrawer({
                 </div>
               )}
 
-              {/* Tab: Courses */}
+              {/* Tab: Trainings */}
               {activeTab === 'courses' && (
                 <div id="tabpanel-courses" role="tabpanel" aria-labelledby="tab-courses" className="space-y-4 animate-fade-in">
                   <div className="flex items-center gap-1.5 mb-2">
                     <BookOpen className="w-4 h-4 text-blue-600" />
-                    <p className="font-bold text-slate-900 text-sm">Registered Courses & Enrollment History</p>
+                    <p className="font-bold text-slate-900 text-sm">Registered Trainings & Enrollment History</p>
                   </div>
 
                   {memberEnrollments.length === 0 ? (
@@ -278,7 +278,7 @@ export default function MemberProfileDrawer({
                         return (
                           <div key={e.id} className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl flex justify-between items-center hover:bg-slate-100/50 transition-colors">
                             <div className="space-y-0.5">
-                              <p className="font-bold text-slate-900">{matchedCourse?.title || 'Program Course'}</p>
+                              <p className="font-bold text-slate-900">{matchedCourse?.title || 'Training Program'}</p>
                               <p className="text-[10px] text-slate-500 flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
                                 Enrolled: {e.enrolled_date}

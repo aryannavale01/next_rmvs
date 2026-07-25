@@ -13,10 +13,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  turbopack: {},
-  serverActions: {
-    bodySizeLimit: '20mb',
-  },
+  // turbopack: {},
   images: {
     remotePatterns: [
       {

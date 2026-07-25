@@ -71,7 +71,7 @@ export default function ApplyCoursePage() {
         </button>
         <div className="bg-card border border-border rounded-xl p-12 text-center">
           <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Course not found.</p>
+          <p className="text-sm text-muted-foreground">Training not found.</p>
         </div>
       </div>
     );
@@ -197,7 +197,7 @@ export default function ApplyCoursePage() {
       errors.aadhaar = 'Aadhaar Card document is mandatory to register under government schemes.';
     }
     if (course.price > 0 && finalPrice > 0 && !isDocOnFile('pan') && !attachedFiles.pan) {
-      errors.pan = 'PAN Card document is required for paid course tax audits.';
+      errors.pan = 'PAN Card document is required for paid training tax audits.';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -248,12 +248,12 @@ export default function ApplyCoursePage() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
       <button onClick={() => router.back()} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <ChevronLeft size={16} /> Back to Course
+        <ChevronLeft size={16} /> Back to Training
       </button>
 
       <div className="bg-card border border-border rounded-xl p-5">
         <h1 className="text-lg font-bold text-foreground">Apply for Admission</h1>
-        <p className="text-sm text-muted-foreground mt-1">Course: <strong>{course.title}</strong></p>
+        <p className="text-sm text-muted-foreground mt-1">Training: <strong>{course.title}</strong></p>
       </div>
 
       <form id="apply-form" onSubmit={handleFormSubmit} className="space-y-6">
@@ -294,7 +294,7 @@ export default function ApplyCoursePage() {
                 className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div className="md:col-span-2">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Why do you want to join this course?</label>
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Why do you want to join this training?</label>
               <textarea value={formData.motivation} onChange={e => setFormData(f => ({ ...f, motivation: e.target.value }))} rows={3}
                 className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
@@ -444,7 +444,7 @@ export default function ApplyCoursePage() {
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="text-sm font-bold text-foreground mb-3">Application Summary</h3>
           <div className="space-y-2">
-            <div className="flex justify-between text-xs"><span className="text-muted-foreground">Course Fee</span><span className="font-semibold text-foreground">₹{basePrice}</span></div>
+            <div className="flex justify-between text-xs"><span className="text-muted-foreground">Training Fee</span><span className="font-semibold text-foreground">₹{basePrice}</span></div>
             {discountAmount > 0 && <div className="flex justify-between text-xs"><span className="text-muted-foreground">Discount ({appliedCoupon?.code})</span><span className="font-semibold text-success-text">-₹{discountAmount}</span></div>}
             <div className="border-t border-border pt-2 flex justify-between text-sm"><span className="font-bold text-foreground">Total Payable</span><span className="font-bold text-primary">₹{finalPrice}</span></div>
           </div>

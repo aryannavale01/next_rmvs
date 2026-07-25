@@ -11,17 +11,21 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const session = await prisma.session.findUnique({
-    where: { id: auth.session.session.id },
-    select: { stepUpVerifiedAt: true },
-  });
+  try {
+    const session = await prisma.session.findUnique({
+      where: { id: auth.session.session.id },
+      select: { stepUpVerifiedAt: true },
+    });
 
-  const needsStepUp =
-    !session?.stepUpVerifiedAt ||
-    Date.now() - session.stepUpVerifiedAt.getTime() > STEP_UP_WINDOW_MS;
+    const needsStepUp =
+      !session?.stepUpVerifiedAt ||
+      Date.now() - session.stepUpVerifiedAt.getTime() > STEP_UP_WINDOW_MS;
 
-  return NextResponse.json({
-    needsStepUp,
-    stepUpVerifiedAt: session?.stepUpVerifiedAt?.toISOString() || null,
-  });
+    return NextResponse.json({
+      needsStepUp,
+      stepUpVerifiedAt: session?.stepUpVerifiedAt?.toISOString() || null,
+    });
+  } catch {
+    return NextResponse.json({ error: 'Failed to check step-up status' }, { status: 500 });
+  }
 }

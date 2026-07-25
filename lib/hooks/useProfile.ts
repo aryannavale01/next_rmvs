@@ -1,3 +1,5 @@
+'use client';
+
 import useSWR from 'swr';
 import { fetcher, SWR_DEFAULTS } from '@/lib/swr-fetcher';
 

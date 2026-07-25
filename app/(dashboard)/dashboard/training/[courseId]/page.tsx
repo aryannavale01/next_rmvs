@@ -26,7 +26,7 @@ export default function CourseDetailPage() {
         </button>
         <div className="bg-card border border-border rounded-xl p-12 text-center">
           <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Course not found.</p>
+          <p className="text-sm text-muted-foreground">Training not found.</p>
         </div>
       </div>
     );

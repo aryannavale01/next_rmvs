@@ -33,7 +33,7 @@ export default function AdminEnrollmentsPage() {
   const [editNotes, setEditNotes] = useState('');
 
   const getMemberName = React.useCallback((id: string) => members.find(m => m.id === id)?.full_name ?? 'Unknown Member', [members]);
-  const getCourseTitle = React.useCallback((id: string) => courses.find(c => c.id === id)?.title ?? 'Unknown Course', [courses]);
+  const getCourseTitle = React.useCallback((id: string) => courses.find(c => c.id === id)?.title ?? 'Unknown Training', [courses]);
   const getMember = (id: string) => members.find(m => m.id === id);
   const getCourse = (id: string) => courses.find(c => c.id === id);
 
@@ -95,7 +95,7 @@ export default function AdminEnrollmentsPage() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by member name or course name..."
+            placeholder="Search by member name or training name..."
             className="flex-1 text-sm outline-none placeholder:text-muted-foreground min-w-0" />
         </div>
         <div className="relative">
@@ -114,7 +114,7 @@ export default function AdminEnrollmentsPage() {
             <thead className="bg-background border-b border-border">
               <tr>
                 <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Member</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Course</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Training</th>
                 <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Enrolled Date</th>
                 <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Doc Verified</th>
@@ -124,7 +124,7 @@ export default function AdminEnrollmentsPage() {
             <tbody className="divide-y divide-gray-50">
               {paged.length === 0 && (
                 <tr><td colSpan={6} className="py-12">
-                  <EmptyState icon={Users} title="No enrollments" description="Enrollments will appear here when members apply to courses." />
+                  <EmptyState icon={Users} title="No enrollments" description="Enrollments will appear here when members apply to training." />
                 </td></tr>
               )}
               {paged.map(e => (
@@ -273,10 +273,10 @@ export default function AdminEnrollmentsPage() {
                   </div>
                 )}
 
-                {/* Course Info */}
+                {/* Training Info */}
                 {course && (
                   <div className="space-y-2">
-                    <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Course</h5>
+                    <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Training</h5>
                     <div className="bg-background rounded-lg p-4 border border-border space-y-2">
                       <p className="text-sm font-bold text-foreground">{course.title}</p>
                       <div className="grid grid-cols-2 gap-2">

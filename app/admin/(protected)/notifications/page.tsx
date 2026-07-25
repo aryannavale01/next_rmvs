@@ -20,7 +20,7 @@ const ICON_OPTIONS = [
   { name: 'Star', Icon: Star },
 ];
 
-const TARGETS = ['All Members', 'Group', 'Specific Course'];
+const TARGETS = ['All Members', 'Group', 'Specific Training'];
 const PAGE_SIZE = 8;
 
 function iconByName(name: string) {

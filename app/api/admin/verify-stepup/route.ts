@@ -19,46 +19,50 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { password } = body;
+  try {
+    const body = await request.json();
+    const { password } = body;
 
-  if (!password || typeof password !== 'string') {
-    return NextResponse.json({ error: 'Password is required' }, { status: 400 });
-  }
+    if (!password || typeof password !== 'string') {
+      return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+    }
 
-  const account = await prisma.account.findFirst({
-    where: {
-      userId: auth.session.user.id,
-      providerId: 'credential',
-    },
-    select: { password: true },
-  });
+    const account = await prisma.account.findFirst({
+      where: {
+        userId: auth.session.user.id,
+        providerId: 'credential',
+      },
+      select: { password: true },
+    });
 
-  if (!account?.password) {
-    return NextResponse.json({ error: 'Authentication failed' }, { status: 400 });
-  }
+    if (!account?.password) {
+      return NextResponse.json({ error: 'Authentication failed' }, { status: 400 });
+    }
 
-  const valid = await verifyPassword(account.password, password);
+    const valid = await verifyPassword(account.password, password);
 
-  if (!valid) {
+    if (!valid) {
+      await logAuthEvent({
+        userId: auth.session.user.id,
+        action: AuditActions.STEP_UP_FAILED,
+        ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+      });
+      return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
+    }
+
+    await prisma.session.update({
+      where: { id: auth.session.session.id },
+      data: { stepUpVerifiedAt: new Date() },
+    });
+
     await logAuthEvent({
       userId: auth.session.user.id,
-      action: AuditActions.STEP_UP_FAILED,
+      action: AuditActions.STEP_UP_VERIFIED,
       ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
     });
-    return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
-
-  await prisma.session.update({
-    where: { id: auth.session.session.id },
-    data: { stepUpVerifiedAt: new Date() },
-  });
-
-  await logAuthEvent({
-    userId: auth.session.user.id,
-    action: AuditActions.STEP_UP_VERIFIED,
-    ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
-  });
-
-  return NextResponse.json({ success: true });
 }

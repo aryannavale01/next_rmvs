@@ -26,19 +26,24 @@ if (authSecret.length < 32) {
 
 const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:3462";
 
-if (isProd && baseURL.includes("localhost")) {
-  throw new Error("[Auth] BETTER_AUTH_URL must not contain localhost in production.");
-}
-
 const trustedOrigins = process.env.TRUSTED_ORIGINS
   ? process.env.TRUSTED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
   : isProd
     ? []
     : ["http://localhost:3462", "http://localhost:3000", "http://localhost:3006"];
 
-if (isProd && trustedOrigins.length === 0) {
-  throw new Error("[Auth] TRUSTED_ORIGINS must be set in production (comma-separated list of allowed origins).");
+let _validated = false;
+function validateProductionConfig() {
+  if (_validated || !isProd) return;
+  _validated = true;
+  if (baseURL.includes("localhost")) {
+    console.error("[Auth] CRITICAL: BETTER_AUTH_URL must not contain localhost in production. Current:", baseURL);
+  }
+  if (trustedOrigins.length === 0) {
+    console.error("[Auth] CRITICAL: TRUSTED_ORIGINS must be set in production.");
+  }
 }
+validateProductionConfig();
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {

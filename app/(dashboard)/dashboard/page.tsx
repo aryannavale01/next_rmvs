@@ -14,6 +14,9 @@ import {
   FileCheck,
   BookOpen,
   BookmarkCheck,
+  Calendar,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { StatSkeleton } from '@/components/dashboard-ui';
@@ -47,6 +50,30 @@ export default function DashboardHome() {
   };
 
   const featuredCourses = courses.slice(0, 3);
+
+  const profileFields = [
+    { label: 'Name', filled: !!(profile.firstName && profile.lastName) },
+    { label: 'Email', filled: !!profile.email },
+    { label: 'Phone', filled: !!profile.phone },
+    { label: 'Aadhaar', filled: !!profile.aadhaarNo },
+    { label: 'PAN', filled: !!profile.panNo },
+    { label: 'Photo', filled: !!profile.photoUrl },
+    { label: 'Aadhaar Doc', filled: profile.documents.aadhaar.uploaded },
+    { label: 'PAN Doc', filled: profile.documents.pan.uploaded },
+  ];
+  const filledCount = profileFields.filter(f => f.filled).length;
+  const completionPct = Math.round((filledCount / profileFields.length) * 100);
+  const missingFields = profileFields.filter(f => !f.filled);
+
+  const upcomingTrainings = applications
+    .filter(a => a.status === 'Approved')
+    .map(a => ({
+      ...a,
+      course: courses.find(c => c.id === a.courseId),
+    }))
+    .filter(a => a.course)
+    .sort((a, b) => (a.course!.startDate || '').localeCompare(b.course!.startDate || ''))
+    .slice(0, 5);
 
   if (!mounted) {
     return (
@@ -138,6 +165,41 @@ export default function DashboardHome() {
           <User size={14} />
           {t.myProfile}
         </button>
+      </div>
+
+      {/* PROFILE COMPLETION */}
+      <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-foreground">{t.profileComplete}</h3>
+          <span className={`text-xs font-bold ${completionPct === 100 ? 'text-success-text' : 'text-primary'}`}>{completionPct}%</span>
+        </div>
+        <div className="w-full bg-muted rounded-full h-2 mb-3">
+          <div
+            className={`h-2 rounded-full transition-all duration-500 ${completionPct === 100 ? 'bg-success' : 'bg-primary'}`}
+            style={{ width: `${completionPct}%` }}
+          />
+        </div>
+        {completionPct === 100 ? (
+          <div className="flex items-center gap-2 text-success-text text-xs font-semibold">
+            <CheckCircle2 size={14} />
+            {t.allFieldsComplete}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Missing:</span>
+            {missingFields.map(f => (
+              <span key={f.label} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-warning-bg text-warning-text border border-warning/20">
+                {f.label}
+              </span>
+            ))}
+            <button
+              onClick={() => router.push('/dashboard/profile')}
+              className="ml-auto text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              {t.completeProfile} →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* STATS CARDS GRID — all clickable */}
@@ -238,7 +300,7 @@ export default function DashboardHome() {
               <div className="py-8 text-center text-muted-foreground text-sm animate-pulse">Loading...</div>
             ) : applications.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground text-sm">
-                No active course applications. Browse our training modules to start.
+                No active training applications. Browse our training modules to start.
               </div>
             ) : (
               applications.slice(0, 3).map((app) => (
@@ -318,68 +380,53 @@ export default function DashboardHome() {
 
       </div>
 
-      {/* FEATURED PROGRAMS (from API) */}
+      {/* UPCOMING TRAINING */}
       <div className="space-y-4">
         <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-          <BookOpen size={18} className="text-primary" />
-          Featured Programs
+          <Calendar size={18} className="text-primary" />
+          {t.upcomingTraining}
         </h3>
 
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-card border border-border rounded-xl p-5 animate-pulse h-[200px]" />
-            ))}
-          </div>
-        ) : featuredCourses.length === 0 ? (
+        {upcomingTrainings.length === 0 ? (
           <div className="bg-card border border-border rounded-xl p-8 text-center">
-            <BookOpen size={32} className="text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground font-medium">No programs available right now.</p>
-            <p className="text-xs text-muted-foreground mt-1">Check back soon for new courses and training programs.</p>
+            <GraduationCap size={32} className="text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground font-medium">{t.noUpcomingTraining}</p>
+            <button
+              onClick={() => router.push('/dashboard/training')}
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              <Search size={14} />
+              {t.browseTraining}
+            </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {featuredCourses.map((course) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {upcomingTrainings.map((item) => (
               <div
-                key={course.id}
-                className="bg-card border border-border rounded-xl p-5 flex flex-col justify-between shadow-sm hover:shadow transition-shadow duration-200"
+                key={item.id}
+                onClick={() => router.push(`/dashboard/training/${item.courseId}`)}
+                className="bg-card border border-border rounded-xl p-4 hover:shadow-sm transition-shadow cursor-pointer"
               >
-                <div>
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="text-[10px] font-bold text-primary bg-primary-light px-2 py-0.5 rounded-full border border-primary/20 uppercase tracking-wider">
-                      {course.category}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      {course.mode}
-                    </span>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-bold text-foreground truncate">{item.courseTitle}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">{item.course?.category}</p>
                   </div>
-
-                  <h4 className="text-sm font-bold text-foreground leading-snug mb-2">
-                    {course.title}
-                  </h4>
-
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-                    {course.description}
-                  </p>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-light text-primary border border-primary/20 shrink-0 ml-2">
+                    {item.course?.mode}
+                  </span>
                 </div>
-
-                <div className="mt-4 pt-4 border-t border-border flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground font-semibold">{course.duration}</span>
-                    {course.price === 0 ? (
-                      <span className="text-[11px] text-success-text font-bold bg-success-bg px-2 py-0.5 rounded">Free</span>
-                    ) : (
-                      <span className="text-[11px] text-foreground font-bold">{'\u20B9'}{course.price.toLocaleString('en-IN')}</span>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => router.push(`/dashboard/training/${course.id}`)}
-                    className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-lg bg-primary hover:bg-primary-hover text-white transition-all hover:shadow-sm"
-                  >
-                    {t.viewDetails}
-                    <ArrowRight size={14} />
-                  </button>
+                <div className="flex items-center gap-4 text-[11px] text-muted-foreground font-semibold">
+                  {item.course?.startDate && (
+                    <span className="flex items-center gap-1">
+                      <Calendar size={12} />
+                      {item.course.startDate}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1">
+                    <Clock size={12} />
+                    {item.course?.duration}
+                  </span>
                 </div>
               </div>
             ))}

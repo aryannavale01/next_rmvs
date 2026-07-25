@@ -24,10 +24,10 @@ export default function AdminCourseDetailPage() {
           <button onClick={() => router.push('/admin/training')} className="p-2 rounded-lg hover:bg-muted border border-border" aria-label="Back to training list">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <h2 className="text-lg font-bold text-foreground">Course Not Found</h2>
+          <h2 className="text-lg font-bold text-foreground">Training Not Found</h2>
         </div>
         <div className="bg-card border border-border rounded-xl p-12 text-center text-sm text-muted-foreground">
-          The requested course does not exist or has been removed.
+          The requested training does not exist or has been removed.
         </div>
       </div>
     );

@@ -10,6 +10,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const logs = await getRecentActivity(100);
-  return NextResponse.json({ logs });
+  try {
+    const logs = await getRecentActivity(100);
+    return NextResponse.json({ logs });
+  } catch {
+    return NextResponse.json({ error: 'Failed to fetch activity logs' }, { status: 500 });
+  }
 }

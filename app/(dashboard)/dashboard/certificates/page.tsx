@@ -14,16 +14,18 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useToast } from '@/components/ui/toast';
+import { Modal } from '@/components/ui/modal';
 import { EmptyState } from '@/components/dashboard-ui';
 
 export default function CertificatesPage() {
   const router = useRouter();
-  const { certificates, applications, generateCertificate, language } = useDashboard();
+  const { certificates, applications, generateCertificate, language, profile } = useDashboard();
   const { toast } = useToast();
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   // Track which courseId is compiling
   const [compilingId, setCompilingId] = useState<string | null>(null);
+  const [previewCert, setPreviewCert] = useState<typeof certificates[0] | null>(null);
 
   const getInitials = (title: string) => {
     return title
@@ -80,7 +82,7 @@ export default function CertificatesPage() {
         {/* Page Subtitle/Context */}
         <div className="-mt-2">
           <p className="text-sm text-muted-foreground">
-            View, download, and generate certificates for your completed courses
+            View, download, and generate certificates for your completed training
           </p>
         </div>
 
@@ -112,8 +114,8 @@ export default function CertificatesPage() {
           <EmptyState
             icon={Award}
             title="No certificates yet"
-            description="You do not currently have any active digital certificates generated. Completed course credentials will appear here automatically."
-            actionText="Browse Courses"
+            description="You do not currently have any active digital certificates generated. Completed training credentials will appear here automatically."
+            actionText="Browse Training"
             onAction={() => router.push('/dashboard/training')}
           />
         </div>
@@ -127,7 +129,7 @@ export default function CertificatesPage() {
       {/* Page Subtitle/Context */}
       <div className="-mt-4 pb-2 border-b border-border">
         <p className="text-sm text-muted-foreground">
-          View, download, and generate certificates for your completed courses
+          View, download, and generate certificates for your completed training
         </p>
       </div>
 
@@ -166,7 +168,7 @@ export default function CertificatesPage() {
         {certificates.length === 0 ? (
           <div className="bg-card border border-border rounded-xl p-8 text-center max-w-lg mx-auto shadow-sm">
             <p className="text-sm text-muted-foreground">
-              No certificates have been generated yet. Use the &quot;Ready to Generate&quot; panel below to compile your completed course certificates.
+              No certificates have been generated yet. Use the &quot;Ready to Generate&quot; panel below to compile your completed training certificates.
             </p>
           </div>
         ) : (
@@ -220,7 +222,7 @@ export default function CertificatesPage() {
                     <div className="flex items-center gap-3 pt-4 border-t border-border mt-4">
                       {/* View Certificate */}
                       <button
-                        onClick={() => toast({ title: 'Certificate View', description: `Viewing certificate ${cert.certificateNo} — verified by the Ministry of Skill Development.`, variant: 'info' })}
+                        onClick={() => setPreviewCert(cert)}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-light/50 text-xs font-bold text-foreground hover:text-primary transition-colors"
                       >
                         <FileCheck size={14} />
@@ -229,7 +231,10 @@ export default function CertificatesPage() {
 
                       {/* Download PDF */}
                       <button
-                        onClick={() => toast({ title: 'Downloading Certificate', description: `Certificate PDF for serial ${cert.certificateNo}`, variant: 'success' })}
+                        onClick={() => {
+                          setPreviewCert(cert);
+                          setTimeout(() => window.print(), 300);
+                        }}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
                       >
                         <Download size={14} />
@@ -253,7 +258,7 @@ export default function CertificatesPage() {
             Ready to Generate
           </h3>
           <p className="text-xs text-muted-foreground -mt-3">
-            You have completed courses that are ready for digital certificate compilation. Select &quot;Generate Certificate&quot; to issue your credentials.
+            You have completed training that is ready for digital certificate compilation. Select &quot;Generate Certificate&quot; to issue your credentials.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -305,6 +310,53 @@ export default function CertificatesPage() {
           </div>
         </div>
       )}
+
+      {/* CERTIFICATE PREVIEW MODAL */}
+      <Modal
+        open={!!previewCert}
+        onClose={() => setPreviewCert(null)}
+        title={t.certificatePreview}
+        maxWidth="max-w-2xl"
+      >
+        {previewCert && (
+          <div className="space-y-6">
+            <div className="border-2 border-primary/20 rounded-xl p-8 bg-gradient-to-br from-background to-primary-light/10 text-center relative overflow-hidden">
+              <div className="absolute top-3 left-3 w-8 h-8 border-t-2 border-l-2 border-primary/30 rounded-tl-lg" />
+              <div className="absolute top-3 right-3 w-8 h-8 border-t-2 border-r-2 border-primary/30 rounded-tr-lg" />
+              <div className="absolute bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 border-primary/30 rounded-bl-lg" />
+              <div className="absolute bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 border-primary/30 rounded-br-lg" />
+
+              <p className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1">Ministry of Skill Development</p>
+              <h2 className="text-xl font-bold text-foreground mb-6">{t.certificateOfCompletion}</h2>
+
+              <p className="text-xs text-muted-foreground mb-1">{t.recipientName}</p>
+              <p className="text-lg font-bold text-foreground mb-4">{profile.firstName} {profile.lastName}</p>
+
+              <p className="text-xs text-muted-foreground mb-1">has successfully completed</p>
+              <p className="text-sm font-bold text-primary mb-4">{previewCert.courseTitle}</p>
+
+              <div className="flex items-center justify-center gap-8 text-xs text-muted-foreground">
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider font-bold">{t.certificateId}</p>
+                  <p className="font-mono font-bold text-foreground mt-0.5">{previewCert.certificateNo}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider font-bold">{t.issueDate}</p>
+                  <p className="font-bold text-foreground mt-0.5">{previewCert.completionDate}</p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => window.print()}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+            >
+              <Download size={14} />
+              {t.downloadCert}
+            </button>
+          </div>
+        )}
+      </Modal>
 
     </div>
   );

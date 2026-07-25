@@ -116,8 +116,8 @@ export default function AdminCertificatesPage() {
           { id: 'all', label: 'Total', value: stats.total, icon: Award },
           { id: 'pending', label: 'Pending Review', value: stats.generated, icon: FileCheck },
           { id: 'accepted', label: 'Approved', value: stats.accepted, icon: Check },
-          { id: 'courses', label: 'Courses w/ Certs', value: stats.coursesWithCerts, icon: BookOpen },
-          { id: 'avg', label: 'Avg / Course', value: stats.avgPerCourse, icon: TrendingUp },
+          { id: 'courses', label: 'Trainings w/ Certs', value: stats.coursesWithCerts, icon: BookOpen },
+          { id: 'avg', label: 'Avg / Training', value: stats.avgPerCourse, icon: TrendingUp },
           { id: 'members', label: 'Members w/ Certs', value: stats.membersWithCerts, icon: Users },
         ]}
       />
@@ -129,7 +129,7 @@ export default function AdminCertificatesPage() {
           <input
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by certificate number, member, or course..."
+            placeholder="Search by certificate number, member, or training..."
             className="flex-1 text-sm outline-none placeholder:text-muted-foreground min-w-0"
           />
         </div>
@@ -138,7 +138,7 @@ export default function AdminCertificatesPage() {
             onClick={() => setViewMode(viewMode === 'table' ? 'courses' : 'table')}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-accent"
           >
-            <BookOpen className="w-3.5 h-3.5" /> {viewMode === 'table' ? 'Course View' : 'Table View'}
+            <BookOpen className="w-3.5 h-3.5" /> {viewMode === 'table' ? 'Training View' : 'Table View'}
           </button>
           <button
             onClick={() => setShowGenerateModal(true)}
@@ -178,7 +178,7 @@ export default function AdminCertificatesPage() {
       </div>
 
       <div id={`tabpanel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
-      {/* Course Grouping View */}
+      {/* Training Grouping View */}
       {viewMode === 'courses' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {courseGroups.map(g => (
@@ -203,7 +203,7 @@ export default function AdminCertificatesPage() {
           ))}
           {courseGroups.length === 0 && (
             <div className="col-span-full">
-              <EmptyState icon={Award} title="No courses" description="Course programs will appear here once created." />
+              <EmptyState icon={Award} title="No trainings" description="Training programs will appear here once created." />
             </div>
           )}
         </div>
@@ -218,7 +218,7 @@ export default function AdminCertificatesPage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Certificate No</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Member</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Course</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Training</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Issue Date</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold text-muted-foreground uppercase tracking-wider w-28">Actions</th>
@@ -228,7 +228,7 @@ export default function AdminCertificatesPage() {
                 {paged.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-12">
-                      <EmptyState icon={Award} title="No certificates" description="Certificates will appear here after course completion." />
+                      <EmptyState icon={Award} title="No certificates" description="Certificates will appear here after training completion." />
                     </td>
                   </tr>
                 )}
@@ -409,7 +409,7 @@ export default function AdminCertificatesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     ['Member', getMemberName(viewCert.member_id)],
-                    ['Course', getCourseTitle(viewCert.course_id)],
+                    ['Training', getCourseTitle(viewCert.course_id)],
                     ['Instructor', getTeacherName(viewCert.course_id)],
                     ['Issue Date', viewCert.issue_date],
                     ['Status', viewCert.status.charAt(0).toUpperCase() + viewCert.status.slice(1)],

@@ -37,7 +37,7 @@ interface DashboardContextType {
   language: 'en' | 'hi' | 'mr';
   loading: boolean;
   error: { dashboard?: string; courses?: string } | null;
-  updateProfile: (updated: Partial<Profile>) => void;
+  updateProfile: (updated: Partial<Profile>) => Promise<void>;
   applyToCourse: (
     courseId: string,
     couponCode?: string,
@@ -71,12 +71,12 @@ export const TRANSLATIONS = {
     personalInfo: "Personal Information",
     identityDocs: "Identity Documents",
     changePassword: "Change Password",
-    searchCourse: "Search course...",
+    searchCourse: "Search training...",
     category: "Category",
     level: "Level",
     all: "All",
-    browse: "Browse Courses",
-    myCourses: "My Courses",
+    browse: "Browse Training",
+    myCourses: "My Trainings",
     viewDetails: "View Details",
     enrolled: "Enrolled",
     completed: "Completed",
@@ -90,7 +90,7 @@ export const TRANSLATIONS = {
     documentsVerified: "Documents Under Verification",
     underReview: "Under Review",
     approved: "Approved",
-    courseCompleted: "Course Completed",
+    courseCompleted: "Training Completed",
     generateCert: "Generate Certificate",
     downloadCert: "Download Certificate",
     testimonial: "Review & Testimonial",
@@ -100,10 +100,10 @@ export const TRANSLATIONS = {
     originalPrice: "Original Price",
     discount: "Discount",
     finalPrice: "Final Price",
-    nowFree: "This course is now FREE!",
+    nowFree: "This training is now FREE!",
     uploadZone: "Drag & drop files here or click to upload",
-    submitApplication: "Submit Course Application",
-    noApplications: "No course applications found.",
+    submitApplication: "Submit Training Application",
+    noApplications: "No training applications found.",
     certificatesGenerated: "My Generated Certificates",
     eligibleCertificates: "Eligible for Certificate Generation",
     noCertificates: "No certificates available yet.",
@@ -113,6 +113,17 @@ export const TRANSLATIONS = {
     markAllRead: "Mark all as read",
     filterTab: "Filters",
     timeline: "Activity Log",
+    profileComplete: "Profile Complete",
+    completeProfile: "Complete Profile",
+    upcomingTraining: "Upcoming Training",
+    noUpcomingTraining: "No upcoming training enrollments.",
+    browseTraining: "Browse Training",
+    certificatePreview: "Certificate Preview",
+    certificateOfCompletion: "Certificate of Completion",
+    recipientName: "Recipient",
+    certificateId: "Certificate ID",
+    issueDate: "Issue Date",
+    allFieldsComplete: "All fields complete!",
   },
   hi: {
     dashboard: "डैशबोर्ड",
@@ -129,12 +140,12 @@ export const TRANSLATIONS = {
     personalInfo: "व्यक्तिगत जानकारी",
     identityDocs: "पहचान दस्तावेज",
     changePassword: "पासवर्ड बदलें",
-    searchCourse: "पाठ्यक्रम खोजें...",
+    searchCourse: "प्रशिक्षण खोजें...",
     category: "श्रेणी",
     level: "स्तर",
     all: "सभी",
-    browse: "पाठ्यक्रम देखें",
-    myCourses: "मेरे पाठ्यक्रम",
+    browse: "प्रशिक्षण देखें",
+    myCourses: "मेरे प्रशिक्षण",
     viewDetails: "विवरण देखें",
     enrolled: "नामांकित",
     completed: "पूर्ण",
@@ -148,7 +159,7 @@ export const TRANSLATIONS = {
     documentsVerified: "दस्तावेज़ सत्यापन के अधीन",
     underReview: "समीक्षा के अधीन",
     approved: "स्वीकृत",
-    courseCompleted: "पाठ्यक्रम पूरा हुआ",
+    courseCompleted: "प्रशिक्षण पूरा हुआ",
     generateCert: "प्रमाण पत्र बनाएं",
     downloadCert: "प्रमाण पत्र डाउनलोड करें",
     testimonial: "समीक्षा और प्रशंसापत्र",
@@ -158,10 +169,10 @@ export const TRANSLATIONS = {
     originalPrice: "मूल मूल्य",
     discount: "छूट",
     finalPrice: "अंतिम मूल्य",
-    nowFree: "यह पाठ्यक्रम अब मुफ़्त है!",
+    nowFree: "यह प्रशिक्षण अब मुफ़्त है!",
     uploadZone: "दस्तावेज़ यहाँ खींचें या अपलोड करने के लिए क्लिक करें",
-    submitApplication: "पाठ्यक्रम के लिए आवेदन करें",
-    noApplications: "कोई पाठ्यक्रम आवेदन नहीं मिला।",
+    submitApplication: "प्रशिक्षण के लिए आवेदन करें",
+    noApplications: "कोई प्रशिक्षण आवेदन नहीं मिला।",
     certificatesGenerated: "मेरे प्रमाण पत्र",
     eligibleCertificates: "प्रमाण पत्र बनाने के योग्य",
     noCertificates: "कोई प्रमाण पत्र अभी तक उपलब्ध नहीं है।",
@@ -171,6 +182,17 @@ export const TRANSLATIONS = {
     markAllRead: "सभी को पढ़ा हुआ चिह्नित करें",
     filterTab: "फ़िल्टर",
     timeline: "गतिविधि लॉग",
+    profileComplete: "प्रोफ़ाइल पूर्ण",
+    completeProfile: "प्रोफ़ाइल पूर्ण करें",
+    upcomingTraining: "आगामी प्रशिक्षण",
+    noUpcomingTraining: "कोई आगामी प्रशिक्षण नामांकन नहीं।",
+    browseTraining: "प्रशिक्षण देखें",
+    certificatePreview: "प्रमाण पत्र पूर्वावलोकन",
+    certificateOfCompletion: "पूर्णता प्रमाण पत्र",
+    recipientName: "प्राप्तकर्ता",
+    certificateId: "प्रमाण पत्र आईडी",
+    issueDate: "जारी करने की तिथि",
+    allFieldsComplete: "सभी फ़ील्ड पूर्ण!",
   },
   mr: {
     dashboard: "डॅशबोर्ड",
@@ -187,12 +209,12 @@ export const TRANSLATIONS = {
     personalInfo: "वैयक्तिक माहिती",
     identityDocs: "ओळख दस्तऐवज",
     changePassword: "पासवर्ड बदला",
-    searchCourse: "कोर्स शोधा...",
+    searchCourse: "प्रशिक्षण शोधा...",
     category: "वर्ग",
     level: "स्तर",
     all: "सर्व",
-    browse: "कोर्सेस पहा",
-    myCourses: "माझे कोर्सेस",
+    browse: "प्रशिक्षण पहा",
+    myCourses: "माझे प्रशिक्षण",
     viewDetails: "तपशील पहा",
     enrolled: "प्रवेशित",
     completed: "पूर्ण झाले",
@@ -206,7 +228,7 @@ export const TRANSLATIONS = {
     documentsVerified: "दस्तऐवज पडताळणी अंतर्गत",
     underReview: "पुनरावलोकना अंतर्गत",
     approved: "मंजूर",
-    courseCompleted: "कोर्स पूर्ण झाला",
+    courseCompleted: "प्रशिक्षण पूर्ण झाला",
     generateCert: "प्रमाणपत्र तयार करा",
     downloadCert: "प्रमाणपत्र डाउनलोड करा",
     testimonial: "पुनरावलोकन आणि अभिप्राय",
@@ -216,12 +238,12 @@ export const TRANSLATIONS = {
     originalPrice: "मूळ किंमत",
     discount: "सवलत",
     finalPrice: "अंतिम किंमत",
-    nowFree: "हा कोर्स आता मोफत आहे!",
+    nowFree: "हे प्रशिक्षण आता मोफत आहे!",
     uploadZone: "दस्तऐवज येथे ड्रॅग करा किंवा अपलोड करण्यासाठी क्लिक करा",
-    submitApplication: "कोर्ससाठी अर्ज करा",
-    noApplications: "कोणतेही अर्ज आढळले नाहीत.",
+    submitApplication: "प्रशिक्षणासाठी अर्ज करा",
+    noApplications: "कोणतेही प्रशिक्षण अर्ज आढळले नाहीत.",
     certificatesGenerated: "माझी प्रमाणपत्रे",
-    eligibleCertificates: "प्रमाणपत्र मिळण्यास पात्र कोर्सेस",
+    eligibleCertificates: "प्रमाणपत्र मिळण्यास पात्र प्रशिक्षण",
     noCertificates: "अद्याप कोणतीही प्रमाणपत्रे उपलब्ध नाहीत.",
     today: "आज",
     yesterday: "काल",
@@ -229,6 +251,17 @@ export const TRANSLATIONS = {
     markAllRead: "सर्व वाचलेले म्हणून चिन्हांकित करा",
     filterTab: "फिल्टर",
     timeline: "कृतीचा इतिहास",
+    profileComplete: "प्रोफाइल पूर्ण",
+    completeProfile: "प्रोफाइल पूर्ण करा",
+    upcomingTraining: "आगामी प्रशिक्षण",
+    noUpcomingTraining: "कोणतीही आगामी प्रशिक्षण नावांकन नाही.",
+    browseTraining: "प्रशिक्षण पहा",
+    certificatePreview: "प्रमाणपत्र पूर्वावलोकन",
+    certificateOfCompletion: "पूर्णता प्रमाणपत्र",
+    recipientName: "प्राप्तकर्ता",
+    certificateId: "प्रमाणपत्र आयडी",
+    issueDate: "जारी करण्याची तारीख",
+    allFieldsComplete: "सर्व फील्ड पूर्ण!",
   }
 };
 
@@ -289,13 +322,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     if (dashboardSWR.error || coursesSWR.error) {
       return {
         dashboard: dashboardSWR.error ? 'Failed to load dashboard data.' : undefined,
-        courses: coursesSWR.error ? 'Failed to load courses.' : undefined,
+        courses: coursesSWR.error ? 'Failed to load training data.' : undefined,
       };
     }
     return null;
   }, [dashboardSWR.error, coursesSWR.error]);
 
-  const updateProfile = useCallback((updated: Partial<Profile>) => {
+  const updateProfile = useCallback(async (updated: Partial<Profile>) => {
+    const merged = { ...profile, ...updated };
+    if (updated.documents) {
+      merged.documents = { ...profile.documents, ...updated.documents };
+    }
+
     profileSWR.mutate(
       (current) => ({
         ...(current ?? INITIAL_PROFILE),
@@ -304,11 +342,23 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       }),
       { revalidate: false }
     );
-    const merged = { ...profile, ...updated };
-    if (updated.documents) {
-      merged.documents = { ...profile.documents, ...updated.documents };
-    }
     saveStoredState({ profile: merged });
+
+    const hasPersonalFields = 'firstName' in updated || 'lastName' in updated || 'email' in updated || 'phone' in updated || 'aadhaarNo' in updated || 'panNo' in updated || 'rationCardNo' in updated;
+    if (hasPersonalFields) {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to save profile' }));
+        throw new Error(err.error || 'Failed to save profile');
+      }
+      const serverProfile = await res.json();
+      profileSWR.mutate(serverProfile, { revalidate: false });
+      saveStoredState({ profile: serverProfile });
+    }
   }, [profile, profileSWR]);
 
   const applyToCourse = useCallback(async (

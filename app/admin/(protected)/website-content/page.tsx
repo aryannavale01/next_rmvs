@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 type TabKey = 'courses' | 'programs' | 'leadership' | 'testimonials' | 'contact_social' | 'gallery' | 'resources' | 'locations';
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode; isItems: boolean }[] = [
-  { key: 'courses', label: 'Courses', icon: <BookOpen className="w-3.5 h-3.5" />, isItems: true },
+  { key: 'courses', label: 'Trainings', icon: <BookOpen className="w-3.5 h-3.5" />, isItems: true },
   { key: 'programs', label: 'Programs', icon: <GraduationCap className="w-3.5 h-3.5" />, isItems: true },
   { key: 'leadership', label: 'Leadership', icon: <Users className="w-3.5 h-3.5" />, isItems: true },
   { key: 'testimonials', label: 'Testimonials', icon: <Quote className="w-3.5 h-3.5" />, isItems: true },
@@ -64,7 +64,7 @@ export default function AdminWebsiteContentPage() {
     setShowForm(true);
   };
 
-  const handleSaveItem = () => {
+  const handleSaveItem = async () => {
     if (!form.title.trim()) return;
     const items = currentItems || [];
     let updated: WebsiteItem[];
@@ -73,19 +73,19 @@ export default function AdminWebsiteContentPage() {
     } else {
       updated = [{ ...form, id: `web-${Date.now()}-${crypto.randomUUID().slice(0, 8)}` }, ...items];
     }
-    updateWebsiteContent(activeTab as keyof typeof websiteContent, updated);
+    await updateWebsiteContent(activeTab as keyof typeof websiteContent, updated);
     setShowForm(false);
     setEditingItem(null);
   };
 
-  const handleDeleteItem = (id: string) => {
+  const handleDeleteItem = async (id: string) => {
     const items = (currentItems || []).filter(it => it.id !== id);
-    updateWebsiteContent(activeTab as keyof typeof websiteContent, items);
+    await updateWebsiteContent(activeTab as keyof typeof websiteContent, items);
     setDeleteConfirm(null);
   };
 
-  const handleSaveContact = () => {
-    updateWebsiteContent('contact_social', contactForm);
+  const handleSaveContact = async () => {
+    await updateWebsiteContent('contact_social', contactForm);
   };
 
   const handleTabChange = (key: TabKey) => {

@@ -65,6 +65,28 @@ export interface Activity {
   group: 'All' | 'Today' | 'This Week' | 'This Month';
 }
 
+export interface MyCourse {
+  applicationId: string;
+  courseId: string;
+  title: string;
+  category: string;
+  level: string;
+  duration: string;
+  mode: string;
+  startDate: string | null;
+  endDate: string | null;
+  appliedDate: string;
+  displayStatus: 'pending' | 'under_review' | 'not_started' | 'in_progress' | 'completed';
+  progress: {
+    percentComplete: number;
+    totalDays: number;
+    daysElapsed: number;
+    daysRemaining: number;
+  } | null;
+  hasCertificate: boolean;
+  certificateId: string | null;
+}
+
 export type DocumentStatus = 'not_uploaded' | 'pending' | 'verified' | 'rejected';
 
 export interface DocumentInfo {

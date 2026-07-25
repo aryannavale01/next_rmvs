@@ -42,7 +42,7 @@ export default function AdminRootPage() {
 
   const quickActions = [
     { label: 'Add Member', icon: PlusCircle, onClick: () => router.push('/admin/members') },
-    { label: 'New Course', icon: PlusCircle, onClick: () => router.push('/admin/training') },
+    { label: 'New Training', icon: PlusCircle, onClick: () => router.push('/admin/training') },
     { label: 'Issue Certificate', icon: Award, onClick: () => router.push('/admin/certificates') },
     { label: 'View Enrollments', icon: FileSpreadsheet, onClick: () => router.push('/admin/enrollments') },
     { label: 'Website Content', icon: Settings, onClick: () => router.push('/admin/website-content') },
@@ -67,7 +67,7 @@ export default function AdminRootPage() {
         columns={4}
         cards={[
           { id: 'members', label: 'Total Members', value: totalMembers, icon: Users },
-          { id: 'courses', label: 'Active Courses', value: activeCourses, icon: BookOpen },
+          { id: 'courses', label: 'Active Trainings', value: activeCourses, icon: BookOpen },
           { id: 'certs', label: 'Certificates', value: totalCerts, icon: Award },
           { id: 'pending', label: 'Pending Apps', value: pendingEnrollments, icon: Calendar },
           { id: 'teachers', label: 'NGO Teachers', value: totalTeachers, icon: Layers },
@@ -99,7 +99,7 @@ export default function AdminRootPage() {
         {/* Bar Chart */}
         <div className="bg-card border border-border p-5 rounded-xl">
           <div className="flex justify-between items-center mb-4">
-            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Course Applications</h4>
+            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Training Applications</h4>
             <span className="text-[10px] bg-primary-light text-primary border border-primary-light rounded-sm px-1.5 py-0.5 font-bold uppercase">Monthly</span>
           </div>
           <div className="h-44 w-full">

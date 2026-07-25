@@ -163,13 +163,16 @@ export default function ProfilePage() {
     setShowRemovePhotoConfirm(false);
   };
 
-  const handlePersonalSubmit = (e: React.FormEvent) => {
+  const [personalError, setPersonalError] = useState('');
+
+  const handlePersonalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setPersonalSuccess(false);
+    setPersonalError('');
 
-    setTimeout(() => {
-      updateProfile({
+    try {
+      await updateProfile({
         firstName,
         lastName,
         email,
@@ -178,10 +181,13 @@ export default function ProfilePage() {
         panNo,
         rationCardNo
       });
-      setIsSaving(false);
       setPersonalSuccess(true);
       setTimeout(() => setPersonalSuccess(false), 3000);
-    }, 600);
+    } catch (err: any) {
+      setPersonalError(err.message || 'Failed to save profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -363,7 +369,7 @@ export default function ProfilePage() {
               <div className="flex-1 text-center sm:text-left space-y-2">
                 <h4 className="text-sm font-bold text-foreground">Profile Picture</h4>
                 <p className="text-xs text-muted-foreground max-w-sm">
-                  Upload a professional passport-sized photo (JPEG or PNG, max 2MB). This is used for generating course completion certificates.
+                  Upload a professional passport-sized photo (JPEG or PNG, max 2MB). This is used for generating training completion certificates.
                 </p>
                 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 pt-1">
@@ -516,6 +522,17 @@ export default function ProfilePage() {
                       Profile details saved successfully!
                     </motion.div>
                   )}
+                  {personalError && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="flex items-center gap-2 text-destructive text-xs font-medium"
+                    >
+                      <AlertCircle size={16} />
+                      {personalError}
+                    </motion.div>
+                  )}
                 </AnimatePresence>
 
                 <button
@@ -544,7 +561,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <h3 className="font-bold text-foreground text-base">{t.identityDocs}</h3>
-                <p className="text-xs text-muted-foreground">Provide legal identification papers for course admissions and state subsidies</p>
+                <p className="text-xs text-muted-foreground">Provide legal identification papers for training admissions and state subsidies</p>
               </div>
             </div>
 

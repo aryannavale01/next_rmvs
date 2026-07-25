@@ -65,7 +65,7 @@ export default function ApplicationsPage() {
         <EmptyState
           icon={FileText}
           title={t.noApplications}
-          description="You do not currently have any active or previous course enrollment applications. Browse national schemes to register."
+          description="You do not currently have any active or previous training enrollment applications. Browse national schemes to register."
           actionText={t.browse}
           onAction={() => router.push('/dashboard/training')}
         />

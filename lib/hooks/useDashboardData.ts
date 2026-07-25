@@ -1,3 +1,5 @@
+'use client';
+
 import useSWR from 'swr';
 import { fetcher, SWR_DEFAULTS } from '@/lib/swr-fetcher';
 import { Application, Certificate, AppNotification, Activity, Course } from '@/lib/store';

@@ -18,34 +18,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: auth.session.user.id },
-    select: { mustChangePassword: true },
-  });
-
-  if (!user?.mustChangePassword) {
-    return NextResponse.json({ error: 'No password change required' }, { status: 400 });
-  }
-
-  // Clear mustChangePassword and invalidate all other sessions
-  const currentSessionId = auth.session.session.id;
-  await prisma.$transaction([
-    prisma.user.update({
+  try {
+    const user = await prisma.user.findUnique({
       where: { id: auth.session.user.id },
-      data: { mustChangePassword: false },
-    }),
-    prisma.session.deleteMany({
-      where: {
-        userId: auth.session.user.id,
-        id: { not: currentSessionId },
-      },
-    }),
-  ]);
+      select: { mustChangePassword: true },
+    });
 
-  await logAuthEvent({
-    userId: auth.session.user.id,
-    action: AuditActions.PASSWORD_CHANGE_FORCED,
-  });
+    if (!user?.mustChangePassword) {
+      return NextResponse.json({ error: 'No password change required' }, { status: 400 });
+    }
 
-  return NextResponse.json({ success: true });
+    const currentSessionId = auth.session.session.id;
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: auth.session.user.id },
+        data: { mustChangePassword: false },
+      }),
+      prisma.session.deleteMany({
+        where: {
+          userId: auth.session.user.id,
+          id: { not: currentSessionId },
+        },
+      }),
+    ]);
+
+    await logAuthEvent({
+      userId: auth.session.user.id,
+      action: AuditActions.PASSWORD_CHANGE_FORCED,
+    });
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: 'Failed to complete password change' }, { status: 500 });
+  }
 }

@@ -15,7 +15,7 @@ export async function GET() {
       select: { id: true, title: true },
       orderBy: { createdAt: 'desc' },
     });
-    return NextResponse.json(courses);
+    return NextResponse.json({ courses });
   } catch {
     return NextResponse.json({ error: 'Failed to fetch courses' }, { status: 500 });
   }

@@ -97,6 +97,9 @@ export async function POST(req: NextRequest) {
       couponApplied: !!appliedCouponId,
     }, { status: 201 });
   } catch (e: any) {
+    if (e?.code === 'P2002') {
+      return NextResponse.json({ error: 'Already applied to this course' }, { status: 409 });
+    }
     const reasonMap: Record<string, string> = {
       COUPON_NOT_FOUND: 'Coupon code not found',
       COUPON_INACTIVE: 'Coupon is no longer active',

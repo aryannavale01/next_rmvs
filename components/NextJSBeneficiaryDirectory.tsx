@@ -392,7 +392,7 @@ export default function NextJSBeneficiaryDirectory() {
     });
     setSelectedIds([]);
     setBulkActionCourse('');
-    logActivity('Bulk Enrollment', `Assigned ${selectedIds.length} members to a program course.`, 'BookOpen');
+    logActivity('Bulk Enrollment', `Assigned ${selectedIds.length} members to a training program.`, 'BookOpen');
   };
 
   const handleBulkAssignVolunteer = () => {

@@ -81,7 +81,7 @@ export default function SearchModal({ onClose }: SearchModalProps) {
               {results.courses.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="text-xs font-bold text-emerald-600 font-mono tracking-widest uppercase flex items-center gap-1.5 border-b border-emerald-50 pb-1">
-                    <BookOpen className="h-3.5 w-3.5" /> Courses &amp; Academy ({results.courses.length})
+                    <BookOpen className="h-3.5 w-3.5" /> Trainings &amp; Academy ({results.courses.length})
                   </h4>
                   <div className="divide-y divide-gray-50">
                     {results.courses.map(c => (

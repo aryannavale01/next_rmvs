@@ -244,27 +244,29 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const addCourse = useCallback((c: Omit<AdminCourse, 'id' | 'seats_enrolled'>) => {
     const newCourse: AdminCourse = { ...c, id: `c-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, seats_enrolled: 0 };
     setCourses(prev => [newCourse, ...prev]);
-    logActivity('Course Created', `New course program "${newCourse.title}" drafted.`, 'BookOpen');
+    logActivity('Training Created', `New training program "${newCourse.title}" drafted.`, 'BookOpen');
   }, [logActivity]);
 
   const updateCourse = useCallback((id: string, updated: Partial<AdminCourse>) => {
     setCourses(prev => prev.map(c => c.id === id ? { ...c, ...updated } as AdminCourse : c));
-    logActivity('Course Updated', `Updated details/settings for "${id}".`, 'BookOpen');
+    logActivity('Training Updated', `Updated details/settings for "${id}".`, 'BookOpen');
   }, [logActivity]);
 
   const deleteCourse = useCallback(async (id: string) => {
     if (!(await requireStepUpClient('/admin/training', 'delete_course'))) return;
     setCourses(prev => prev.filter(c => c.id !== id));
-    logActivity('Course Removed', `Archived and deleted course program "${id}".`, 'BookOpen');
+    logActivity('Training Removed', `Archived and deleted training program "${id}".`, 'BookOpen');
   }, [logActivity]);
 
   // Enrollments
   const addEnrollment = useCallback((e: Omit<Enrollment, 'id' | 'enrolled_date'>) => {
+    const course = courses.find(c => c.id === e.course_id);
+    if (course && course.seats_enrolled >= course.seats_total) return;
     const newEnrollment: Enrollment = { ...e, id: `enr-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, enrolled_date: new Date().toISOString().split('T')[0] };
     setEnrollments(prev => [newEnrollment, ...prev]);
     setCourses(prev => prev.map(c => c.id === e.course_id ? { ...c, seats_enrolled: c.seats_enrolled + 1 } : c));
-    logActivity('Enrollment Created', `Enrolled member in course program.`, 'Calendar');
-  }, [logActivity]);
+    logActivity('Enrollment Created', `Enrolled member in training program.`, 'Calendar');
+  }, [logActivity, courses]);
 
   const updateEnrollment = useCallback((id: string, updated: Partial<Enrollment>) => {
     setEnrollments(prev => prev.map(e => e.id === id ? { ...e, ...updated } as Enrollment : e));
@@ -295,7 +297,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const markEnrollmentCompleted = useCallback((id: string) => {
     setEnrollments(prev => prev.map(e => {
       if (e.id === id) {
-        logActivity('Course Completed', `Marked program completed for enrollment ${id}.`, 'Award');
+        logActivity('Training Completed', `Marked program completed for enrollment ${id}.`, 'Award');
         return { ...e, status: 'Completed' as const };
       }
       return e;
@@ -303,13 +305,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [logActivity]);
 
   const markEnrollmentDropped = useCallback((id: string) => {
+    let droppedCourseId: string | null = null;
     setEnrollments(prev => prev.map(e => {
       if (e.id === id) {
-        logActivity('Course Dropped', `Member dropped/withdrew from enrollment ${id}.`, 'Bell');
+        logActivity('Training Dropped', `Member dropped/withdrew from enrollment ${id}.`, 'Bell');
+        droppedCourseId = e.course_id;
         return { ...e, status: 'Dropped' as const };
       }
       return e;
     }));
+    if (droppedCourseId) {
+      setCourses(prev => prev.map(c => c.id === droppedCourseId ? { ...c, seats_enrolled: Math.max(0, c.seats_enrolled - 1) } : c));
+    }
   }, [logActivity]);
 
   // Certificates

@@ -64,6 +64,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const getPageTitle = () => {
     if (pathname === '/dashboard') return t.dashboard;
     if (pathname?.startsWith('/dashboard/profile')) return t.myProfile;
+    if (pathname?.startsWith('/dashboard/training/my-courses')) return t.myCourses;
     if (pathname?.startsWith('/dashboard/training/apply')) return `${t.training} - Apply`;
     if (pathname?.startsWith('/dashboard/training/')) return `${t.training} - Details`;
     if (pathname?.startsWith('/dashboard/training')) return t.training;

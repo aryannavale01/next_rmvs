@@ -133,6 +133,12 @@ export default function AdminCouponsPage() {
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Failed to delete coupon');
+        setDeleteConfirm(null);
+        return;
+      }
       const data = await res.json();
       if (data.deactivated) {
         setError('Coupon has redemptions — deactivated instead of deleted.');
@@ -153,11 +159,16 @@ export default function AdminCouponsPage() {
 
   const toggleStatus = async (c: Coupon) => {
     try {
-      await fetch(`/api/admin/coupons/${c.id}`, {
+      const res = await fetch(`/api/admin/coupons/${c.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !c.isActive }),
       });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Failed to toggle status');
+        return;
+      }
       const refreshed = await fetch('/api/admin/coupons').then(r => r.json());
       setCoupons(Array.isArray(refreshed) ? refreshed : []);
     } catch {
@@ -333,10 +344,10 @@ export default function AdminCouponsPage() {
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Course</label>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Training</label>
                   <select value={form.courseId} onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none bg-card">
-                    <option value="">Global (All Courses)</option>
+                    <option value="">Global (All Trainings)</option>
                     {courses.map(co => (
                       <option key={co.id} value={co.id}>{co.title}</option>
                     ))}
