@@ -16,17 +16,17 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
 
   const user = await prisma.user.findUnique({
     where: { id: auth.session.user.id },
-    select: { mustChangePassword: true },
+    select: { mustChangePassword: true, twoFactorEnabled: true },
   });
 
   if (user?.mustChangePassword) {
     redirect('/force-password-change');
   }
 
-  // TODO: Re-enable 2FA enforcement once TOTP setup is production-ready
-  // if (!user?.twoFactorEnabled) {
-  //   redirect('/admin/setup-2fa');
-  // }
+  // 2FA enforcement: redirect admins without 2FA to setup page
+  if (!user?.twoFactorEnabled) {
+    redirect('/admin/setup-2fa');
+  }
 
   return <AdminLayoutWrapper>{children}</AdminLayoutWrapper>;
 }

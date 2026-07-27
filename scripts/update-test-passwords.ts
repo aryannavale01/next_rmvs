@@ -9,9 +9,18 @@ const prisma = new PrismaClient({
   datasources: { db: { url: process.env.DIRECT_URL! } },
 });
 
+const adminPassword = process.env.ADMIN_PASSWORD;
+const testMemberPassword = process.env.TEST_MEMBER_PASSWORD;
+
+if (!adminPassword || !testMemberPassword) {
+  console.error("ERROR: ADMIN_PASSWORD and TEST_MEMBER_PASSWORD environment variables are required.");
+  console.error("Usage: ADMIN_PASSWORD=... TEST_MEMBER_PASSWORD=... npx tsx scripts/update-test-passwords.ts");
+  process.exit(1);
+}
+
 const users = [
-  { email: "admin@compassionglobal.org", name: "Super Admin", password: "Admin@123", role: "ADMIN" as const },
-  { email: "test.member@example.com", name: "Test Member", password: "Testuser@123", role: "MEMBER" as const },
+  { email: "admin@compassionglobal.org", name: "Super Admin", password: adminPassword, role: "ADMIN" as const },
+  { email: "test.member@example.com", name: "Test Member", password: testMemberPassword, role: "MEMBER" as const },
 ];
 
 async function main() {
@@ -38,7 +47,7 @@ async function main() {
           hashed,
           accountId[0].id,
         );
-        console.log(`  UPDATED: ${email} → ${password}`);
+        console.log(`  UPDATED: ${email}`);
       } else {
         // Create account for existing user
         const hashed = await hashPassword(password);
@@ -50,7 +59,7 @@ async function main() {
           "credential",
           hashed,
         );
-        console.log(`  CREATED ACCOUNT: ${email} → ${password}`);
+        console.log(`  CREATED ACCOUNT: ${email}`);
       }
       continue;
     }
@@ -78,7 +87,7 @@ async function main() {
       id, name, email, role === "ADMIN" ? "admin" : "member",
     );
 
-    console.log(`  CREATED: ${email} (${role}) → ${password}`);
+    console.log(`  CREATED: ${email} (${role})`);
   }
 
   console.log("\n=== Done ===");

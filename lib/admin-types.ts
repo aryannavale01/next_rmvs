@@ -1,35 +1,68 @@
 export interface Member {
   id: string;
-  full_name: string;
+  fullName: string;
   email: string;
-  phone: string;
-  age: number;
-  gender: 'Male' | 'Female' | 'Other';
-  category: 'General' | 'OBC' | 'SC' | 'ST';
-  qualification: string;
-  village: string;
-  district: string;
-  state: string;
-  status: 'Active' | 'Inactive';
-  assigned_volunteer: string;
-  created_at: string;
-  profile_image?: string;
+  phone: string | null;
+  age: number | null;
+  gender: string | null;
+  category: string | null;
+  qualification: string | null;
+  village: string | null;
+  district: string | null;
+  state: string | null;
+  status: 'active' | 'inactive' | 'suspended' | 'blocked' | 'deleted';
+  assignedVolunteer: string | null;
+  createdAt: string;
+  profileImage: string | null;
 }
 
 export interface Teacher {
   id: string;
-  full_name: string;
-  email: string;
-  phone: string;
+  fullName: string;
+  profilePhoto: string | null;
   designation: string;
-  type: 'Full Time' | 'Part Time';
-  status: 'Active' | 'Inactive';
-  join_date: string;
-  district: string;
-  specialization: string;
-  experience: string;
-  qualification: string;
-  rating: number;
+  qualification: string | null;
+  specializations: string[];
+  experienceYears: number | null;
+  email: string;
+  mobile: string;
+  village: string | null;
+  taluka: string | null;
+  district: string | null;
+  state: string;
+  pincode: string | null;
+  status: 'active' | 'inactive' | 'on_leave' | 'resigned' | 'deleted';
+  teacherType: 'trainer' | 'volunteer' | 'guest_faculty';
+  joinedDate: string;
+  lastUpdated: string;
+  aadhaar: string | null;
+  pan: string | null;
+  bankAccount: string | null;
+  totalStudents: number;
+  certifications: number;
+  bio: string | null;
+  createdAt: string;
+}
+
+export interface TeacherDetail extends Teacher {
+  documents: {
+    id: string;
+    type: string;
+    label: string;
+    status: string;
+    uploadedDate: string | null;
+    createdAt: string | null;
+  }[];
+  courses: {
+    id: string;
+    batch: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    totalStudents: number;
+    completionRate: number;
+    status: string;
+    course: { id: string; title: string } | null;
+  }[];
 }
 
 export interface SyllabusLesson {

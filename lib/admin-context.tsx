@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import useSWR from 'swr';
 import {
   Member,
   Teacher,
@@ -16,8 +17,6 @@ import {
   WebsiteItem,
 } from './admin-types';
 import {
-  MOCK_MEMBERS,
-  MOCK_TEACHERS,
   MOCK_COURSES,
   MOCK_ENROLLMENTS,
   MOCK_CERTIFICATES,
@@ -27,6 +26,7 @@ import {
   DEFAULT_ADMIN_SETTINGS,
   MOCK_COUPONS,
 } from './mock-admin-data';
+import { fetcher, SWR_DEFAULTS } from './swr-fetcher';
 import { requireStepUpClient } from './admin-stepup';
 
 const STORAGE_KEY = 'adminState';
@@ -44,17 +44,28 @@ interface AdminContextType {
   activityLogs: AdminActivityLog[];
   adminUser: AdminUser | null;
   mounted: boolean;
+  showDeleted: boolean;
+  setShowDeleted: (v: boolean) => void;
+  showDeletedTeachers: boolean;
+  setShowDeletedTeachers: (v: boolean) => void;
 
   logoutAdmin: () => void;
   resetAdmin: () => void;
 
-  addMember: (member: Omit<Member, 'id' | 'created_at'>) => void;
-  updateMember: (id: string, updated: Partial<Member>) => void;
-  deleteMember: (id: string) => void;
+  addMember: (data: Record<string, unknown>) => Promise<{ temporaryPassword: string }>;
+  refreshMembers: () => Promise<void>;
+  updateMember: (id: string, data: Record<string, unknown>) => Promise<void>;
+  deleteMember: (id: string) => Promise<void>;
+  restoreMember: (id: string) => Promise<void>;
+  changeMemberStatus: (id: string, status: string, reason?: string) => Promise<void>;
+  verifyDocument: (memberId: string, docId: string) => Promise<void>;
+  rejectDocument: (memberId: string, docId: string, reason: string) => Promise<void>;
 
-  addTeacher: (teacher: Omit<Teacher, 'id' | 'rating'>) => void;
-  updateTeacher: (id: string, updated: Partial<Teacher>) => void;
-  deleteTeacher: (id: string) => void;
+  addTeacher: (data: Record<string, unknown>) => Promise<Teacher>;
+  refreshTeachers: () => Promise<void>;
+  updateTeacher: (id: string, data: Record<string, unknown>) => Promise<void>;
+  deleteTeacher: (id: string) => Promise<void>;
+  restoreTeacher: (id: string) => Promise<void>;
 
   addCourse: (course: Omit<AdminCourse, 'id' | 'seats_enrolled'>) => void;
   updateCourse: (id: string, updated: Partial<AdminCourse>) => void;
@@ -108,8 +119,16 @@ function saveState(state: Record<string, unknown>) {
 }
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
-  const [members, setMembers] = useState<Member[]>(() => loadState()?.members ?? MOCK_MEMBERS);
-  const [teachers, setTeachers] = useState<Teacher[]>(() => loadState()?.teachers ?? MOCK_TEACHERS);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const membersUrl = showDeleted ? '/api/admin/members?includeDeleted=true' : '/api/admin/members';
+  const { data: membersRes, mutate: mutateMembers } = useSWR<{ data: Member[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } }>(membersUrl, fetcher, SWR_DEFAULTS);
+  const members = membersRes?.data ?? [];
+
+  const [showDeletedTeachers, setShowDeletedTeachers] = useState(false);
+  const teachersUrl = showDeletedTeachers ? '/api/admin/teachers?includeDeleted=true' : '/api/admin/teachers';
+  const { data: teachersRes, mutate: mutateTeachers } = useSWR<{ data: Teacher[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } }>(teachersUrl, fetcher, SWR_DEFAULTS);
+  const teachers = teachersRes?.data ?? [];
+
   const [courses, setCourses] = useState<AdminCourse[]>(() => loadState()?.courses ?? MOCK_COURSES);
   const [enrollments, setEnrollments] = useState<Enrollment[]>(() => loadState()?.enrollments ?? MOCK_ENROLLMENTS);
   const [certificates, setCertificates] = useState<AdminCertificate[]>(() => loadState()?.certificates ?? MOCK_CERTIFICATES);
@@ -166,10 +185,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   // Persist to localStorage on state changes (read-only, no setState calls)
   useEffect(() => {
     saveState({
-      members, teachers, courses, enrollments, certificates,
+      teachers, courses, enrollments, certificates,
       notifications, coupons, websiteContent, settings, activityLogs, adminUser,
     });
-  }, [members, teachers, courses, enrollments, certificates, notifications, coupons, websiteContent, settings, activityLogs, adminUser]);
+  }, [teachers, courses, enrollments, certificates, notifications, coupons, websiteContent, settings, activityLogs, adminUser]);
 
   const logCounterRef = useRef(0);
   const logActivity = useCallback((title: string, description: string, icon: string) => {
@@ -191,8 +210,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [logActivity]);
 
   const resetAdmin = useCallback(() => {
-    setMembers(MOCK_MEMBERS);
-    setTeachers(MOCK_TEACHERS);
     setCourses(MOCK_COURSES);
     setEnrollments(MOCK_ENROLLMENTS);
     setCertificates(MOCK_CERTIFICATES);
@@ -205,40 +222,164 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  // Members
-  const addMember = useCallback((m: Omit<Member, 'id' | 'created_at'>) => {
-    const newMember: Member = { ...m, id: `mem-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, created_at: new Date().toISOString().split('T')[0] };
-    setMembers(prev => [newMember, ...prev]);
-    logActivity('Beneficiary Registered', `Admin registered ${newMember.full_name} manually.`, 'Users');
-  }, [logActivity]);
+  // Members — fetch-based
+  const addMember = useCallback(async (data: Record<string, unknown>): Promise<{ temporaryPassword: string }> => {
+    const res = await fetch('/api/admin/members', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to create member' }));
+      const message = err.error || 'Failed to create member';
+      if (err.details && typeof err.details === 'object') {
+        const fieldErrors = Object.entries(err.details)
+          .filter(([, msgs]) => Array.isArray(msgs) && msgs.length > 0)
+          .map(([field, msgs]) => `${field}: ${(msgs as string[]).join(', ')}`)
+          .join('; ');
+        throw new Error(fieldErrors ? `${message} — ${fieldErrors}` : message);
+      }
+      throw new Error(message);
+    }
+    const result = await res.json();
+    await mutateMembers();
+    return result;
+  }, [mutateMembers]);
 
-  const updateMember = useCallback((id: string, updated: Partial<Member>) => {
-    setMembers(prev => prev.map(m => m.id === id ? { ...m, ...updated } as Member : m));
-    logActivity('Beneficiary Updated', `Updated details for member ${id}.`, 'Users');
-  }, [logActivity]);
+  const refreshMembers = useCallback(async () => {
+    await mutateMembers();
+  }, [mutateMembers]);
+
+  const updateMember = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+    const res = await fetch(`/api/admin/members/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to update member' }));
+      const message = err.error || 'Failed to update member';
+      if (err.details && typeof err.details === 'object') {
+        const fieldErrors = Object.entries(err.details)
+          .filter(([, msgs]) => Array.isArray(msgs) && msgs.length > 0)
+          .map(([field, msgs]) => `${field}: ${(msgs as string[]).join(', ')}`)
+          .join('; ');
+        throw new Error(fieldErrors ? `${message} — ${fieldErrors}` : message);
+      }
+      throw new Error(message);
+    }
+    await mutateMembers();
+  }, [mutateMembers]);
 
   const deleteMember = useCallback(async (id: string) => {
     if (!(await requireStepUpClient('/admin/members', 'delete_user'))) return;
-    setMembers(prev => prev.filter(m => m.id !== id));
-    logActivity('Beneficiary Deleted', `Removed beneficiary ${id} from record systems.`, 'Users');
-  }, [logActivity]);
+    const res = await fetch(`/api/admin/members/${id}/delete`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to delete member' }));
+      throw new Error(err.error || 'Failed to delete member');
+    }
+    await mutateMembers();
+  }, [mutateMembers]);
 
-  // Teachers
-  const addTeacher = useCallback((t: Omit<Teacher, 'id' | 'rating'>) => {
-    const newTeacher: Teacher = { ...t, id: `t-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, rating: 5.0 };
-    setTeachers(prev => [newTeacher, ...prev]);
-    logActivity('Teacher Added', `Assigned instructor role to ${newTeacher.full_name}.`, 'Users');
-  }, [logActivity]);
+  const restoreMember = useCallback(async (id: string) => {
+    const res = await fetch(`/api/admin/members/${id}/restore`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to restore member' }));
+      throw new Error(err.error || 'Failed to restore member');
+    }
+    await mutateMembers();
+  }, [mutateMembers]);
 
-  const updateTeacher = useCallback((id: string, updated: Partial<Teacher>) => {
-    setTeachers(prev => prev.map(t => t.id === id ? { ...t, ...updated } as Teacher : t));
-    logActivity('Teacher Updated', `Updated details for instructor ${id}.`, 'Users');
-  }, [logActivity]);
+  const changeMemberStatus = useCallback(async (id: string, status: string, reason?: string) => {
+    const res = await fetch(`/api/admin/members/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to change status' }));
+      throw new Error(err.error || 'Failed to change status');
+    }
+    await mutateMembers();
+  }, [mutateMembers]);
 
-  const deleteTeacher = useCallback((id: string) => {
-    setTeachers(prev => prev.filter(t => t.id !== id));
-    logActivity('Teacher Deleted', `Removed instructor ${id} from the workspace.`, 'Users');
-  }, [logActivity]);
+  const verifyDocument = useCallback(async (memberId: string, docId: string) => {
+    const res = await fetch(`/api/admin/members/${memberId}/documents/${docId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify' }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to verify document' }));
+      throw new Error(err.error || 'Failed to verify document');
+    }
+  }, []);
+
+  const rejectDocument = useCallback(async (memberId: string, docId: string, reason: string) => {
+    const res = await fetch(`/api/admin/members/${memberId}/documents/${docId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reject', rejectionReason: reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to reject document' }));
+      throw new Error(err.error || 'Failed to reject document');
+    }
+  }, []);
+
+  // Teachers — real DB via API
+  const refreshTeachers = useCallback(async () => { await mutateTeachers(); }, [mutateTeachers]);
+
+  const addTeacher = useCallback(async (data: Record<string, unknown>): Promise<Teacher> => {
+    const res = await fetch('/api/admin/teachers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to create teacher' }));
+      throw new Error(err.error || 'Failed to create teacher');
+    }
+    await mutateTeachers();
+    return res.json();
+  }, [mutateTeachers]);
+
+  const updateTeacher = useCallback(async (id: string, data: Record<string, unknown>) => {
+    const res = await fetch(`/api/admin/teachers/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to update teacher' }));
+      throw new Error(err.error || 'Failed to update teacher');
+    }
+    await mutateTeachers();
+  }, [mutateTeachers]);
+
+  const deleteTeacher = useCallback(async (id: string) => {
+    const res = await fetch(`/api/admin/teachers/${id}/delete`, { method: 'PATCH' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to delete teacher' }));
+      throw new Error(err.error || 'Failed to delete teacher');
+    }
+    await mutateTeachers();
+  }, [mutateTeachers]);
+
+  const restoreTeacher = useCallback(async (id: string) => {
+    const res = await fetch(`/api/admin/teachers/${id}/restore`, { method: 'PATCH' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to restore teacher' }));
+      throw new Error(err.error || 'Failed to restore teacher');
+    }
+    await mutateTeachers();
+  }, [mutateTeachers]);
 
   // Courses
   const addCourse = useCallback((c: Omit<AdminCourse, 'id' | 'seats_enrolled'>) => {
@@ -405,8 +546,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   // Reset
   const resetAllData = useCallback(() => {
-    setMembers(MOCK_MEMBERS);
-    setTeachers(MOCK_TEACHERS);
     setCourses(MOCK_COURSES);
     setEnrollments(MOCK_ENROLLMENTS);
     setCertificates(MOCK_CERTIFICATES);
@@ -424,9 +563,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     <AdminContext.Provider value={{
       members, teachers, courses, enrollments, certificates,
       notifications, coupons, websiteContent, settings, activityLogs, adminUser, mounted,
+      showDeleted, setShowDeleted,
+      showDeletedTeachers, setShowDeletedTeachers,
       logoutAdmin, resetAdmin,
-      addMember, updateMember, deleteMember,
-      addTeacher, updateTeacher, deleteTeacher,
+      addMember, refreshMembers, updateMember, deleteMember, restoreMember, changeMemberStatus,
+      verifyDocument, rejectDocument,
+      addTeacher, refreshTeachers, updateTeacher, deleteTeacher, restoreTeacher,
       addCourse, updateCourse, deleteCourse,
       addEnrollment, updateEnrollment, approveEnrollment, rejectEnrollment, markEnrollmentCompleted, markEnrollmentDropped,
       addCertificate, generateCertificateForEnrollment, approveCertificate, rejectCertificate,

@@ -1,0 +1,19 @@
+- generic [ref=f2e2]:
+  - generic [ref=f2e5]:
+    - generic [ref=f2e6]:
+      - generic [ref=f2e7]: C
+      - generic [ref=f2e8]: CompassionGlobal
+    - heading "Secure Admin Access" [level=2] [ref=f2e9]
+    - paragraph [ref=f2e10]: Authorized personnel only. Authenticate to access the management portal.
+  - generic [ref=f2e13]:
+    - generic [ref=f2e14]:
+      - generic [ref=f2e15]: Email
+      - textbox "Email" [ref=f2e16]:
+        - /placeholder: Enter admin email
+    - generic [ref=f2e17]:
+      - generic [ref=f2e18]: Password
+      - generic [ref=f2e19]:
+        - textbox "Password" [ref=f2e20]:
+          - /placeholder: Enter password
+        - button "Show password" [ref=f2e21]
+    - button "Sign In" [ref=f2e26]

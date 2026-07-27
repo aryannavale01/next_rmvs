@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, ShieldAlert, ArrowLeft, CheckCircle, KeyRound } from "lucide-react";
 import { motion } from "motion/react";
+import { validatePassword } from "@/lib/password-validation";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -88,8 +89,9 @@ function ResetPasswordForm() {
       setFormError("Please enter a new password.");
       return;
     }
-    if (newPassword.length < 6) {
-      setFormError("Password must be at least 6 characters.");
+    const passwordResult = validatePassword(newPassword);
+    if (!passwordResult.valid) {
+      setFormError(passwordResult.errors[0]);
       return;
     }
     if (newPassword !== confirmPassword) {

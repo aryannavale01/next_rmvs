@@ -175,7 +175,7 @@ export default function AdminTrainingPage() {
     setShowWizard(false);
   };
 
-  const getTeacherName = (id: string) => teachers.find(t => t.id === id)?.full_name || 'Not assigned';
+  const getTeacherName = (id: string) => teachers.find(t => t.id === id)?.fullName || 'Not assigned';
 
   const togglePublish = (c: AdminCourse) => {
     updateCourse(c.id, { status: c.status === 'Published' ? 'Draft' : 'Published' });
@@ -215,11 +215,11 @@ export default function AdminTrainingPage() {
                 return t ? (
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm">
-                      {t.full_name.split(' ').map(n => n[0]).join('')}
+                      {t.fullName.split(' ').map((n: string) => n[0]).join('')}
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-foreground">{t.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{t.designation} &middot; {t.specialization}</p>
+                      <p className="text-sm font-bold text-foreground">{t.fullName}</p>
+                      <p className="text-xs text-muted-foreground">{t.designation} &middot; {t.specializations?.join(', ')}</p>
                     </div>
                   </div>
                 ) : <p className="text-xs text-muted-foreground">Teacher not found</p>;

@@ -74,7 +74,7 @@ export default function AdminCourseDetailPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-background border border-border rounded-lg p-4">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase">Instructor</p>
-                  <p className="text-sm font-bold text-foreground mt-1">{instructor?.full_name || 'Not assigned'}</p>
+                  <p className="text-sm font-bold text-foreground mt-1">{instructor?.fullName || 'Not assigned'}</p>
                 </div>
                 <div className="bg-background border border-border rounded-lg p-4">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase">Location</p>
@@ -149,10 +149,10 @@ export default function AdminCourseDetailPage() {
                     return (
                       <div key={e.id} className="flex items-center gap-3 bg-background border border-border rounded-lg px-4 py-3">
                         <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xs">
-                          {member?.full_name.split(' ').map(n => n[0]).join('') || '?'}
+                          {member?.fullName.split(' ').map((n: string) => n[0]).join('') || '?'}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground">{member?.full_name || 'Unknown'}</p>
+                          <p className="text-sm font-semibold text-foreground">{member?.fullName || 'Unknown'}</p>
                           <p className="text-[10px] text-muted-foreground">Enrolled: {e.enrolled_date}</p>
                         </div>
                         <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${statusColor}`}>{e.status}</span>

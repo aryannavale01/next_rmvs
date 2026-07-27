@@ -795,7 +795,11 @@ async function seedActivities(userId: string) {
 async function main() {
   console.log("=== Seeding Users ===\n");
 
-  const adminId = await ensureUser("admin@compassionglobal.org", "Super Admin", "Admin@123", "admin");
+  const superadminPassword = process.env.SUPERADMIN_PASSWORD;
+  if (!superadminPassword) {
+    throw new Error("SUPERADMIN_PASSWORD environment variable is required");
+  }
+  const adminId = await ensureUser("admin@compassionglobal.org", "Super Admin", superadminPassword, "admin");
   const memberId = await ensureUser("test.member@example.com", "Rajesh Kumar", "Testuser@123", "member");
 
   if (!memberId) {

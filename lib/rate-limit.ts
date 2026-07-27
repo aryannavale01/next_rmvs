@@ -1,3 +1,14 @@
+/**
+ * In-memory rate limiter — SINGLE INSTANCE ONLY.
+ *
+ * WARNING: This uses a process-level Map that is not shared across instances.
+ * In production with multiple workers/pods, each instance tracks its own
+ * counters, allowing N × maxAttempts through before any single instance blocks.
+ *
+ * For multi-instance deployments, replace with Redis-backed rate limiting
+ * (e.g., @upstash/ratelimit) or rely on Better Auth's built-in database-backed
+ * rate limiting (configured in lib/auth.ts).
+ */
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
 function getClientIP(request: Request): string {

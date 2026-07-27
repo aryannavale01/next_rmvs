@@ -291,6 +291,7 @@ enum TeacherStatus {
   inactive
   on_leave
   resigned
+  deleted
 
   @@map("teacher_status")
 }
@@ -427,6 +428,7 @@ model Profile {
   fieldOfficer      String?       @map("field_officer")
   coordinator       String?
   region            String?
+  adminNotes        String?       @map("admin_notes")
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
@@ -514,8 +516,10 @@ model BeneficiaryDocument {
   /// As of 2026-07-24, no admin document-review UI exists — this is only
   /// written via automated flows if applicable. Check for null before use;
   /// most documents will have this as null.
-  verifiedDate DateTime?      @map("verified_date")
-  createdAt    DateTime       @default(now()) @map("created_at")
+  verifiedDate    DateTime?      @map("verified_date")
+  verifiedBy      String?        @map("verified_by")
+  rejectionReason String?        @map("rejection_reason")
+  createdAt       DateTime       @default(now()) @map("created_at")
 
   // Relations
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)

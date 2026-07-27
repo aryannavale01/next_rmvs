@@ -65,13 +65,13 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
 
   if (q.length > 0) {
     members.forEach(m => {
-      if (m.full_name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)) {
-        results.push({ type: 'Member', name: m.full_name, detail: `${m.village}, ${m.district}`, href: '/admin/members' });
+      if (m.fullName.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)) {
+        results.push({ type: 'Member', name: m.fullName, detail: `${m.village}, ${m.district}`, href: '/admin/members' });
       }
     });
     teachers.forEach(t => {
-      if (t.full_name.toLowerCase().includes(q) || t.specialization.toLowerCase().includes(q)) {
-        results.push({ type: 'Teacher', name: t.full_name, detail: t.specialization, href: '/admin/teachers' });
+      if (t.fullName.toLowerCase().includes(q) || (t.specializations ?? []).some(s => s.toLowerCase().includes(q))) {
+        results.push({ type: 'Teacher', name: t.fullName, detail: t.specializations?.join(', ') ?? '', href: '/admin/teachers' });
       }
     });
     courses.forEach(c => {

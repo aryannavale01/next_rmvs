@@ -38,11 +38,11 @@ export default function AdminCertificatesPage() {
   const [confirmReject, setConfirmReject] = useState<string | null>(null);
   const [viewCert, setViewCert] = useState<AdminCertificate | null>(null);
 
-  const getMemberName = React.useCallback((id: string) => members.find(m => m.id === id)?.full_name ?? 'Unknown', [members]);
+  const getMemberName = React.useCallback((id: string) => members.find(m => m.id === id)?.fullName ?? 'Unknown', [members]);
   const getCourseTitle = React.useCallback((id: string) => courses.find(c => c.id === id)?.title ?? 'Unknown', [courses]);
   const getTeacherName = (id: string) => {
     const course = courses.find(c => c.id === id);
-    return course ? (teachers.find(t => t.id === course.teacher_id)?.full_name ?? 'Unassigned') : 'Unknown';
+    return course ? (teachers.find(t => t.id === course.teacher_id)?.fullName ?? 'Unassigned') : 'Unknown';
   };
 
   const filtered = useMemo(() => {
@@ -83,7 +83,7 @@ export default function AdminCertificatesPage() {
       map.set(c.id, {
         courseId: c.id,
         title: c.title,
-        teacher: teachers.find(t => t.id === c.teacher_id)?.full_name ?? 'Unassigned',
+        teacher: teachers.find(t => t.id === c.teacher_id)?.fullName ?? 'Unassigned',
         enrolled,
         certs: courseCerts.length,
         pendingCerts: courseCerts.filter(cert => cert.status === 'generated').length,

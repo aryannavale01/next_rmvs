@@ -6,6 +6,7 @@ import { Eye, EyeOff, CheckCircle, UserPlus } from "lucide-react";
 import { motion } from "motion/react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+import { validatePassword } from "@/lib/password-validation";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -46,8 +47,11 @@ export default function RegisterPage() {
 
     if (!form.password) {
       next.password = "Password is required.";
-    } else if (form.password.length < 6) {
-      next.password = "Password must be at least 6 characters.";
+    } else {
+      const passwordResult = validatePassword(form.password);
+      if (!passwordResult.valid) {
+        next.password = passwordResult.errors[0];
+      }
     }
 
     if (!form.confirmPassword) {

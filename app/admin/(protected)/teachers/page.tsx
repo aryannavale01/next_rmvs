@@ -1,71 +1,84 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAdmin } from '@/lib/admin-context';
-import { Teacher } from '@/lib/admin-types';
+import { Teacher, TeacherDetail } from '@/lib/admin-types';
 import {
   GraduationCap, Search, Plus, Filter, Eye, Pencil, Trash2, X,
-  ChevronLeft, ChevronRight, ArrowUpDown, Star,
-  Users, Clock, Award, BookOpen,
+  ChevronLeft, ChevronRight, ArrowUpDown, Camera,
+  Users, Clock, Award, BookOpen, RefreshCw, AlertTriangle,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import MetricCards from '@/components/MetricCards';
+import { getStatusStyle } from '@/lib/status-styles';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
 
-type SortKey = 'full_name' | 'designation' | 'specialization' | 'type' | 'status' | 'district' | 'experience' | 'phone' | 'join_date' | 'rating';
+type SortKey = 'fullName' | 'designation' | 'teacherType' | 'status' | 'district' | 'experienceYears' | 'mobile' | 'joinedDate';
 type SortDir = 'asc' | 'desc';
 
-const TYPES = ['All', 'Full Time', 'Part Time'];
-const STATUSES = ['All', 'Active', 'Inactive'];
+const TEACHER_TYPES = ['All', 'trainer', 'volunteer', 'guest_faculty'] as const;
+const STATUSES = ['All', 'active', 'inactive', 'on_leave', 'resigned'] as const;
 const PAGE_SIZES = [10, 20, 30, 50];
 
+const TYPE_LABELS: Record<string, string> = {
+  trainer: 'Trainer',
+  volunteer: 'Volunteer',
+  guest_faculty: 'Guest Faculty',
+};
+
 export default function AdminTeachersPage() {
-  const { teachers, courses, addTeacher, updateTeacher, deleteTeacher } = useAdmin();
-  const [activeFilter, setActiveFilter] = useState('All');
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const { teachers, showDeletedTeachers, setShowDeletedTeachers, addTeacher, updateTeacher, deleteTeacher, restoreTeacher } = useAdmin();
+  const { toast } = useToast();
   const [metricActive, setMetricActive] = useState('total');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('All');
+  const [statusFilter, setStatusFilter] = useState<string>('All');
   const [showFilters, setShowFilters] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>('full_name');
+  const [sortKey, setSortKey] = useState<SortKey>('fullName');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [profileTeacher, setProfileTeacher] = useState<Teacher | null>(null);
+  const [detailTeacher, setDetailTeacher] = useState<TeacherDetail | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTeacher, setEditTeacher] = useState<Teacher | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempPasswordName, setTempPasswordName] = useState('');
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const drawerPhotoInputRef = useRef<HTMLInputElement>(null);
 
-  const emptyForm = { full_name: '', email: '', phone: '', designation: '', type: 'Full Time' as Teacher['type'], status: 'Active' as Teacher['status'], join_date: '', district: '', specialization: '', experience: '', qualification: '' };
+  const emptyForm = {
+    fullName: '', email: '', mobile: '', designation: '',
+    teacherType: 'trainer' as Teacher['teacherType'],
+    status: 'active' as Teacher['status'],
+    joinedDate: '', district: '', village: '', taluka: '', state: 'Maharashtra',
+    specializations: '', experienceYears: '', qualification: '', pincode: '', bio: '',
+  };
   const [form, setForm] = useState(emptyForm);
 
-  const filtered = useMemo(() => {
-    let list = [...teachers];
-    if (activeFilter !== 'All') list = list.filter(t => t.status === activeFilter);
-    if (typeFilter !== 'All') list = list.filter(t => t.type === typeFilter);
-    if (statusFilter !== 'All') list = list.filter(t => t.status === statusFilter);
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(t => t.full_name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q) || t.specialization.toLowerCase().includes(q) || t.district.toLowerCase().includes(q));
-    }
-    list.sort((a, b) => {
-      const av = a[sortKey], bv = b[sortKey];
-      const cmp = String(av).localeCompare(String(bv));
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-    return list;
-  }, [teachers, activeFilter, typeFilter, statusFilter, search, sortKey, sortDir]);
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [search]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
-
-  const counts = useMemo(() => ({
+  const counts = {
     total: teachers.length,
-    active: teachers.filter(t => t.status === 'Active').length,
-    partTime: teachers.filter(t => t.type === 'Part Time').length,
-    fullTime: teachers.filter(t => t.type === 'Full Time').length,
-    avgRating: teachers.length > 0 ? (teachers.reduce((s, t) => s + t.rating, 0) / teachers.length).toFixed(1) : '0',
-  }), [teachers]);
+    active: teachers.filter(t => t.status === 'active').length,
+    trainers: teachers.filter(t => t.teacherType === 'trainer').length,
+    volunteers: teachers.filter(t => t.teacherType === 'volunteer').length,
+  };
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -76,57 +89,130 @@ export default function AdminTeachersPage() {
     setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   };
 
-  const openAdd = () => { setForm(emptyForm); setEditTeacher(null); setShowAddModal(true); };
-  const openEdit = (t: Teacher) => { setForm({ full_name: t.full_name, email: t.email, phone: t.phone, designation: t.designation, type: t.type, status: t.status, join_date: t.join_date, district: t.district, specialization: t.specialization, experience: t.experience, qualification: t.qualification }); setEditTeacher(t); setShowAddModal(true); };
-
-  const handleSave = () => {
-    if (!form.full_name || !form.email) return;
-    if (editTeacher) updateTeacher(editTeacher.id, form);
-    else addTeacher(form);
-    setShowAddModal(false);
+  const openAdd = () => { setForm(emptyForm); setEditTeacher(null); setFormError(null); setShowAddModal(true); };
+  const openEdit = (t: Teacher) => {
+    setForm({
+      fullName: t.fullName, email: t.email, mobile: t.mobile,
+      designation: t.designation, teacherType: t.teacherType, status: t.status,
+      joinedDate: t.joinedDate, district: t.district ?? '', village: t.village ?? '',
+      taluka: t.taluka ?? '', state: t.state, specializations: (t.specializations ?? []).join(', '),
+      experienceYears: t.experienceYears != null ? String(t.experienceYears) : '',
+      qualification: t.qualification ?? '', pincode: t.pincode ?? '', bio: t.bio ?? '',
+    });
+    setEditTeacher(t); setFormError(null); setShowAddModal(true);
   };
 
-  const handleDelete = (id: string) => { deleteTeacher(id); setDeleteConfirm(null); };
+  const handleSave = async () => {
+    if (!form.fullName || !form.email || !form.mobile || !form.designation || !form.joinedDate) {
+      setFormError('Full name, email, mobile, designation, and join date are required.');
+      return;
+    }
+    setFormLoading(true);
+    setFormError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        ...form,
+        experienceYears: form.experienceYears ? Number(form.experienceYears) : undefined,
+        specializations: form.specializations ? form.specializations.split(',').map(s => s.trim()).filter(Boolean) : [],
+      };
+      if (editTeacher) {
+        await updateTeacher(editTeacher.id, payload);
+        toast({ title: 'Teacher Updated', description: `${form.fullName}'s profile has been saved.`, variant: 'success' });
+      } else {
+        const result = await addTeacher(payload) as any;
+        setTempPassword(result.temporaryPassword ?? null);
+        setTempPasswordName(form.fullName);
+        toast({ title: 'Teacher Registered', description: `${form.fullName} has been added successfully.`, variant: 'success' });
+      }
+      setShowAddModal(false);
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to save teacher');
+    } finally {
+      setFormLoading(false);
+    }
+  };
 
-  const getTeacherCourses = (teacherId: string) => courses.filter(c => c.teacher_id === teacherId);
+  const handleBulkAction = async (action: 'activate' | 'deactivate' | 'delete') => {
+    for (const id of selected) {
+      try {
+        if (action === 'delete') await deleteTeacher(id);
+        else await updateTeacher(id, { status: action === 'activate' ? 'active' : 'inactive' });
+      } catch { /* individual errors */ }
+    }
+    setSelected(new Set());
+  };
 
-  const thSort = (label: string, sort: SortKey) => (
-    <th className="px-3 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort(sort)}>
+  const handlePhotoUpload = async (teacherId: string, file: File, target: 'modal' | 'drawer') => {
+    setPhotoLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/admin/teachers/${teacherId}/photo`, { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(err.error || 'Upload failed');
+      }
+      const data = await res.json();
+      if (target === 'drawer' && profileTeacher?.id === teacherId) {
+        setProfileTeacher({ ...profileTeacher, profilePhoto: data.profilePhoto });
+      }
+      if (editTeacher?.id === teacherId) {
+        setEditTeacher({ ...editTeacher, profilePhoto: data.profilePhoto });
+      }
+      toast({ title: 'Photo Updated', description: 'Profile photo has been uploaded.', variant: 'success' });
+    } catch (e: any) {
+      toast({ title: 'Upload Failed', description: e.message || 'Could not upload photo.', variant: 'error' });
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
+
+  const thSort = (label: string, key: SortKey) => (
+    <th className="px-3 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort(key)}>
       <span className="flex items-center gap-1">{label} <ArrowUpDown className="w-3 h-3" /></span>
     </th>
   );
 
+  const fetchDetail = useCallback(async (t: Teacher) => {
+    setProfileTeacher(t);
+    try {
+      const res = await fetch(`/api/admin/teachers/${t.id}`);
+      if (res.ok) setDetailTeacher(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
   return (
     <div className="space-y-4 font-sans">
-      {/* Stat Cards */}
       <MetricCards
         activeFilter={metricActive}
         onFilterChange={(id) => {
           setMetricActive(id);
-          if (id === 'total') { setActiveFilter('All'); setTypeFilter('All'); setStatusFilter('All'); }
-          else if (id === 'active') { setActiveFilter('Active'); }
-          else if (id === 'parttime') { setTypeFilter('Part Time'); setStatusFilter('All'); setActiveFilter('All'); }
-          else if (id === 'fulltime') { setTypeFilter('Full Time'); setStatusFilter('All'); setActiveFilter('All'); }
+          if (id === 'total') { setTypeFilter('All'); setStatusFilter('All'); }
+          else if (id === 'active') { setStatusFilter('active'); setTypeFilter('All'); }
+          else if (id === 'trainers') { setTypeFilter('trainer'); setStatusFilter('All'); }
+          else if (id === 'volunteers') { setTypeFilter('volunteer'); setStatusFilter('All'); }
         }}
-        columns={5}
+        columns={4}
         cards={[
           { id: 'total', label: 'Total', value: counts.total, icon: Users },
           { id: 'active', label: 'Active', value: counts.active, icon: Award },
-          { id: 'parttime', label: 'Part Time', value: counts.partTime, icon: Clock },
-          { id: 'fulltime', label: 'Full Time', value: counts.fullTime, icon: BookOpen },
-          { id: 'rating', label: 'Avg Rating', value: counts.avgRating, icon: Star },
+          { id: 'trainers', label: 'Trainers', value: counts.trainers, icon: BookOpen },
+          { id: 'volunteers', label: 'Volunteers', value: counts.volunteers, icon: Clock },
         ]}
       />
 
-      {/* Toolbar */}
       <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+          <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search teachers by name, specialization, district..."
             className="flex-1 text-sm outline-none placeholder:text-muted-foreground min-w-0" />
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowDeletedTeachers(!showDeletedTeachers)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border rounded-lg transition-colors ${showDeletedTeachers ? 'bg-destructive/10 border-destructive/30 text-destructive' : 'border-border hover:bg-accent'}`}>
+            <Trash2 className="w-3.5 h-3.5" /> {showDeletedTeachers ? 'Hide Deleted' : 'Show Deleted'}
+          </button>
           <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-accent">
             <Filter className="w-3.5 h-3.5" /> Filters
           </button>
@@ -136,15 +222,14 @@ export default function AdminTeachersPage() {
         </div>
       </div>
 
-      {/* Filter Panel */}
       {showFilters && (
         <div className="bg-card border border-border rounded-xl p-4 flex flex-wrap gap-4">
           <div>
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Type</label>
             <div className="flex gap-1">
-              {TYPES.map(t => (
+              {TEACHER_TYPES.map(t => (
                 <button key={t} onClick={() => { setTypeFilter(t); setPage(1); }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${typeFilter === t ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted'}`}>{t}</button>
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${typeFilter === t ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted'}`}>{t === 'All' ? 'All' : TYPE_LABELS[t] ?? t}</button>
               ))}
             </div>
           </div>
@@ -153,77 +238,81 @@ export default function AdminTeachersPage() {
             <div className="flex gap-1">
               {STATUSES.map(s => (
                 <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${statusFilter === s ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted'}`}>{s}</button>
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${statusFilter === s ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted'}`}>{s === 'All' ? 'All' : s.replace('_', ' ')}</button>
               ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Bulk Actions */}
       {selected.size > 0 && (
         <div className="bg-primary-light border border-primary/20 rounded-xl px-4 py-3 flex items-center gap-3">
           <span className="text-xs font-bold text-primary">{selected.size} selected</span>
-          <button onClick={() => { selected.forEach(id => updateTeacher(id, { status: 'Active' })); setSelected(new Set()); }}
-            className="px-3 py-1.5 text-xs font-semibold bg-success text-white rounded-lg">Activate</button>
-          <button onClick={() => { selected.forEach(id => updateTeacher(id, { status: 'Inactive' })); setSelected(new Set()); }}
-            className="px-3 py-1.5 text-xs font-semibold bg-primary-light text-primary rounded-lg">Deactivate</button>
-          <button onClick={() => { selected.forEach(id => deleteTeacher(id)); }}
-            className="px-3 py-1.5 text-xs font-semibold bg-destructive text-white rounded-lg">Delete</button>
+          <button onClick={() => handleBulkAction('activate')} className="px-3 py-1.5 text-xs font-semibold bg-success text-white rounded-lg">Activate</button>
+          <button onClick={() => handleBulkAction('deactivate')} className="px-3 py-1.5 text-xs font-semibold bg-primary-light text-primary rounded-lg">Deactivate</button>
+          <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 text-xs font-semibold bg-destructive text-white rounded-lg">Delete</button>
           <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Clear</button>
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-background border-b border-border">
               <tr>
                 <th className="px-3 py-3 w-10">
-                  <input type="checkbox" checked={selected.size === paged.length && paged.length > 0}
-                    onChange={() => { if (selected.size === paged.length) setSelected(new Set()); else setSelected(new Set(paged.map(t => t.id))); }}
+                  <input type="checkbox" checked={selected.size === teachers.length && teachers.length > 0}
+                    onChange={() => { if (selected.size === teachers.length) setSelected(new Set()); else setSelected(new Set(teachers.map(t => t.id))); }}
                     className="w-4 h-4 rounded border-border text-primary focus:ring-primary" />
                 </th>
-                {thSort('Name', 'full_name')}
+                {thSort('Name', 'fullName')}
                 {thSort('Designation', 'designation')}
-                {thSort('Specialization', 'specialization')}
-                {thSort('Experience', 'experience')}
-                {thSort('Mobile', 'phone')}
-                {thSort('Joined', 'join_date')}
-                <th className="px-3 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Rating</th>
+                {thSort('Type', 'teacherType')}
+                {thSort('Experience', 'experienceYears')}
+                {thSort('Mobile', 'mobile')}
+                {thSort('Joined', 'joinedDate')}
+                {thSort('Status', 'status')}
                 <th className="px-3 py-3 text-right text-[10px] font-bold text-muted-foreground uppercase tracking-wider w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {paged.length === 0 && <tr><td colSpan={9} className="py-12">
+              {teachers.length === 0 && <tr><td colSpan={9} className="py-12">
                 <EmptyState icon={GraduationCap} title="No instructors" description="Add an instructor to begin teaching courses." />
               </td></tr>}
-              {paged.map(t => (
-                <tr key={t.id} className={`hover:bg-primary-light/30 transition-colors ${selected.has(t.id) ? 'bg-primary-light/50' : ''}`}>
+              {teachers.map(t => (
+                <tr key={t.id} className={`hover:bg-primary-light/30 transition-colors ${selected.has(t.id) ? 'bg-primary-light/50' : ''} ${t.status === 'deleted' ? 'opacity-50' : ''}`}>
                   <td className="px-3 py-3">
                     <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleSelect(t.id)}
                       className="w-4 h-4 rounded border-border text-primary focus:ring-primary" />
                   </td>
                   <td className="px-3 py-3">
-                    <button onClick={() => setProfileTeacher(t)} className="text-sm font-semibold text-foreground hover:text-primary hover:underline text-left">{t.full_name}</button>
+                    <button onClick={() => fetchDetail(t)} className="text-sm font-semibold text-foreground hover:text-primary hover:underline text-left">{t.fullName}</button>
                     <p className="text-[10px] text-muted-foreground">{t.email}</p>
                   </td>
                   <td className="px-3 py-3 text-sm text-foreground">{t.designation}</td>
-                  <td className="px-3 py-3 text-sm text-foreground">{t.specialization}</td>
-                  <td className="px-3 py-3 text-sm text-muted-foreground">{t.experience}</td>
-                  <td className="px-3 py-3 text-sm text-muted-foreground font-mono">{t.phone}</td>
-                  <td className="px-3 py-3 text-xs text-muted-foreground">{t.join_date}</td>
+                  <td className="px-3 py-3 text-sm text-foreground">{TYPE_LABELS[t.teacherType] ?? t.teacherType}</td>
+                  <td className="px-3 py-3 text-sm text-muted-foreground">{t.experienceYears != null ? `${t.experienceYears} yrs` : '—'}</td>
+                  <td className="px-3 py-3 text-sm text-muted-foreground font-mono">{t.mobile}</td>
+                  <td className="px-3 py-3 text-xs text-muted-foreground">{t.joinedDate}</td>
                   <td className="px-3 py-3">
-                    <span className="flex items-center gap-1 text-xs font-semibold text-primary">
-                      <Star className="w-3 h-3 fill-primary" /> {t.rating}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle(t.status)}`}>
+                      {t.status.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setProfileTeacher(t)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary" aria-label="View teacher profile"><Eye className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => openEdit(t)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary" aria-label="Edit teacher"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => setDeleteConfirm(t.id)} className="p-1.5 rounded-md hover:bg-destructive-bg text-muted-foreground hover:text-destructive" aria-label="Delete teacher"><Trash2 className="w-3.5 h-3.5" /></button>
+                      {t.status === 'deleted' ? (
+                        <button onClick={async () => { try { await restoreTeacher(t.id); toast({ title: 'Teacher Restored', description: `${t.fullName} has been restored.`, variant: 'success' }); } catch (e: any) { toast({ title: 'Restore Failed', description: e.message, variant: 'error' }); } }}
+                          className="px-2 py-1 text-green-600 hover:bg-green-50 rounded-lg cursor-pointer transition-colors text-[10px] font-bold" title="Restore Teacher">
+                          <RefreshCw className="w-3.5 h-3.5 inline mr-0.5" /> Restore
+                        </button>
+                      ) : (
+                        <>
+                          <button onClick={() => fetchDetail(t)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary" aria-label="View teacher profile"><Eye className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => openEdit(t)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary" aria-label="Edit teacher"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setDeleteTarget(t.id)} className="p-1.5 rounded-md hover:bg-destructive-bg text-muted-foreground hover:text-destructive" aria-label="Delete teacher"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -231,126 +320,197 @@ export default function AdminTeachersPage() {
             </tbody>
           </table>
         </div>
-
-        {/* Pagination */}
-        <div className="border-t border-border px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1} to {Math.min(page * pageSize, filtered.length)} of {filtered.length}</span>
-            <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
-              className="text-xs border border-border rounded-md px-2 py-1 bg-card">
-              {PAGE_SIZES.map(s => <option key={s} value={s}>{s} / page</option>)}
-            </select>
-          </div>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="p-1.5 rounded-md hover:bg-muted disabled:opacity-30" aria-label="Previous page"><ChevronLeft className="w-4 h-4" /></button>
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-              const start = Math.max(1, Math.min(page - 2, totalPages - 4));
-              const p = start + i;
-              if (p > totalPages) return null;
-              return <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-semibold rounded-md ${p === page ? 'bg-primary text-white' : 'hover:bg-muted text-muted-foreground'}`}>{p}</button>;
-            })}
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-              className="p-1.5 rounded-md hover:bg-muted disabled:opacity-30" aria-label="Next page"><ChevronRight className="w-4 h-4" /></button>
-          </div>
-        </div>
       </div>
 
-      {/* Add/Edit Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto">
-            <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !formLoading && setShowAddModal(false)} />
+          <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
               <h3 className="text-sm font-bold text-foreground">{editTeacher ? 'Edit Teacher' : 'Add New Teacher'}</h3>
-              <button onClick={() => setShowAddModal(false)} className="p-1 rounded-md hover:bg-muted" aria-label="Close modal"><X className="w-4 h-4" /></button>
+              <button onClick={() => !formLoading && setShowAddModal(false)} className="p-1 rounded-md hover:bg-muted" aria-label="Close modal"><X className="w-4 h-4" /></button>
             </div>
+            {formError && (
+              <div className="mx-6 mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-red-700">{formError}</p>
+              </div>
+            )}
             <div className="p-6 space-y-4">
+              {editTeacher && (
+                <div className="flex items-center gap-4 pb-4 border-b border-border">
+                  <div className="relative">
+                    {editTeacher.profilePhoto ? (
+                      <img src={editTeacher.profilePhoto} alt={editTeacher.fullName} className="w-20 h-20 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-sidebar-active flex items-center justify-center text-white font-bold text-2xl">
+                        {editTeacher.fullName.split(' ').map(n => n[0]).join('')}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={photoLoading}
+                      className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary-hover transition-colors shadow-md"
+                      title="Upload photo"
+                    >
+                      {photoLoading ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                    </button>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && editTeacher) handlePhotoUpload(editTeacher.id, file, 'modal');
+                        e.target.value = '';
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-muted-foreground uppercase">Profile Photo</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Click the camera icon to upload a photo</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Full Name *</label>
-                  <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Email *</label>
-                  <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Phone</label>
-                  <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Mobile *</label>
+                  <input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} placeholder="10-digit mobile" className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Designation</label>
-                  <input value={form.designation} onChange={e => setForm(f => ({ ...f, designation: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Designation *</label>
+                  <input value={form.designation} onChange={e => setForm(f => ({ ...f, designation: e.target.value }))} placeholder="e.g. Senior Instructor" className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Type</label>
-                  <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as Teacher['type'] }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none bg-card">
-                    <option>Full Time</option><option>Part Time</option>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Teacher Type</label>
+                  <select value={form.teacherType} onChange={e => setForm(f => ({ ...f, teacherType: e.target.value as Teacher['teacherType'] }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none bg-card">
+                    <option value="trainer">Trainer</option><option value="volunteer">Volunteer</option><option value="guest_faculty">Guest Faculty</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Status</label>
                   <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as Teacher['status'] }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none bg-card">
-                    <option>Active</option><option>Inactive</option>
+                    <option value="active">Active</option><option value="inactive">Inactive</option><option value="on_leave">On Leave</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Join Date</label>
-                  <input type="date" value={form.join_date} onChange={e => setForm(f => ({ ...f, join_date: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Join Date *</label>
+                  <input type="date" value={form.joinedDate} onChange={e => setForm(f => ({ ...f, joinedDate: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Experience (years)</label>
+                  <input type="number" min="0" value={form.experienceYears} onChange={e => setForm(f => ({ ...f, experienceYears: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Qualification</label>
+                  <input value={form.qualification} onChange={e => setForm(f => ({ ...f, qualification: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Specializations</label>
+                  <input value={form.specializations} onChange={e => setForm(f => ({ ...f, specializations: e.target.value }))} placeholder="Comma-separated" className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">District</label>
                   <input value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Specialization</label>
-                  <input value={form.specialization} onChange={e => setForm(f => ({ ...f, specialization: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Village</label>
+                  <input value={form.village} onChange={e => setForm(f => ({ ...f, village: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Experience</label>
-                  <input value={form.experience} onChange={e => setForm(f => ({ ...f, experience: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Taluka</label>
+                  <input value={form.taluka} onChange={e => setForm(f => ({ ...f, taluka: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Qualification</label>
-                  <input value={form.qualification} onChange={e => setForm(f => ({ ...f, qualification: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">State</label>
+                  <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Pincode</label>
+                  <input value={form.pincode} onChange={e => setForm(f => ({ ...f, pincode: e.target.value }))} placeholder="6-digit" className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Bio</label>
+                  <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} rows={3} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none resize-none" />
                 </div>
               </div>
             </div>
             <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4 flex items-center justify-end gap-3">
-              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-accent">Cancel</button>
-              <button onClick={handleSave} className="px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg">{editTeacher ? 'Update' : 'Create'}</button>
+              <button onClick={() => setShowAddModal(false)} disabled={formLoading} className="px-4 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-accent disabled:opacity-50">Cancel</button>
+              <button onClick={handleSave} disabled={formLoading} className="px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg disabled:opacity-50">{formLoading ? 'Saving...' : editTeacher ? 'Update' : 'Create'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Profile Drawer */}
       {profileTeacher && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setProfileTeacher(null)} />
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setProfileTeacher(null); setDetailTeacher(null); }} />
           <div className="relative w-full max-w-md bg-card shadow-2xl overflow-y-auto">
             <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
               <h3 className="text-sm font-bold text-foreground">Teacher Profile</h3>
-              <button onClick={() => setProfileTeacher(null)} className="p-1 rounded-md hover:bg-muted" aria-label="Close profile"><X className="w-4 h-4" /></button>
+              <button onClick={() => { setProfileTeacher(null); setDetailTeacher(null); }} className="p-1 rounded-md hover:bg-muted" aria-label="Close profile"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 space-y-6">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-sidebar-active flex items-center justify-center text-white font-bold text-lg">
-                  {profileTeacher.full_name.split(' ').map(n => n[0]).join('')}
+                <div className="relative">
+                  {profileTeacher.profilePhoto ? (
+                    <img src={profileTeacher.profilePhoto} alt={profileTeacher.fullName} className="w-16 h-16 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-sidebar-active flex items-center justify-center text-white font-bold text-xl">
+                      {profileTeacher.fullName.split(' ').map(n => n[0]).join('')}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => drawerPhotoInputRef.current?.click()}
+                    disabled={photoLoading}
+                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary-hover transition-colors shadow-md"
+                    title="Upload photo"
+                  >
+                    <Camera className="w-3 h-3" />
+                  </button>
+                  <input
+                    ref={drawerPhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && profileTeacher) handlePhotoUpload(profileTeacher.id, file, 'drawer');
+                      e.target.value = '';
+                    }}
+                  />
                 </div>
                 <div>
-                  <h4 className="text-base font-bold text-foreground">{profileTeacher.full_name}</h4>
+                  <h4 className="text-base font-bold text-foreground">{profileTeacher.fullName}</h4>
                   <p className="text-xs text-muted-foreground">{profileTeacher.designation}</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${profileTeacher.status === 'Active' ? 'bg-success-bg text-success-text' : 'bg-destructive-bg text-destructive-text'}`}>
-                    {profileTeacher.status} · {profileTeacher.type}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${getStatusStyle(profileTeacher.status)}`}>
+                    {profileTeacher.status.replace('_', ' ')} · {TYPE_LABELS[profileTeacher.teacherType] ?? profileTeacher.teacherType}
                   </span>
                 </div>
               </div>
               <div className="space-y-3">
                 <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Details</h5>
                 <div className="grid grid-cols-2 gap-3">
-                  {[['Specialization', profileTeacher.specialization], ['Experience', profileTeacher.experience], ['Qualification', profileTeacher.qualification], ['District', profileTeacher.district], ['Phone', profileTeacher.phone], ['Email', profileTeacher.email], ['Joined', profileTeacher.join_date], ['Rating', `${profileTeacher.rating} ★`]].map(([k, v]) => (
+                  {[
+                    ['Specialization', profileTeacher.specializations?.join(', ') || 'Not provided'],
+                    ['Experience', profileTeacher.experienceYears != null ? `${profileTeacher.experienceYears} years` : 'Not provided'],
+                    ['Qualification', profileTeacher.qualification || 'Not provided'],
+                    ['District', profileTeacher.district || 'Not provided'],
+                    ['Village', profileTeacher.village || 'Not provided'],
+                    ['Mobile', profileTeacher.mobile],
+                    ['Email', profileTeacher.email],
+                    ['Joined', profileTeacher.joinedDate],
+                  ].map(([k, v]) => (
                     <div key={String(k)} className="bg-background rounded-lg p-3 border border-border">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase">{k}</p>
                       <p className="text-sm font-semibold text-foreground mt-0.5">{String(v)}</p>
@@ -358,43 +518,73 @@ export default function AdminTeachersPage() {
                   ))}
                 </div>
               </div>
-              <div className="space-y-3">
-                <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Assigned Courses</h5>
-                {getTeacherCourses(profileTeacher.id).length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No courses assigned.</p>
-                ) : getTeacherCourses(profileTeacher.id).map(c => (
-                  <div key={c.id} className="bg-background rounded-lg p-3 border border-border">
-                    <p className="text-sm font-semibold text-foreground">{c.title}</p>
-                    <p className="text-[10px] text-muted-foreground">{c.category} · {c.mode}</p>
-                  </div>
-                ))}
-              </div>
+              {detailTeacher && detailTeacher.courses.length > 0 && (
+                <div className="space-y-3">
+                  <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Assigned Courses</h5>
+                  {detailTeacher.courses.map(c => (
+                    <div key={c.id} className="bg-background rounded-lg p-3 border border-border">
+                      <p className="text-sm font-semibold text-foreground">{c.course?.title ?? 'Unknown Course'}</p>
+                      <p className="text-[10px] text-muted-foreground">{c.batch ?? 'No batch'} · {c.status}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
-                <button onClick={() => { setProfileTeacher(null); openEdit(profileTeacher); }}
+                <button onClick={() => { setProfileTeacher(null); setDetailTeacher(null); openEdit(profileTeacher); }}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold border border-border rounded-lg hover:bg-accent">
                   <Pencil className="w-3.5 h-3.5" /> Edit
                 </button>
-                <button onClick={() => { setProfileTeacher(null); setDeleteConfirm(profileTeacher.id); }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-destructive border border-destructive/20 rounded-lg hover:bg-destructive-bg">
-                  <Trash2 className="w-3.5 h-3.5" /> Delete
-                </button>
+                {profileTeacher.status !== 'deleted' && (
+                  <button onClick={() => { setProfileTeacher(null); setDetailTeacher(null); setDeleteTarget(profileTeacher.id); }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-destructive border border-destructive/20 rounded-lg hover:bg-destructive-bg">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
-          <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 text-center">
-            <div className="w-12 h-12 rounded-full bg-destructive-bg flex items-center justify-center mx-auto mb-4"><Trash2 className="w-6 h-6 text-destructive" /></div>
-            <h3 className="text-sm font-bold text-foreground mb-2">Delete Teacher?</h3>
-            <p className="text-xs text-muted-foreground mb-6">This action cannot be undone.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-4 py-2.5 text-xs font-semibold border border-border rounded-lg hover:bg-accent">Cancel</button>
-              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-destructive hover:bg-destructive/90 rounded-lg">Delete</button>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            const t = teachers.find(x => x.id === deleteTarget);
+            await deleteTeacher(deleteTarget);
+            toast({ title: 'Teacher Deleted', description: `${t?.fullName ?? 'Teacher'} has been deleted.`, variant: 'success' });
+          } catch (e: any) {
+            toast({ title: 'Delete Failed', description: e.message || 'Could not delete teacher.', variant: 'error' });
+          }
+        }}
+        title="Delete Teacher"
+        description="This will soft-delete the teacher record. They can be restored later."
+        confirmLabel="Delete"
+      />
+
+      {tempPassword && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full overflow-hidden shadow-2xl">
+            <div className="bg-green-50 px-5 py-4 border-b border-green-200 flex justify-between items-center">
+              <h3 className="font-bold text-green-800 text-sm tracking-tight">Registration Successful</h3>
+              <button onClick={() => { setTempPassword(null); setTempPasswordName(''); }} className="text-green-600 hover:text-green-800 cursor-pointer p-1"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-amber-800 mb-1">Temporary Password for {tempPasswordName}</p>
+                  <p className="text-amber-700">Share this password with the teacher. It will not be shown again.</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Password</p>
+                <p className="text-lg font-mono font-bold text-slate-900 tracking-wider select-all">{tempPassword}</p>
+              </div>
+              <button onClick={() => { navigator.clipboard.writeText(tempPassword); toast({ title: 'Copied', description: 'Password copied to clipboard.', variant: 'success' }); }}
+                className="w-full px-4 py-2.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800">Copy to Clipboard</button>
             </div>
           </div>
         </div>

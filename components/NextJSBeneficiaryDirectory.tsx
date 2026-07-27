@@ -26,9 +26,11 @@ import {
 } from 'lucide-react';
 import MetricCards from '@/components/MetricCards';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { exportCSV, exportPDF, exportDOCX } from '@/lib/dossier-export';
 
-import MemberProfileDrawer, { Member, Course, Enrollment, ActivityItem } from '@/components/NextJSMemberDrawer';
+import MemberProfileDrawer, { Member, Course, Enrollment } from '@/components/NextJSMemberDrawer';
 import { useAdmin } from '@/lib/admin-context';
+import { useToast } from '@/components/ui/toast';
 
 // ============================================================================
 // 1. MAIN COMPONENT DEFINITION
@@ -36,7 +38,8 @@ import { useAdmin } from '@/lib/admin-context';
 
 export default function NextJSBeneficiaryDirectory() {
   // Pull live data and CRUD from admin context
-  const { members, courses: adminCourses, enrollments: adminEnrollments, addMember, updateMember, deleteMember, addEnrollment, logActivity } = useAdmin();
+  const { members, courses: adminCourses, enrollments: adminEnrollments, addMember, refreshMembers, updateMember, deleteMember, restoreMember, showDeleted, setShowDeleted, addEnrollment, logActivity } = useAdmin();
+  const { toast } = useToast();
 
   // Map admin courses to the drawer's Course type
   const courses: Course[] = adminCourses.map(c => ({ id: c.id, title: c.title }));
@@ -44,14 +47,14 @@ export default function NextJSBeneficiaryDirectory() {
   // Map admin enrollments to drawer's Enrollment type (subset)
   const enrollments: Enrollment[] = adminEnrollments.map(e => ({
     id: e.id,
-    member_id: e.member_id,
-    course_id: e.course_id,
+    memberId: e.member_id,
+    courseId: e.course_id,
     status: e.status as 'Completed' | 'Enrolled' | 'Dropped',
-    enrolled_date: e.enrolled_date,
+    enrolledDate: e.enrolled_date,
   }));
 
   // Active click metric stats filter
-  const [metricFilter, setMetricFilter] = useState<'all' | 'women' | 'men' | 'under25' | 'recent'>('all');
+  const [metricFilter, setMetricFilter] = useState<'all' | 'women' | 'under25' | 'recent'>('all');
 
   // Interactive Panel visibility toggles
   const [showFilters, setShowFilters] = useState(false);
@@ -90,7 +93,7 @@ export default function NextJSBeneficiaryDirectory() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Sorting metrics
-  const [sortField, setSortField] = useState<keyof Member>('full_name');
+  const [sortField, setSortField] = useState<keyof Member>('fullName');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Pagination bounds
@@ -104,40 +107,51 @@ export default function NextJSBeneficiaryDirectory() {
   // Profile Drawer Active Focus Member
   const [profileMember, setProfileMember] = useState<Member | null>(null);
 
+  // Temp password dialog state
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempPasswordEmail, setTempPasswordEmail] = useState('');
+
   // Confirm dialogs
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
 
   // Export Wizard Stages & Data States
   const [exportStep, setExportStep] = useState(1);
-  const [exportFormat, setExportFormat] = useState('CSV');
-  const [exportFields, setExportFields] = useState<string[]>(['full_name', 'age', 'gender', 'village', 'district']);
+  const [exportFormat, setExportFormat] = useState<'CSV' | 'PDF' | 'DOCX'>('CSV');
+  const [exportFields, setExportFields] = useState<string[]>(['fullName', 'email', 'phone', 'age', 'gender', 'category', 'village', 'district', 'state', 'qualification', 'assignedVolunteer']);
 
-  // CSV Importer State Progress Indicators
+  // CSV Importer State
   const [importing, setImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState(0);
+  const [importResults, setImportResults] = useState<{ succeeded: number; failed: number; errors: string[]; credentials: { email: string; password: string }[] } | null>(null);
+
+  // Add/Edit form error state
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Add/Edit Register form schema fields
   const [newMemberForm, setNewMemberForm] = useState<{
-    full_name: string;
-    age: number;
-    gender: 'Male' | 'Female' | 'Other';
-    category: 'General' | 'OBC' | 'SC' | 'ST';
+    fullName: string;
+    email: string;
+    phone: string;
+    dob: string;
+    gender: 'male' | 'female' | 'other' | '';
+    category: 'general' | 'obc' | 'sc' | 'st' | '';
     qualification: string;
     district: string;
     state: string;
     village: string;
-    assigned_volunteer: string;
+    assignedVolunteer: string;
   }>({
-    full_name: '',
-    age: 22,
-    gender: 'Female',
-    category: 'General',
+    fullName: '',
+    email: '',
+    phone: '',
+    dob: '',
+    gender: 'female',
+    category: 'general',
     qualification: 'Graduate',
     district: 'Satara',
     state: 'Maharashtra',
     village: 'Satara Rural',
-    assigned_volunteer: 'Amit Sharma',
+    assignedVolunteer: 'Amit Sharma',
   });
 
   // ============================================================================
@@ -145,10 +159,10 @@ export default function NextJSBeneficiaryDirectory() {
   // ============================================================================
 
   const totalCount = members.length;
-  const womenCount = members.filter(m => m.gender === 'Female').length;
-  const menCount = members.filter(m => m.gender === 'Male').length;
-  const youthCount = members.filter(m => m.age < 25).length;
-  const recentCount = members.filter(m => m.created_at >= '2026-05-01').length;
+  const womenCount = members.filter(m => m.gender === 'female').length;
+
+  const youthCount = members.filter(m => m.age !== null && m.age < 25).length;
+  const recentCount = members.filter(m => m.createdAt >= '2026-05-01').length;
 
   // ============================================================================
   // 3. DATA FILTERING & PIPELINE EXECUTION
@@ -158,18 +172,17 @@ export default function NextJSBeneficiaryDirectory() {
     let result = [...members];
 
     // Clickable Stat Metrics filter
-    if (metricFilter === 'women') result = result.filter(m => m.gender === 'Female');
-    else if (metricFilter === 'men') result = result.filter(m => m.gender === 'Male');
-    else if (metricFilter === 'under25') result = result.filter(m => m.age < 25);
-    else if (metricFilter === 'recent') result = result.filter(m => m.created_at >= '2026-05-01');
+    if (metricFilter === 'women') result = result.filter(m => m.gender === 'female');
+    else if (metricFilter === 'under25') result = result.filter(m => m.age !== null && m.age < 25);
+    else if (metricFilter === 'recent') result = result.filter(m => m.createdAt >= '2026-05-01');
 
     // Text query search constraints
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(m => 
-        m.full_name.toLowerCase().includes(q) || 
-        m.village.toLowerCase().includes(q) || 
-        m.assigned_volunteer.toLowerCase().includes(q)
+        m.fullName.toLowerCase().includes(q) || 
+        (m.village ?? '').toLowerCase().includes(q) || 
+        (m.assignedVolunteer ?? '').toLowerCase().includes(q)
       );
     }
 
@@ -178,24 +191,24 @@ export default function NextJSBeneficiaryDirectory() {
     if (filterCategory !== 'all') result = result.filter(m => m.category === filterCategory);
     
     if (filterAge !== 'all') {
-      if (filterAge === 'under20') result = result.filter(m => m.age < 20);
-      else if (filterAge === '20-30') result = result.filter(m => m.age >= 20 && m.age <= 30);
-      else if (filterAge === 'over30') result = result.filter(m => m.age > 30);
+      if (filterAge === 'under20') result = result.filter(m => m.age !== null && m.age < 20);
+      else if (filterAge === '20-30') result = result.filter(m => m.age !== null && m.age >= 20 && m.age <= 30);
+      else if (filterAge === 'over30') result = result.filter(m => m.age !== null && m.age > 30);
     }
 
     if (filterQualification !== 'all') result = result.filter(m => m.qualification === filterQualification);
     if (filterDistrict !== 'all') result = result.filter(m => m.district === filterDistrict);
-    if (filterVolunteer !== 'all') result = result.filter(m => m.assigned_volunteer === filterVolunteer);
+    if (filterVolunteer !== 'all') result = result.filter(m => m.assignedVolunteer === filterVolunteer);
     
     if (filterVillage !== 'all') {
       const v = filterVillage.toLowerCase();
-      result = result.filter(m => m.village.toLowerCase().includes(v));
+      result = result.filter(m => (m.village ?? '').toLowerCase().includes(v));
     }
 
     if (filterCourse !== 'all') {
       const matchedMemberIds = enrollments
-        .filter(e => e.course_id === filterCourse)
-        .map(e => e.member_id);
+        .filter(e => e.courseId === filterCourse)
+        .map(e => e.memberId);
       result = result.filter(m => matchedMemberIds.includes(m.id));
     }
 
@@ -253,119 +266,250 @@ export default function NextJSBeneficiaryDirectory() {
   };
 
   // Add / Edit Beneficiary Submission
-  const handleAddMemberSubmit = (e: React.FormEvent) => {
+  const handleAddMemberSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
 
-    if (profileMember) {
-      updateMember(profileMember.id, {
-        full_name: newMemberForm.full_name,
-        age: newMemberForm.age,
-        gender: newMemberForm.gender as 'Male' | 'Female' | 'Other',
-        category: newMemberForm.category as 'General' | 'OBC' | 'SC' | 'ST',
-        qualification: newMemberForm.qualification,
-        district: newMemberForm.district,
-        state: newMemberForm.state,
-        village: newMemberForm.village,
-        assigned_volunteer: newMemberForm.assigned_volunteer,
-      });
-      logActivity('Beneficiary Updated', `Updated details for ${newMemberForm.full_name}.`, 'Users');
-    } else {
-      addMember({
-        full_name: newMemberForm.full_name,
-        age: newMemberForm.age,
-        gender: newMemberForm.gender as 'Male' | 'Female' | 'Other',
-        category: newMemberForm.category as 'General' | 'OBC' | 'SC' | 'ST',
-        qualification: newMemberForm.qualification,
-        district: newMemberForm.district,
-        state: newMemberForm.state,
-        village: newMemberForm.village,
-        assigned_volunteer: newMemberForm.assigned_volunteer,
-        email: '',
-        phone: '',
-        status: 'Active',
-      });
+    const apiPayload: Record<string, unknown> = {
+      fullName: newMemberForm.fullName,
+      gender: newMemberForm.gender || undefined,
+      beneficiaryDetail: newMemberForm.category ? { category: newMemberForm.category } : undefined,
+      qualification: newMemberForm.qualification || undefined,
+      district: newMemberForm.district || undefined,
+      state: newMemberForm.state || undefined,
+      assignedVolunteer: newMemberForm.assignedVolunteer || undefined,
+      beneficiaryAddresses: newMemberForm.village ? [{ village: newMemberForm.village, district: newMemberForm.district, state: newMemberForm.state }] : undefined,
+    };
+
+    if (newMemberForm.dob) apiPayload.dob = newMemberForm.dob;
+    if (newMemberForm.phone) apiPayload.phone = newMemberForm.phone;
+
+    try {
+      if (profileMember) {
+        await updateMember(profileMember.id, apiPayload);
+        toast({ title: 'Beneficiary Updated', description: `${newMemberForm.fullName}'s profile has been saved.`, variant: 'success' });
+      } else {
+        apiPayload.email = newMemberForm.email;
+        const result = await addMember(apiPayload);
+        if (result?.temporaryPassword) {
+          setTempPassword(result.temporaryPassword);
+          setTempPasswordEmail(newMemberForm.email);
+        }
+        toast({ title: 'Beneficiary Registered', description: `${newMemberForm.fullName} has been registered successfully.`, variant: 'success' });
+      }
+
+      setShowAddModal(false);
+      setProfileMember(null);
+      resetForm();
+    } catch (err: any) {
+      setFormError(err.message || 'Something went wrong. Please check your inputs and try again.');
     }
+  };
 
-    setShowAddModal(false);
-    setProfileMember(null);
+  const resetForm = () => {
     setNewMemberForm({
-      full_name: '',
-      age: 22,
-      gender: 'Female',
-      category: 'General',
+      fullName: '',
+      email: '',
+      phone: '',
+      dob: '',
+      gender: 'female',
+      category: 'general',
       qualification: 'Graduate',
       district: 'Satara',
       state: 'Maharashtra',
       village: 'Satara Rural',
-      assigned_volunteer: 'Amit Sharma',
+      assignedVolunteer: 'Amit Sharma',
     });
   };
 
-  // Simulated Drag-and-Drop CSV Importer
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // CSV Import — batch implementation
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setImporting(true);
-      setImportProgress(15);
-      
-      const interval = setInterval(() => {
-        setImportProgress(p => {
-          if (p >= 100) {
-            clearInterval(interval);
-            setTimeout(() => {
-              addMember({
-                full_name: 'Meena Kulkarni (Imported Row)',
-                age: 24,
-                gender: 'Female',
-                category: 'OBC',
-                qualification: 'Graduate',
-                district: 'Satara',
-                state: 'Maharashtra',
-                village: 'Jawali Rural',
-                assigned_volunteer: 'Sneha Patil',
-                email: '',
-                phone: '',
-                status: 'Active',
-              });
-              setImporting(false);
-              setShowImportModal(false);
-              setImportProgress(0);
-            }, 300);
-            return 100;
+    if (!file) return;
+
+    setImporting(true);
+    setImportResults(null);
+
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+      if (lines.length < 2) {
+        setImportResults({ succeeded: 0, failed: 0, errors: ['CSV file is empty or has no data rows (only a header row is required).'], credentials: [] });
+        setImporting(false);
+        return;
+      }
+
+      // Simple CSV parser that handles quoted fields
+      const parseCSVLine = (line: string): string[] => {
+        const cells: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inQuotes) {
+            if (ch === '"') {
+              if (i + 1 < line.length && line[i + 1] === '"') {
+                current += '"';
+                i++;
+              } else {
+                inQuotes = false;
+              }
+            } else {
+              current += ch;
+            }
+          } else {
+            if (ch === '"') {
+              inQuotes = true;
+            } else if (ch === ',') {
+              cells.push(current.trim());
+              current = '';
+            } else {
+              current += ch;
+            }
           }
-          return p + 25;
-        });
-      }, 200);
+        }
+        cells.push(current.trim());
+        return cells;
+      };
+
+      const headers = parseCSVLine(lines[0]);
+      const dataRows = lines.slice(1);
+
+      // Check for required columns
+      if (!headers.includes('fullName')) {
+        setImportResults({ succeeded: 0, failed: 0, errors: ['CSV must contain a "fullName" column header.'], credentials: [] });
+        setImporting(false);
+        return;
+      }
+      if (!headers.includes('email')) {
+        setImportResults({ succeeded: 0, failed: 0, errors: ['CSV must contain an "email" column header. Each member needs a unique email address.'], credentials: [] });
+        setImporting(false);
+        return;
+      }
+
+      // Build payload rows from CSV
+      const payloadRows: Record<string, unknown>[] = [];
+      for (let i = 0; i < dataRows.length; i++) {
+        const cells = parseCSVLine(dataRows[i]);
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => { row[h] = cells[idx] ?? ''; });
+
+        // Skip completely empty rows
+        if (!row.fullName && !row.email) continue;
+
+        const payload: Record<string, unknown> = {
+          fullName: row.fullName,
+          email: row.email,
+        };
+
+        if (row.phone) payload.phone = row.phone;
+        if (row.gender) payload.gender = row.gender;
+        if (row.district) payload.district = row.district;
+        if (row.state) payload.state = row.state;
+        if (row.qualification) payload.qualification = row.qualification;
+        if (row.assignedVolunteer) payload.assignedVolunteer = row.assignedVolunteer;
+
+        if (row.dob) {
+          payload.dob = row.dob;
+        } else if (row.age) {
+          const ageNum = parseInt(row.age, 10);
+          if (!isNaN(ageNum) && ageNum > 0 && ageNum < 150) {
+            const dob = new Date();
+            dob.setFullYear(dob.getFullYear() - ageNum);
+            dob.setMonth(0, 1);
+            payload.dob = dob.toISOString().split('T')[0];
+          }
+        }
+
+        if (row.village) {
+          const addr: Record<string, string> = { village: row.village };
+          if (row.district) addr.district = row.district;
+          if (row.state) addr.state = row.state;
+          payload.beneficiaryAddresses = [addr];
+        }
+
+        payloadRows.push(payload);
+      }
+
+      if (payloadRows.length === 0) {
+        setImportResults({ succeeded: 0, failed: 0, errors: ['No valid data rows found in CSV.'], credentials: [] });
+        setImporting(false);
+        return;
+      }
+
+      // Single batch POST
+      const res = await fetch('/api/admin/members/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: payloadRows }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({ error: 'Batch import request failed' }));
+        throw new Error(errBody.error || 'Batch import request failed');
+      }
+
+      const batch = await res.json() as {
+        results: { row: number; success: boolean; id?: string; email?: string; error?: string; temporaryPassword?: string }[];
+        successCount: number;
+        failureCount: number;
+      };
+
+      const errors = batch.results
+        .filter(r => !r.success)
+        .map(r => `Row ${r.row} (${r.email ?? '?'}): ${r.error ?? 'Unknown error'}`);
+
+      const credentials = batch.results
+        .filter(r => r.success && r.temporaryPassword)
+        .map(r => ({ email: r.email!, password: r.temporaryPassword! }));
+
+      setImportResults({
+        succeeded: batch.successCount,
+        failed: batch.failureCount,
+        errors,
+        credentials,
+      });
+
+      if (batch.successCount > 0) {
+        logActivity('CSV Import', `Imported ${batch.successCount} member(s) from CSV.`, 'Users');
+        await refreshMembers();
+      }
+    } catch (err: any) {
+      setImportResults({ succeeded: 0, failed: 0, errors: [`Failed to read CSV file: ${err.message ?? 'Unknown error'}`], credentials: [] });
+    } finally {
+      setImporting(false);
+      e.target.value = '';
     }
   };
 
   // Multi-step Export Wizard Download Simulation
-  const handleExportFinish = () => {
+  const handleExportFinish = async () => {
     setExportStep(4);
-    setTimeout(() => {
-      const exportScopeData = selectedIds.length > 0 
-        ? members.filter(m => selectedIds.includes(m.id)) 
-        : filteredMembers;
+    try {
+      const scopeIds = selectedIds.length > 0 ? selectedIds : undefined;
 
-      const structuredPayload = exportScopeData.map(m => {
-        const item: any = {};
-        exportFields.forEach(f => {
-          item[f] = (m as any)[f];
-        });
-        return item;
+      const res = await fetch('/api/admin/members/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: scopeIds }),
       });
 
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(structuredPayload, null, 2));
-      const anchor = document.createElement('a');
-      anchor.setAttribute("href", dataStr);
-      anchor.setAttribute("download", `Beneficiary_List_Export.${exportFormat.toLowerCase()}`);
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+      if (!res.ok) throw new Error('Failed to fetch export data');
+      const { data: exportData } = await res.json();
 
+      await new Promise(r => setTimeout(r, 400));
+
+      if (exportFormat === 'CSV') {
+        exportCSV(exportData, exportFields);
+      } else if (exportFormat === 'PDF') {
+        await exportPDF(exportData, exportFields);
+      } else if (exportFormat === 'DOCX') {
+        await exportDOCX(exportData, exportFields);
+      }
+    } finally {
       setShowExportModal(false);
       setExportStep(1);
-    }, 1000);
+    }
   };
 
   // Open Detail Side Drawer
@@ -397,7 +541,7 @@ export default function NextJSBeneficiaryDirectory() {
 
   const handleBulkAssignVolunteer = () => {
     if (!bulkActionVolunteer) return;
-    selectedIds.forEach(id => updateMember(id, { assigned_volunteer: bulkActionVolunteer }));
+    selectedIds.forEach(id => updateMember(id, { assignedVolunteer: bulkActionVolunteer }));
     setSelectedIds([]);
     setBulkActionVolunteer('');
     logActivity('Bulk Coordinator Update', `Changed coordinator assignments for ${selectedIds.length} members.`, 'Users');
@@ -421,11 +565,10 @@ export default function NextJSBeneficiaryDirectory() {
       <MetricCards
         activeFilter={metricFilter}
         onFilterChange={(f) => setMetricFilter(f as typeof metricFilter)}
-        columns={5}
+        columns={4}
         cards={[
           { id: 'all', label: 'Total Registered', value: totalCount, icon: Users },
           { id: 'women', label: 'Women Enrolled', value: womenCount, icon: UserCheck },
-          { id: 'men', label: 'Men Enrolled', value: menCount, icon: Users },
           { id: 'under25', label: 'Youth Users (<25)', value: youthCount, icon: UserX },
           { id: 'recent', label: 'Recently Joined', value: recentCount, icon: Clock },
         ]}
@@ -484,23 +627,24 @@ export default function NextJSBeneficiaryDirectory() {
             <button
               onClick={() => {
                 setProfileMember(null);
-                setNewMemberForm({
-                  full_name: '',
-                  age: 22,
-                  gender: 'Female',
-                  category: 'General',
-                  qualification: 'Graduate',
-                  district: 'Satara',
-                  state: 'Maharashtra',
-                  village: 'Satara Rural',
-                  assigned_volunteer: 'Amit Sharma',
-                });
+                resetForm();
+                setFormError(null);
                 setShowAddModal(true);
               }}
               className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white font-bold rounded-lg text-xs hover:bg-primary-hover transition-colors cursor-pointer shadow-sm shadow-primary/10"
             >
               <Plus className="w-4 h-4" />
               <span>Add Beneficiary</span>
+            </button>
+
+            <button
+              onClick={() => setShowDeleted(!showDeleted)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 border rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                showDeleted ? 'bg-red-50 border-red-400 text-red-600' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'
+              }`}
+            >
+              <UserX className="w-4 h-4" />
+              <span>{showDeleted ? 'Hide Deleted' : 'Show Deleted'}</span>
             </button>
           </div>
         </div>
@@ -535,9 +679,9 @@ export default function NextJSBeneficiaryDirectory() {
                 className="block w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
               >
                 <option value="all">Gender (All)</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
               </select>
               <select
                 value={filterCategory}
@@ -545,10 +689,10 @@ export default function NextJSBeneficiaryDirectory() {
                 className="block w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
               >
                 <option value="all">Category (All)</option>
-                <option value="General">General</option>
-                <option value="OBC">OBC</option>
-                <option value="SC">SC</option>
-                <option value="ST">ST</option>
+                <option value="general">General</option>
+                <option value="obc">OBC</option>
+                <option value="sc">SC</option>
+                <option value="st">ST</option>
               </select>
             </div>
 
@@ -711,8 +855,8 @@ export default function NextJSBeneficiaryDirectory() {
                   />
                 </th>
                 {visibleColumns.name && (
-                  <th onClick={() => handleSort('full_name')} className="p-4 cursor-pointer hover:text-slate-900 transition-colors">
-                    Name / Identity ID {sortField === 'full_name' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  <th onClick={() => handleSort('fullName')} className="p-4 cursor-pointer hover:text-slate-900 transition-colors">
+                    Name / Identity ID {sortField === 'fullName' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </th>
                 )}
                 {visibleColumns.age && (
@@ -761,67 +905,81 @@ export default function NextJSBeneficiaryDirectory() {
                       <td className="p-4 font-bold text-slate-900">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 bg-slate-100 text-slate-700 font-extrabold rounded-full flex items-center justify-center text-sm">
-                            {m.full_name[0].toUpperCase()}
+                            {m.fullName[0].toUpperCase()}
                           </div>
                           <div>
-                            <p>{m.full_name}</p>
+                            <p>{m.fullName}</p>
                             <span className="block text-[10px] text-slate-400 font-mono font-normal">Dossier ID: {m.id}</span>
                           </div>
                         </div>
                       </td>
                     )}
-                    {visibleColumns.age && <td className="p-4 text-slate-700 font-semibold">{m.age} Years</td>}
-                    {visibleColumns.gender && <td className="p-4 text-slate-700 font-semibold">{m.gender}</td>}
+                    {visibleColumns.age && <td className="p-4 text-slate-700 font-semibold">{m.age ?? '—'} {m.age != null && 'Years'}</td>}
+                    {visibleColumns.gender && <td className="p-4 text-slate-700 font-semibold">{m.gender ?? '—'}</td>}
                     {visibleColumns.category && (
                       <td className="p-4">
                         <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/50 text-[9px] font-bold">
-                          {m.category}
+                          {(m.category ?? '—').toUpperCase()}
                         </span>
                       </td>
                     )}
-                    {visibleColumns.qualification && <td className="p-4 text-slate-500 font-bold">{m.qualification}</td>}
+                    {visibleColumns.qualification && <td className="p-4 text-slate-500 font-bold">{m.qualification ?? '—'}</td>}
                     {visibleColumns.village && (
                       <td className="p-4 text-slate-700 font-semibold">
-                        <p className="flex items-center gap-0.5"><MapPin className="w-3 h-3 text-blue-500" /> {m.village}</p>
-                        <span className="block text-[10px] text-slate-400">{m.district}, {m.state}</span>
+                        <p className="flex items-center gap-0.5"><MapPin className="w-3 h-3 text-blue-500" /> {m.village ?? '—'}</p>
+                        <span className="block text-[10px] text-slate-400">{m.district ?? '—'}, {m.state ?? '—'}</span>
                       </td>
                     )}
                     <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
-                      <button 
-                        onClick={() => handleOpenProfileDrawer(m)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors" 
-                        title="Open Portfolio Dossier"
-                      >
-                        <Eye className="w-4 h-4 inline" />
-                      </button>
-                      <button 
-                        onClick={() => {
-                          setProfileMember(m);
-                          setNewMemberForm({
-                            full_name: m.full_name,
-                            age: m.age,
-                            gender: m.gender,
-                            category: m.category,
-                            qualification: m.qualification,
-                            district: m.district,
-                            state: m.state,
-                            village: m.village,
-                            assigned_volunteer: m.assigned_volunteer
-                          });
-                          setShowAddModal(true);
-                        }}
-                        className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors" 
-                        title="Edit Details"
-                      >
-                        <Edit2 className="w-4 h-4 inline" />
-                      </button>
-                      <button 
-                        onClick={() => setDeleteTarget(m)}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors" 
-                        title="Delete Portfolio"
-                      >
-                        <Trash2 className="w-4 h-4 inline" />
-                      </button>
+                      {m.status === 'deleted' ? (
+                        <button 
+                          onClick={async () => { try { await restoreMember(m.id); } catch { /* handled in context */ } }}
+                          className="px-2 py-1 text-green-600 hover:bg-green-50 rounded-lg cursor-pointer transition-colors text-[10px] font-bold"
+                          title="Restore Member"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 inline mr-0.5" /> Restore
+                        </button>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={() => handleOpenProfileDrawer(m)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors" 
+                            title="Open Portfolio Dossier"
+                          >
+                            <Eye className="w-4 h-4 inline" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setProfileMember(m);
+                              setNewMemberForm({
+                                fullName: m.fullName,
+                                email: m.email,
+                                phone: m.phone ?? '',
+                                dob: '',
+                                gender: (m.gender ?? 'female') as 'male' | 'female' | 'other',
+                                category: (m.category ?? 'general') as 'general' | 'obc' | 'sc' | 'st',
+                                qualification: m.qualification ?? '',
+                                district: m.district ?? '',
+                                state: m.state ?? '',
+                                village: m.village ?? '',
+                                assignedVolunteer: m.assignedVolunteer ?? '',
+                              });
+                              setShowAddModal(true);
+                            }}
+                            className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors" 
+                            title="Edit Details"
+                          >
+                            <Edit2 className="w-4 h-4 inline" />
+                          </button>
+                          <button 
+                            onClick={() => setDeleteTarget(m)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors" 
+                            title="Delete Portfolio"
+                          >
+                            <Trash2 className="w-4 h-4 inline" />
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -886,19 +1044,17 @@ export default function NextJSBeneficiaryDirectory() {
           setProfileMember(null);
         }}
         member={profileMember}
-        courses={courses}
-        enrollments={enrollments}
       />
 
       {/* REGISTER / EDIT BENEFICIARY MODAL */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full overflow-hidden shadow-2xl animate-scale-up">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full overflow-hidden shadow-2xl animate-scale-up">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="font-bold text-slate-900 text-sm tracking-tight uppercase">
                 {profileMember ? 'Edit Beneficiary Portfolio' : 'Register New Beneficiary'}
               </h3>
-              <button onClick={() => { setShowAddModal(false); setProfileMember(null); }} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1" aria-label="Close modal">
+              <button onClick={() => { setShowAddModal(false); setProfileMember(null); setFormError(null); }} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1" aria-label="Close modal">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -910,22 +1066,45 @@ export default function NextJSBeneficiaryDirectory() {
                   <input
                     type="text"
                     required
-                    value={newMemberForm.full_name}
-                    onChange={(e) => setNewMemberForm(p => ({ ...p, full_name: e.target.value }))}
+                    value={newMemberForm.fullName}
+                    onChange={(e) => setNewMemberForm(p => ({ ...p, fullName: e.target.value }))}
                     className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
                     placeholder="E.g. Meena Deshmukh"
                   />
                 </div>
 
+                {!profileMember && (
+                  <div className="col-span-2">
+                    <label className="block text-slate-500 font-extrabold uppercase tracking-wide mb-1">Email (Required)</label>
+                    <input
+                      type="email"
+                      required
+                      value={newMemberForm.email}
+                      onChange={(e) => setNewMemberForm(p => ({ ...p, email: e.target.value }))}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
+                      placeholder="meena@example.com"
+                    />
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-slate-500 font-extrabold uppercase tracking-wide mb-1">Age (Years)</label>
+                  <label className="block text-slate-500 font-extrabold uppercase tracking-wide mb-1">Phone</label>
                   <input
-                    type="number"
-                    required
-                    value={newMemberForm.age}
-                    onChange={(e) => setNewMemberForm(p => ({ ...p, age: Number(e.target.value) }))}
+                    type="tel"
+                    value={newMemberForm.phone}
+                    onChange={(e) => setNewMemberForm(p => ({ ...p, phone: e.target.value }))}
                     className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
-                    placeholder="23"
+                    placeholder="+91-XXXXXXXXXX"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 font-extrabold uppercase tracking-wide mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={newMemberForm.dob}
+                    onChange={(e) => setNewMemberForm(p => ({ ...p, dob: e.target.value }))}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
                   />
                 </div>
 
@@ -933,12 +1112,12 @@ export default function NextJSBeneficiaryDirectory() {
                   <label className="block text-slate-500 font-extrabold uppercase tracking-wide mb-1">Gender</label>
                   <select
                     value={newMemberForm.gender}
-                    onChange={(e) => setNewMemberForm(p => ({ ...p, gender: e.target.value as 'Male' | 'Female' | 'Other' }))}
+                    onChange={(e) => setNewMemberForm(p => ({ ...p, gender: e.target.value as 'male' | 'female' | 'other' }))}
                     className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
                   >
-                    <option value="Female">Female</option>
-                    <option value="Male">Male</option>
-                    <option value="Other">Other</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                    <option value="other">Other</option>
                   </select>
                 </div>
 
@@ -946,13 +1125,13 @@ export default function NextJSBeneficiaryDirectory() {
                   <label className="block text-slate-500 font-extrabold uppercase tracking-wide mb-1">Social Category</label>
                   <select
                     value={newMemberForm.category}
-                    onChange={(e) => setNewMemberForm(p => ({ ...p, category: e.target.value as 'General' | 'OBC' | 'SC' | 'ST' }))}
+                    onChange={(e) => setNewMemberForm(p => ({ ...p, category: e.target.value as 'general' | 'obc' | 'sc' | 'st' }))}
                     className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
                   >
-                    <option value="General">General</option>
-                    <option value="OBC">OBC</option>
-                    <option value="SC">SC</option>
-                    <option value="ST">ST</option>
+                    <option value="general">General</option>
+                    <option value="obc">OBC</option>
+                    <option value="sc">SC</option>
+                    <option value="st">ST</option>
                   </select>
                 </div>
 
@@ -998,8 +1177,8 @@ export default function NextJSBeneficiaryDirectory() {
                 <div className="col-span-2">
                   <label className="block text-slate-500 font-extrabold uppercase tracking-wide mb-1">Assigned Coordinator Staff</label>
                   <select
-                    value={newMemberForm.assigned_volunteer}
-                    onChange={(e) => setNewMemberForm(p => ({ ...p, assigned_volunteer: e.target.value }))}
+                    value={newMemberForm.assignedVolunteer}
+                    onChange={(e) => setNewMemberForm(p => ({ ...p, assignedVolunteer: e.target.value }))}
                     className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
                   >
                     <option value="Amit Sharma">Amit Sharma</option>
@@ -1009,10 +1188,16 @@ export default function NextJSBeneficiaryDirectory() {
                 </div>
               </div>
 
+              {formError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-4 py-3">
+                  {formError}
+                </div>
+              )}
+
               <div className="pt-4 border-t border-slate-200 flex justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => { setShowAddModal(false); setProfileMember(null); }}
+                  onClick={() => { setShowAddModal(false); setProfileMember(null); setFormError(null); }}
                   className="px-4 py-2 border border-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Cancel
@@ -1035,41 +1220,99 @@ export default function NextJSBeneficiaryDirectory() {
           <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full overflow-hidden shadow-2xl animate-scale-up">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="font-bold text-slate-900 text-sm uppercase tracking-tight">CSV Importer Wizard</h3>
-              <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1" aria-label="Close import">
+              <button onClick={() => { setShowImportModal(false); setImportResults(null); }} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1" aria-label="Close import">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
             <div className="p-5 text-center space-y-4">
-              <div className="border-2 border-dashed border-slate-200 hover:border-blue-600 rounded-xl p-8 transition-colors cursor-pointer relative bg-slate-50/50">
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleImportCSV}
-                  disabled={importing}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-                <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="font-extrabold text-slate-800 text-xs">Drag & drop CSV files here</p>
-                <p className="text-[10px] text-slate-400 mt-1">UTF-8 Compliant formatted dossier documents only</p>
-              </div>
 
-              {importing && (
-                <div className="space-y-2 text-left">
-                  <div className="flex justify-between font-bold text-xs">
-                    <span>Extracting Columns...</span>
-                    <span className="font-mono text-blue-600">{importProgress}%</span>
+              {/* Results summary (shown after import finishes) */}
+              {importResults && !importing && (
+                <div className="space-y-3 animate-fade-in">
+                  <div className={`p-4 rounded-xl border ${importResults.failed === 0 && importResults.succeeded > 0 ? 'bg-emerald-50 border-emerald-200' : importResults.succeeded === 0 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+                    <p className="font-bold text-xs">
+                      {importResults.succeeded > 0 && <span className="text-emerald-700">{importResults.succeeded} member(s) imported successfully. </span>}
+                      {importResults.failed > 0 && <span className="text-red-700">{importResults.failed} row(s) failed.</span>}
+                      {importResults.succeeded === 0 && importResults.failed === 0 && <span className="text-slate-700">No records were processed.</span>}
+                    </p>
                   </div>
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-primary h-full transition-all duration-300" style={{ width: `${importProgress}%` }} />
-                  </div>
+
+                  {importResults.errors.length > 0 && (
+                    <div className="text-left bg-red-50/50 border border-red-100 p-3 rounded-lg max-h-32 overflow-y-auto">
+                      {importResults.errors.map((err, i) => (
+                        <p key={i} className="text-[10px] text-red-700 leading-relaxed">{err}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {importResults.credentials.length > 0 && (
+                    <div className="text-left space-y-2">
+                      <p className="font-bold text-[10px] text-slate-500 uppercase tracking-wide">Login Credentials</p>
+                      <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-lg max-h-28 overflow-y-auto space-y-1">
+                        {importResults.credentials.map((c, i) => (
+                          <p key={i} className="text-[10px] font-mono text-emerald-800">{c.email} — {c.password}</p>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const csv = 'email,temporaryPassword\n' + importResults.credentials.map(c => `${c.email},${c.password}`).join('\n');
+                          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = 'imported_credentials.csv';
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] transition-colors cursor-pointer"
+                      >
+                        Download Credentials CSV
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => { setShowImportModal(false); setImportResults(null); }}
+                    className="px-4 py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    Close
+                  </button>
                 </div>
               )}
 
-              <div className="text-left bg-blue-50/50 border border-blue-100 p-3 rounded-lg text-[10px] text-blue-800 flex gap-2 leading-relaxed">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 text-blue-600" />
-                <span>Make sure CSV header column cells exactly match attribute tags: <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">full_name</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">village</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">age</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">district</code>.</span>
-              </div>
+              {/* Upload zone (shown when idle, hidden during/after import) */}
+              {!importing && !importResults && (
+                <>
+                  <div className="border-2 border-dashed border-slate-200 hover:border-blue-600 rounded-xl p-8 transition-colors cursor-pointer relative bg-slate-50/50">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleImportCSV}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                    <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <p className="font-extrabold text-slate-800 text-xs">Click or drag a CSV file here</p>
+                    <p className="text-[10px] text-slate-400 mt-1">UTF-8 encoded .csv files only</p>
+                  </div>
+
+                  <div className="text-left bg-blue-50/50 border border-blue-100 p-3 rounded-lg text-[10px] text-blue-800 flex gap-2 leading-relaxed">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-blue-600" />
+                    <span>Required columns: <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">fullName</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">email</code>. Optional: <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">phone</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">gender</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">age</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">village</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">district</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">state</code>, <code className="font-mono bg-blue-100/50 px-1 rounded text-blue-800">qualification</code>.</span>
+                  </div>
+                </>
+              )}
+
+              {/* Spinner (shown during batch import) */}
+              {importing && (
+                <div className="space-y-3 py-4">
+                  <RefreshCw className="w-8 h-8 text-blue-600 mx-auto animate-spin" />
+                  <p className="font-bold text-xs text-slate-800">Importing members...</p>
+                  <p className="text-[10px] text-slate-400">Sending batch to server. This may take a moment.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1078,7 +1321,7 @@ export default function NextJSBeneficiaryDirectory() {
       {/* 4-STEP EXPORT CONFIGURATION WIZARD */}
       {showExportModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full overflow-hidden shadow-2xl animate-scale-up">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-3xl w-full overflow-hidden shadow-2xl animate-scale-up">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm uppercase">Dossier Export Wizard</h3>
@@ -1094,14 +1337,14 @@ export default function NextJSBeneficiaryDirectory() {
               <div className="bg-primary h-full transition-all duration-300" style={{ width: `${(exportStep / 4) * 100}%` }} />
             </div>
 
-            <div className="p-5 space-y-4 text-xs">
+            <div className="p-5 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
               
               {/* Step 1: Select Records Scope */}
               {exportStep === 1 && (
                 <div className="space-y-3">
                   <p className="font-bold text-slate-800">Step 1: Choose Record Filter Scope</p>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2.5 p-3.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-slate-50/50 transition-all select-none">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className="flex items-center gap-2.5 p-4 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-slate-50/50 transition-all select-none">
                       <input type="radio" defaultChecked name="exportScope" className="text-blue-600 focus:ring-blue-500 cursor-pointer" />
                       <div>
                         <p className="font-bold text-slate-900">All Filtered Records ({filteredMembers.length})</p>
@@ -1109,7 +1352,7 @@ export default function NextJSBeneficiaryDirectory() {
                       </div>
                     </label>
 
-                    <label className="flex items-center gap-2.5 p-3.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-slate-50/50 transition-all select-none opacity-80">
+                    <label className="flex items-center gap-2.5 p-4 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-slate-50/50 transition-all select-none opacity-80">
                       <input type="radio" disabled={selectedIds.length === 0} name="exportScope" className="text-blue-600 focus:ring-blue-500 cursor-pointer" />
                       <div>
                         <p className="font-bold text-slate-900">Selected Records Only ({selectedIds.length})</p>
@@ -1124,18 +1367,18 @@ export default function NextJSBeneficiaryDirectory() {
               {exportStep === 2 && (
                 <div className="space-y-3">
                   <p className="font-bold text-slate-800">Step 2: Choose Output Compilation Format</p>
-                  <div className="grid grid-cols-3 gap-2.5">
-                    {['CSV', 'JSON', 'Excel'].map(fmt => (
+                  <div className="grid grid-cols-3 gap-3">
+                    {['CSV', 'PDF', 'DOCX'].map(fmt => (
                       <button
                         key={fmt}
                         type="button"
-                        onClick={() => setExportFormat(fmt)}
-                        className={`p-4 border rounded-xl font-bold uppercase tracking-wider text-center transition-all cursor-pointer ${
-                          exportFormat === fmt ? 'bg-blue-50 border-blue-600 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'
+                        onClick={() => setExportFormat(fmt as 'CSV' | 'PDF' | 'DOCX')}
+                        className={`p-5 border-2 rounded-xl font-bold uppercase tracking-wider text-center transition-all cursor-pointer ${
+                          exportFormat === fmt ? 'bg-blue-50 border-blue-600 text-blue-600 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300'
                         }`}
                       >
-                        <FileText className="w-5 h-5 mx-auto mb-1.5" />
-                        <span>{fmt}</span>
+                        <FileText className="w-6 h-6 mx-auto mb-2" />
+                        <span className="text-sm">{fmt}</span>
                       </button>
                     ))}
                   </div>
@@ -1146,17 +1389,30 @@ export default function NextJSBeneficiaryDirectory() {
               {exportStep === 3 && (
                 <div className="space-y-3">
                   <p className="font-bold text-slate-800">Step 3: Fields to Include in Output Schema</p>
-                  <div className="grid grid-cols-2 gap-2 font-bold text-slate-700">
-                    {['full_name', 'age', 'gender', 'village', 'district', 'state', 'assigned_volunteer'].map(f => (
-                      <label key={f} className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-100 rounded-lg cursor-pointer hover:border-slate-200 select-none">
-                        <input
-                          type="checkbox"
-                          checked={exportFields.includes(f)}
-                          onChange={() => setExportFields(prev => prev.includes(f) ? prev.filter(item => item !== f) : [...prev, f])}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span className="capitalize">{f.replace('_', ' ')}</span>
-                      </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[
+                      { group: 'Personal', fields: ['fullName', 'email', 'phone', 'age', 'gender', 'dob', 'status', 'qualification'] },
+                      { group: 'Identity', fields: ['aadhaarNumber', 'panNumber'] },
+                      { group: 'Address', fields: ['addressLine1', 'village', 'taluka', 'district', 'state', 'pincode'] },
+                      { group: 'Beneficiary', fields: ['category', 'occupation', 'educationQualification', 'maritalStatus', 'bloodGroup'] },
+                      { group: 'Administrative', fields: ['assignedVolunteer', 'createdAt'] },
+                    ].map(({ group, fields }) => (
+                      <div key={group} className="bg-slate-50 rounded-xl border border-slate-100 p-3">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">{group}</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {fields.map(f => (
+                            <label key={f} className="flex items-center gap-1.5 p-1.5 bg-white border border-slate-100 rounded-lg cursor-pointer hover:border-slate-200 select-none">
+                              <input
+                                type="checkbox"
+                                checked={exportFields.includes(f)}
+                                onChange={() => setExportFields(prev => prev.includes(f) ? prev.filter(item => item !== f) : [...prev, f])}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                              <span className="text-[10px] font-semibold text-slate-700 truncate">{f.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1164,7 +1420,7 @@ export default function NextJSBeneficiaryDirectory() {
 
               {/* Step 4: Loading progress animation */}
               {exportStep === 4 && (
-                <div className="text-center py-6 space-y-4 animate-fade-in">
+                <div className="text-center py-8 space-y-4 animate-fade-in">
                   <RefreshCw className="w-8 h-8 text-blue-600 mx-auto animate-spin" />
                   <div>
                     <p className="font-bold text-slate-800">Processing secure compilation...</p>
@@ -1204,9 +1460,17 @@ export default function NextJSBeneficiaryDirectory() {
       <ConfirmDialog
         open={showBulkDeleteConfirm}
         onClose={() => setShowBulkDeleteConfirm(false)}
-        onConfirm={() => {
-          selectedIds.forEach(id => deleteMember(id));
+        onConfirm={async () => {
+          let failed = 0;
+          for (const id of selectedIds) {
+            try { await deleteMember(id); } catch { failed++; }
+          }
           setSelectedIds([]);
+          if (failed > 0) {
+            toast({ title: 'Partial Failure', description: `${failed} of ${selectedIds.length} members could not be deleted.`, variant: 'error' });
+          } else {
+            toast({ title: 'Members Deleted', description: `${selectedIds.length} members have been deleted.`, variant: 'success' });
+          }
         }}
         title="Delete Members"
         description={`Permanently delete all selected ${selectedIds.length} members?`}
@@ -1215,13 +1479,58 @@ export default function NextJSBeneficiaryDirectory() {
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => {
-          if (deleteTarget) deleteMember(deleteTarget.id);
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          const name = deleteTarget.fullName;
+          await deleteMember(deleteTarget.id);
+          toast({ title: 'Member Deleted', description: `${name} has been deleted.`, variant: 'success' });
         }}
         title="Delete Member"
-        description={`Delete record for ${deleteTarget?.full_name}?`}
+        description={`Soft-delete record for ${deleteTarget?.fullName}?`}
         confirmLabel="Delete"
       />
+
+      {/* TEMP PASSWORD DIALOG */}
+      {tempPassword && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full overflow-hidden shadow-2xl animate-scale-up">
+            <div className="bg-green-50 px-5 py-4 border-b border-green-200 flex justify-between items-center">
+              <h3 className="font-bold text-green-800 text-sm tracking-tight">Registration Successful</h3>
+              <button onClick={() => { setTempPassword(null); setTempPasswordEmail(''); }} className="text-green-600 hover:text-green-800 cursor-pointer p-1" aria-label="Close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-amber-800">Copy this temporary password now. It will NOT be shown again.</p>
+                  <p className="text-amber-700 mt-1">Account: <strong>{tempPasswordEmail}</strong></p>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  readOnly
+                  value={tempPassword}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg font-mono text-sm text-slate-900 pr-16"
+                />
+                <button
+                  onClick={() => { navigator.clipboard.writeText(tempPassword); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-primary text-white rounded-lg text-[10px] font-bold hover:bg-primary-hover transition-colors cursor-pointer"
+                >
+                  Copy
+                </button>
+              </div>
+              <button
+                onClick={() => { setTempPassword(null); setTempPasswordEmail(''); }}
+                className="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                I have saved the password — Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

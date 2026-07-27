@@ -48,7 +48,7 @@ export default function AdminRootPage() {
     { label: 'Website Content', icon: Settings, onClick: () => router.push('/admin/website-content') },
   ];
 
-  const getMemberName = (id: string) => members.find(m => m.id === id)?.full_name || 'Unknown';
+  const getMemberName = (id: string) => members.find(m => m.id === id)?.fullName || 'Unknown';
   const getCourseName = (id: string) => courses.find(c => c.id === id)?.title || 'Unknown';
 
   return (
@@ -272,10 +272,10 @@ export default function AdminRootPage() {
                 {members.slice(0, 3).map(m => (
                   <div key={m.id} className="flex justify-between items-center text-sm pb-3 border-b border-border last:border-0 last:pb-0">
                     <div className="min-w-0">
-                      <p className="font-bold text-sm text-foreground truncate">{m.full_name}</p>
+                      <p className="font-bold text-sm text-foreground truncate">{m.fullName}</p>
                       <p className="text-xs text-muted-foreground">{m.village}, {m.district}</p>
                     </div>
-                    <span className="text-xs text-muted-foreground font-mono bg-muted border border-border rounded-md px-2 py-0.5 shrink-0 ml-2">{m.created_at}</span>
+                    <span className="text-xs text-muted-foreground font-mono bg-muted border border-border rounded-md px-2 py-0.5 shrink-0 ml-2">{m.createdAt}</span>
                   </div>
                 ))}
               </div>

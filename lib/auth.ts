@@ -53,7 +53,7 @@ export const auth = betterAuth({
   trustedOrigins,
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false,
+    requireEmailVerification: true,
     password: {},
     sendResetPassword: async ({ user, url }) => {
       if (process.env.NODE_ENV !== "production") {
@@ -74,6 +74,27 @@ export const auth = betterAuth({
         });
       } catch (e) {
         console.error("[sendResetPassword] Failed to send email:", e);
+      }
+    },
+    sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
+      if (process.env.NODE_ENV !== "production") {
+        const token = url.split("token=")[1]?.split("&")[0] || "unknown";
+        console.log(`[Email Verification] ${user.email} — token: ${token.substring(0, 8)}...`);
+        return;
+      }
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: "noreply@compassionglobal.org",
+          to: user.email,
+          subject: "Verify Your Email — CompassionGlobal",
+          html: `<p>Welcome to CompassionGlobal! Please verify your email address by clicking the link below.</p>
+                 <p><a href="${url}">Verify Email</a></p>
+                 <p>This link expires in 24 hours. If you didn't create an account, ignore this email.</p>`,
+        });
+      } catch (e) {
+        console.error("[sendVerificationEmail] Failed to send email:", e);
       }
     },
   },
@@ -181,6 +202,20 @@ export const auth = betterAuth({
           } catch {
             // Audit logging failure should never break auth flow
           }
+        },
+      },
+    },
+    account: {
+      update: {
+        before: async (data) => {
+          const newPassword = (data as Record<string, unknown>).password as string | undefined;
+          if (newPassword) {
+            const result = validatePassword(newPassword);
+            if (!result.valid) {
+              throw new Error(result.errors.join("; "));
+            }
+          }
+          return { data };
         },
       },
     },

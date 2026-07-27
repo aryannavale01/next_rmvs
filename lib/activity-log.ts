@@ -21,7 +21,12 @@ export type ActivityAction =
   | "reject"
   | "send"
   | "login"
-  | "settings_change";
+  | "settings_change"
+  | "restore"
+  | "status_change"
+  | "document_verify"
+  | "document_reject"
+  | "document_view";
 
 const ENTITY_ICONS: Record<ActivityEntity, string> = {
   member: "Users",

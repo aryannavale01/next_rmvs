@@ -32,7 +32,7 @@ export default function AdminEnrollmentsPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
-  const getMemberName = React.useCallback((id: string) => members.find(m => m.id === id)?.full_name ?? 'Unknown Member', [members]);
+  const getMemberName = React.useCallback((id: string) => members.find(m => m.id === id)?.fullName ?? 'Unknown Member', [members]);
   const getCourseTitle = React.useCallback((id: string) => courses.find(c => c.id === id)?.title ?? 'Unknown Training', [courses]);
   const getMember = (id: string) => members.find(m => m.id === id);
   const getCourse = (id: string) => courses.find(c => c.id === id);
@@ -254,10 +254,10 @@ export default function AdminEnrollmentsPage() {
                     <div className="bg-background rounded-lg p-4 border border-border space-y-2">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shrink-0">
-                          {member.full_name.split(' ').map(n => n[0]).join('')}
+                          {member.fullName.split(' ').map((n: string) => n[0]).join('')}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-foreground">{member.full_name}</p>
+                          <p className="text-sm font-bold text-foreground">{member.fullName}</p>
                           <p className="text-[10px] text-muted-foreground">{member.email}</p>
                         </div>
                       </div>
