@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdmin } from '@/lib/admin-context';
 import { AdminCourse, SyllabusLesson, Coupon } from '@/lib/admin-types';
 import {
-  BookOpen, Search, Plus, Trash2, X, Eye, ChevronLeft, ChevronRight,
+  BookOpen, Search, Plus, Pencil, Trash2, X, Eye, ChevronLeft, ChevronRight,
   GripVertical, ChevronDown, ChevronUp, Check, FileText,
   DollarSign, Users, GraduationCap,
-  Tag,
+  Tag, Loader2,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import MetricCards from '@/components/MetricCards';
@@ -60,13 +60,18 @@ function WizInput({ label, value, onChange, type = 'text', placeholder = '' }: {
   );
 }
 
-function WizSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+type WizOption = string | { value: string; label: string };
+
+function WizSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: WizOption[] }) {
   return (
     <div>
       <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">{label}</label>
       <select value={value} onChange={e => onChange(e.target.value)}
         className="w-full px-3 py-2 text-sm border border-border rounded-lg outline-none bg-card">
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        {options.map(o => {
+          const opt = typeof o === 'string' ? { value: o, label: o } : o;
+          return <option key={opt.value} value={opt.value}>{opt.label}</option>;
+        })}
       </select>
     </div>
   );
@@ -96,16 +101,37 @@ const emptyWizard = {
 
 export default function AdminTrainingPage() {
   const router = useRouter();
-  const { courses, teachers, enrollments, members, addCourse, updateCourse, deleteCourse } = useAdmin();
+  const { teachers } = useAdmin();
 
+  const [courses, setCourses] = useState<AdminCourse[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Published' | 'Draft'>('All');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [editCourseId, setEditCourseId] = useState<string | null>(null);
+
+  const fetchCourses = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/courses');
+      if (res.ok) {
+        const data = await res.json();
+        setCourses(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      // fallback to empty
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchCourses(); }, [fetchCourses]);
 
   // Wizard state
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [wiz, setWiz] = useState(emptyWizard);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [couponDraft, setCouponDraft] = useState({ code: '', description: '', discountType: 'percentage' as 'percentage' | 'fixed', discountValue: 0, maxUses: 10, expiresAt: '' });
   const [lessonDraft, setLessonDraft] = useState({ title: '', type: 'Video' as SyllabusLesson['type'], duration: '' });
 
@@ -124,10 +150,46 @@ export default function AdminTrainingPage() {
     published: courses.filter(c => c.status === 'Published').length,
     draft: courses.filter(c => c.status === 'Draft').length,
     enrolled: courses.reduce((s, c) => s + c.seats_enrolled, 0),
-    totalApplications: enrollments.length,
-  }), [courses, enrollments]);
+    totalApplications: courses.reduce((s, c) => s + ((c as any).totalApplications ?? 0), 0),
+  }), [courses]);
 
-  const openWizard = () => { setWiz(emptyWizard); setCurrentStep(1); setShowWizard(true); };
+  const openWizard = () => { setWiz(emptyWizard); setCurrentStep(1); setEditCourseId(null); setSubmitError(null); setShowWizard(true); };
+
+  const openEdit = (course: AdminCourse) => {
+    setWiz({
+      title: course.title,
+      meta_description: course.meta_description,
+      category: course.category,
+      mode: course.mode,
+      location: course.location,
+      teacher_id: course.teacher_id,
+      start_date: course.start_date,
+      end_date: course.end_date,
+      duration: course.duration,
+      seats_total: course.seats_total,
+      access_code_required: course.access_code_required,
+      auto_approve: course.auto_approve,
+      price: course.price,
+      currency: course.currency,
+      coupons: course.coupons.map(c => ({
+        code: c.code,
+        description: c.description,
+        discountType: c.discountType,
+        discountValue: c.discountValue,
+        maxUses: c.maxUses ?? 10,
+        expiresAt: c.expiresAt ? c.expiresAt.split('T')[0] : '',
+      })),
+      required_docs: course.required_docs,
+      syllabus: course.syllabus,
+      status: course.status,
+      benefits: Array.isArray(course.benefits) ? course.benefits.join(', ') : '',
+      eligibility: course.eligibility,
+    });
+    setEditCourseId(course.id);
+    setCurrentStep(1);
+    setSubmitError(null);
+    setShowWizard(true);
+  };
 
   const addCouponToWizard = () => {
     if (!couponDraft.code) return;
@@ -156,36 +218,92 @@ export default function AdminTrainingPage() {
     });
   };
 
-  const handleWizardSubmit = () => {
-    addCourse({
+  const handleWizardSubmit = async () => {
+    const courseData = {
       title: wiz.title, meta_description: wiz.meta_description, category: wiz.category,
       mode: wiz.mode, location: wiz.location, teacher_id: wiz.teacher_id,
       start_date: wiz.start_date, end_date: wiz.end_date, duration: wiz.duration,
       seats_total: wiz.seats_total, access_code_required: wiz.access_code_required,
       auto_approve: wiz.auto_approve, price: wiz.price, currency: wiz.currency,
-      coupons: wiz.coupons.map(c => ({
-        id: '', code: c.code, description: c.description, discountType: c.discountType, discountValue: c.discountValue,
-        expiresAt: c.expiresAt || null, validFrom: null, maxUses: c.maxUses, usedCount: 0,
-        perUserLimit: null, minAmount: null, courseId: null, isActive: true,
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      })),
-      required_docs: wiz.required_docs, syllabus: wiz.syllabus,
+      required_docs: wiz.required_docs,
       status: wiz.status, benefits: wiz.benefits.split(',').map(b => b.trim()).filter(Boolean), eligibility: wiz.eligibility,
-    });
-    setShowWizard(false);
+      syllabus: wiz.syllabus.map(s => ({ title: s.title, type: s.type, duration: s.duration })),
+      coupons: wiz.coupons.map(c => ({ code: c.code, description: c.description, discountType: c.discountType, discountValue: c.discountValue, maxUses: c.maxUses, expiresAt: c.expiresAt })),
+    };
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = editCourseId
+        ? await fetch(`/api/admin/courses/${editCourseId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(courseData),
+          })
+        : await fetch('/api/admin/courses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(courseData),
+          });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        setSubmitError(err?.error || `Failed to save training (${res.status}). Please try again.`);
+        return;
+      }
+      await fetchCourses();
+      setShowWizard(false);
+      setEditCourseId(null);
+    } catch {
+      setSubmitError('Failed to save training. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  // Auto-open edit wizard if navigated from detail page
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const editId = params.get('editCourseId');
+    if (editId && courses.length > 0) {
+      const course = courses.find(c => c.id === editId);
+      if (course) {
+        openEdit(course);
+        window.history.replaceState({}, '', '/admin/training');
+      }
+    }
+  }, [courses]);
 
   const getTeacherName = (id: string) => teachers.find(t => t.id === id)?.fullName || 'Not assigned';
 
-  const togglePublish = (c: AdminCourse) => {
-    updateCourse(c.id, { status: c.status === 'Published' ? 'Draft' : 'Published' });
+  const togglePublish = async (c: AdminCourse) => {
+    const newStatus = c.status === 'Published' ? 'Draft' : 'Published';
+    try {
+      await fetch(`/api/admin/courses/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      await fetchCourses();
+    } catch {}
   };
 
-  const toggleAutoApprove = (c: AdminCourse) => {
-    updateCourse(c.id, { auto_approve: !c.auto_approve });
+  const toggleAutoApprove = async (c: AdminCourse) => {
+    try {
+      await fetch(`/api/admin/courses/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto_approve: !c.auto_approve }),
+      });
+      await fetchCourses();
+    } catch {}
   };
 
-  const handleDelete = (id: string) => { deleteCourse(id); setDeleteConfirm(null); };
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+      await fetchCourses();
+    } catch {}
+    setDeleteConfirm(null);
+  };
 
   const renderWizardStep = () => {
     switch (currentStep) {
@@ -208,7 +326,8 @@ export default function AdminTrainingPage() {
       case 2:
         return (
           <div className="space-y-4">
-            <WizSelect label="Assign Instructor" value={wiz.teacher_id || ''} onChange={v => setWiz(f => ({ ...f, teacher_id: v }))} options={teachers.map(t => t.id)} />
+            <WizSelect label="Assign Instructor" value={wiz.teacher_id || ''} onChange={v => setWiz(f => ({ ...f, teacher_id: v }))}
+              options={[{ value: '', label: 'Not assigned' }, ...teachers.map(t => ({ value: t.id, label: t.fullName }))]} />
             <div className="bg-background border border-border rounded-lg p-4">
               {wiz.teacher_id ? (() => {
                 const t = teachers.find(x => x.id === wiz.teacher_id);
@@ -439,7 +558,14 @@ export default function AdminTrainingPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 && (
+              {loading ? (
+                <tr><td colSpan={5} className="py-12">
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+                    <span className="ml-2 text-xs text-muted-foreground">Loading courses...</span>
+                  </div>
+                </td></tr>
+              ) : filtered.length === 0 && (
                 <tr><td colSpan={5} className="py-12">
                   <EmptyState icon={BookOpen} title="No trainings" description="Create your first training to start enrolling beneficiaries." />
                 </td></tr>
@@ -461,6 +587,7 @@ export default function AdminTrainingPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button onClick={() => router.push(`/admin/training/${c.id}`)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary"><Eye className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => openEdit(c)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-warning-text"><Pencil className="w-3.5 h-3.5" /></button>
                       <button onClick={() => setDeleteConfirm(c.id)} className="p-1.5 rounded-md hover:bg-destructive-bg text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </td>
@@ -480,7 +607,7 @@ export default function AdminTrainingPage() {
               className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] overflow-hidden flex flex-col">
               <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">Add New Training</h3>
+                  <h3 className="text-sm font-bold text-foreground">{editCourseId ? 'Edit Training' : 'Add New Training'}</h3>
                   <p className="text-[10px] text-muted-foreground">Step {currentStep} of 9: {STEP_LABELS[currentStep - 1]}</p>
                 </div>
                 <button onClick={() => setShowWizard(false)} className="p-1.5 rounded-md hover:bg-muted" aria-label="Close wizard"><X className="w-4 h-4" /></button>
@@ -491,22 +618,30 @@ export default function AdminTrainingPage() {
                   {renderWizardStep()}
                 </div>
               </div>
-              <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4 flex items-center justify-between">
-                <button onClick={() => setCurrentStep(s => Math.max(1, s - 1) as WizardStep)} disabled={currentStep === 1}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-accent disabled:opacity-30">
-                  <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                </button>
-                {currentStep < 9 ? (
-                  <button onClick={() => setCurrentStep(s => Math.min(9, s + 1) as WizardStep)}
-                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg">
-                    Next <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button onClick={handleWizardSubmit} disabled={!wiz.title}
-                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg disabled:opacity-30">
-                    <Check className="w-3.5 h-3.5" /> Create Training
-                  </button>
+              <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4">
+                {submitError && (
+                  <p className="text-xs text-destructive font-semibold mb-3 flex items-center gap-1.5">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-destructive shrink-0" /> {submitError}
+                  </p>
                 )}
+                <div className="flex items-center justify-between">
+                  <button onClick={() => setCurrentStep(s => Math.max(1, s - 1) as WizardStep)} disabled={currentStep === 1}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-accent disabled:opacity-30">
+                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  </button>
+                  {currentStep < 9 ? (
+                    <button onClick={() => setCurrentStep(s => Math.min(9, s + 1) as WizardStep)}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg">
+                      Next <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button onClick={handleWizardSubmit} disabled={!wiz.title || submitting}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg disabled:opacity-30">
+                      {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      {editCourseId ? 'Save Changes' : 'Create Training'}
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>

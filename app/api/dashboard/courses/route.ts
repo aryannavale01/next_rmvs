@@ -42,6 +42,11 @@ export async function GET(request: Request) {
       where: { status: 'active' },
       include: {
         syllabus: { orderBy: { sortOrder: 'asc' } },
+        _count: {
+          select: {
+            enrollments: { where: { status: { in: ['enrolled', 'in_progress'] } } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -57,7 +62,7 @@ export async function GET(request: Request) {
       location: c.location ?? '',
       startDate: c.startDate ? c.startDate.toISOString().split('T')[0] : '',
       endDate: c.endDate ? c.endDate.toISOString().split('T')[0] : '',
-      seatsLeft: c.seatsAvailable ?? 0,
+      seatsLeft: c.seatsTotal != null ? Math.max(0, c.seatsTotal - c._count.enrollments) : 0,
       totalSeats: c.seatsTotal ?? 0,
       price: c.price != null ? Number(c.price) : 0,
       syllabus: c.syllabus.map((s) => ({
