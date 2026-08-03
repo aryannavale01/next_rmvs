@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, stepUpErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { updateMemberSchema } from '@/lib/validations/admin-member';
 import { logActivity } from '@/lib/activity-log';
 import { getPublicUrl } from '@/lib/supabase-storage';
@@ -74,7 +74,7 @@ function mapProfileDetail(p: any) {
     courseEnrollments: (p.courseEnrollments ?? []).map((e: any) => ({
       id: e.id,
       course: e.course ? { id: e.course.id, title: e.course.title } : null,
-      batch: e.batch,
+      batch: e.batchLabel,
       trainer: e.trainer,
       enrollmentDate: e.enrollmentDate.toISOString().split('T')[0],
       completionDate: e.completionDate?.toISOString().split('T')[0] ?? null,
@@ -93,32 +93,34 @@ export async function GET(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
     const { id } = await params;
 
-    const profile = await prisma.profile.findUnique({
-      where: { id },
-      include: {
-        beneficiaryDetail: true,
-        beneficiaryAddresses: {
-          orderBy: { createdAt: 'desc' },
-        },
-        beneficiaryDocuments: {
-          orderBy: { createdAt: 'desc' },
-        },
-        courseEnrollments: {
-          include: {
-            course: {
-              select: { id: true, title: true },
-            },
+    const profile = await withRetry(() =>
+      prisma.profile.findUnique({
+        where: { id },
+        include: {
+          beneficiaryDetail: true,
+          beneficiaryAddresses: {
+            orderBy: { createdAt: 'desc' },
           },
-          orderBy: { enrollmentDate: 'desc' },
+          beneficiaryDocuments: {
+            orderBy: { createdAt: 'desc' },
+          },
+          courseEnrollments: {
+            include: {
+              course: {
+                select: { id: true, title: true },
+              },
+            },
+            orderBy: { enrollmentDate: 'desc' },
+          },
         },
-      },
-    });
+      })
+    );
 
     if (!profile) {
       return NextResponse.json(
@@ -136,10 +138,12 @@ export async function GET(
     )];
 
     if (verifiedByIds.length > 0) {
-      const users = await prisma.user.findMany({
-        where: { id: { in: verifiedByIds } },
-        select: { id: true, name: true, email: true },
-      });
+      const users = await withRetry(() =>
+        prisma.user.findMany({
+          where: { id: { in: verifiedByIds } },
+          select: { id: true, name: true, email: true },
+        })
+      );
       const nameMap = new Map(users.map(u => [u.id, u.name ?? u.email]));
       result.beneficiaryDocuments = result.beneficiaryDocuments.map((d: any) => ({
         ...d,
@@ -154,6 +158,8 @@ export async function GET(
 
     return NextResponse.json(result);
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[GET /api/admin/members/[id]]', error);
     return NextResponse.json(
       { error: 'Failed to fetch member details' },
@@ -168,7 +174,7 @@ export async function PATCH(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
@@ -196,14 +202,15 @@ export async function PATCH(
       );
     }
 
-    const existing = await prisma.profile.findUnique({ where: { id } });
+    const existing = await withRetry(() => prisma.profile.findUnique({ where: { id } }));
     if (!existing) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
 
     const { beneficiaryDetail, beneficiaryAddresses, ...profileFields } = parsed.data;
 
-    const profile = await prisma.$transaction(async (tx) => {
+    const profile = await withRetry(() =>
+      prisma.$transaction(async (tx) => {
       const updated = await tx.profile.update({
         where: { id },
         data: {
@@ -248,20 +255,23 @@ export async function PATCH(
       }
 
       return updated;
-    });
+      })
+    );
 
-    const completeProfile = await prisma.profile.findUnique({
-      where: { id },
-      include: {
-        beneficiaryDetail: true,
-        beneficiaryAddresses: { orderBy: { createdAt: 'desc' } },
-        beneficiaryDocuments: { orderBy: { createdAt: 'desc' } },
-        courseEnrollments: {
-          include: { course: { select: { id: true, title: true } } },
-          orderBy: { enrollmentDate: 'desc' },
+    const completeProfile = await withRetry(() =>
+      prisma.profile.findUnique({
+        where: { id },
+        include: {
+          beneficiaryDetail: true,
+          beneficiaryAddresses: { orderBy: { createdAt: 'desc' } },
+          beneficiaryDocuments: { orderBy: { createdAt: 'desc' } },
+          courseEnrollments: {
+            include: { course: { select: { id: true, title: true } } },
+            orderBy: { enrollmentDate: 'desc' },
+          },
         },
-      },
-    });
+      })
+    );
 
     await logActivity({
       entity: 'member',
@@ -273,6 +283,8 @@ export async function PATCH(
 
     return NextResponse.json(mapProfileDetail(completeProfile));
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[PATCH /api/admin/members/[id]]', error);
     return NextResponse.json(
       { error: 'Failed to update member' },

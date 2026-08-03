@@ -1,13 +1,13 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { requireAuth } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAuth, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(new Headers(req.headers));
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
@@ -25,21 +25,27 @@ export async function POST(req: NextRequest) {
     let updated;
 
     if (body.all === true) {
-      updated = await prisma.notification.updateMany({
-        where: { profileId: userId, read: false },
-        data: { read: true },
-      });
+      updated = await withRetry(() =>
+        prisma.notification.updateMany({
+          where: { profileId: userId, read: false },
+          data: { read: true },
+        })
+      );
     } else if (Array.isArray(body.ids) && body.ids.length > 0) {
-      updated = await prisma.notification.updateMany({
-        where: { id: { in: body.ids }, profileId: userId },
-        data: { read: true },
-      });
+      updated = await withRetry(() =>
+        prisma.notification.updateMany({
+          where: { id: { in: body.ids }, profileId: userId },
+          data: { read: true },
+        })
+      );
     } else {
       return NextResponse.json({ error: '"ids" must be a non-empty array' }, { status: 400 });
     }
 
     return NextResponse.json({ success: true, updated: updated.count });
-  } catch {
+  } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     return NextResponse.json({ error: 'Failed to mark notifications as read' }, { status: 500 });
   }
 }

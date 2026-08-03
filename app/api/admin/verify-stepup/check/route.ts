@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { STEP_UP_WINDOW_MS } from '@/lib/admin-security';
 
 export const dynamic = 'force-dynamic';
@@ -8,14 +8,16 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
-    const session = await prisma.session.findUnique({
-      where: { id: auth.session.session.id },
-      select: { stepUpVerifiedAt: true },
-    });
+    const session = await withRetry(() =>
+      prisma.session.findUnique({
+        where: { id: auth.session.session.id },
+        select: { stepUpVerifiedAt: true },
+      })
+    );
 
     const needsStepUp =
       !session?.stepUpVerifiedAt ||
@@ -25,7 +27,9 @@ export async function GET() {
       needsStepUp,
       stepUpVerifiedAt: session?.stepUpVerifiedAt?.toISOString() || null,
     });
-  } catch {
+  } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     return NextResponse.json({ error: 'Failed to check step-up status' }, { status: 500 });
   }
 }

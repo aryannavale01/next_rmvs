@@ -1,11 +1,11 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { requireAuth } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAuth, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(new Headers(req.headers));
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
@@ -15,16 +15,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing courseId' }, { status: 400 });
     }
 
-    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    const course = await withRetry(() => prisma.course.findUnique({ where: { id: courseId } }));
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
     const userId = auth.session.user.id;
 
-    const existing = await prisma.courseApplication.findUnique({
-      where: { profileId_courseId: { profileId: userId, courseId } },
-    });
+    const existing = await withRetry(() =>
+      prisma.courseApplication.findUnique({
+        where: { profileId_courseId: { profileId: userId, courseId } },
+      })
+    );
     if (existing) {
       return NextResponse.json({ error: 'Already applied to this course' }, { status: 409 });
     }
@@ -35,60 +37,66 @@ export async function POST(req: NextRequest) {
     if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
       const normalizedCode = couponCode.trim().toUpperCase();
 
-      const couponResult = await prisma.$transaction(async (tx) => {
-        const coupon = await tx.coupon.findFirst({
-          where: { code: { equals: normalizedCode, mode: 'insensitive' } },
-        });
-
-        if (!coupon) throw new Error('COUPON_NOT_FOUND');
-        if (!coupon.isActive) throw new Error('COUPON_INACTIVE');
-        if (coupon.validFrom && coupon.validFrom > new Date()) throw new Error('COUPON_NOT_YET_VALID');
-        if (coupon.expiresAt && coupon.expiresAt < new Date()) throw new Error('COUPON_EXPIRED');
-        if (coupon.courseId && coupon.courseId !== courseId) throw new Error('COUPON_WRONG_COURSE');
-        if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) throw new Error('COUPON_EXHAUSTED');
-
-        if (coupon.perUserLimit !== null) {
-          const count = await tx.couponRedemption.count({
-            where: { couponId: coupon.id, userId },
+      const couponResult = await withRetry(() =>
+        prisma.$transaction(async (tx) => {
+          const coupon = await tx.coupon.findFirst({
+            where: { code: { equals: normalizedCode, mode: 'insensitive' } },
           });
-          if (count >= coupon.perUserLimit) throw new Error('COUPON_USER_LIMIT');
-        }
 
-        const discount = coupon.discountType === 'percentage'
-          ? Math.round((finalPrice * Number(coupon.discountValue)) / 100)
-          : Number(coupon.discountValue);
-        finalPrice = Math.max(0, finalPrice - discount);
+          if (!coupon) throw new Error('COUPON_NOT_FOUND');
+          if (!coupon.isActive) throw new Error('COUPON_INACTIVE');
+          if (coupon.validFrom && coupon.validFrom > new Date()) throw new Error('COUPON_NOT_YET_VALID');
+          if (coupon.expiresAt && coupon.expiresAt < new Date()) throw new Error('COUPON_EXPIRED');
+          if (coupon.courseId && coupon.courseId !== courseId) throw new Error('COUPON_WRONG_COURSE');
+          if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) throw new Error('COUPON_EXHAUSTED');
 
-        await tx.coupon.update({
-          where: { id: coupon.id },
-          data: { usedCount: { increment: 1 } },
-        });
+          if (coupon.perUserLimit !== null) {
+            const count = await tx.couponRedemption.count({
+              where: { couponId: coupon.id, userId },
+            });
+            if (count >= coupon.perUserLimit) throw new Error('COUPON_USER_LIMIT');
+          }
 
-        return coupon;
-      });
+          const discount = coupon.discountType === 'percentage'
+            ? Math.round((finalPrice * Number(coupon.discountValue)) / 100)
+            : Number(coupon.discountValue);
+          finalPrice = Math.max(0, finalPrice - discount);
+
+          await tx.coupon.update({
+            where: { id: coupon.id },
+            data: { usedCount: { increment: 1 } },
+          });
+
+          return coupon;
+        })
+      );
 
       appliedCouponId = couponResult.id;
     }
 
-    const application = await prisma.courseApplication.create({
-      data: {
-        profileId: userId,
-        courseId,
-        amountDue: finalPrice,
-        status: 'pending',
-        couponApplied: !!appliedCouponId,
-        documents: documents || undefined,
-      },
-    });
+    const application = await withRetry(() =>
+      prisma.courseApplication.create({
+        data: {
+          profileId: userId,
+          courseId,
+          amountDue: finalPrice,
+          status: 'pending',
+          couponApplied: !!appliedCouponId,
+          documents: documents || undefined,
+        },
+      })
+    );
 
     if (appliedCouponId) {
-      await prisma.couponRedemption.create({
-        data: {
-          couponId: appliedCouponId,
-          userId,
-          courseApplicationId: application.id,
-        },
-      });
+      await withRetry(() =>
+        prisma.couponRedemption.create({
+          data: {
+            couponId: appliedCouponId,
+            userId,
+            courseApplicationId: application.id,
+          },
+        })
+      );
     }
 
     return NextResponse.json({
@@ -100,6 +108,8 @@ export async function POST(req: NextRequest) {
     if (e?.code === 'P2002') {
       return NextResponse.json({ error: 'Already applied to this course' }, { status: 409 });
     }
+    const dbResp = dbErrorResponse(e);
+    if (dbResp) return dbResp;
     const reasonMap: Record<string, string> = {
       COUPON_NOT_FOUND: 'Coupon code not found',
       COUPON_INACTIVE: 'Coupon is no longer active',

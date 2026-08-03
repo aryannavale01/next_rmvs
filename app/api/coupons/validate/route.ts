@@ -1,11 +1,11 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { requireAuth } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAuth, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(new Headers(req.headers));
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
@@ -17,9 +17,11 @@ export async function POST(req: NextRequest) {
 
     const normalizedCode = code.trim().toUpperCase();
 
-    const coupon = await prisma.coupon.findFirst({
-      where: { code: { equals: normalizedCode, mode: 'insensitive' } },
-    });
+    const coupon = await withRetry(() =>
+      prisma.coupon.findFirst({
+        where: { code: { equals: normalizedCode, mode: 'insensitive' } },
+      })
+    );
 
     if (!coupon) {
       return NextResponse.json({ valid: false, reason: 'not_found' }, { status: 404 });
@@ -46,15 +48,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (coupon.perUserLimit !== null) {
-      const userRedemptions = await prisma.couponRedemption.count({
-        where: { couponId: coupon.id, userId: auth.session.user.id },
-      });
+      const userRedemptions = await withRetry(() =>
+        prisma.couponRedemption.count({
+          where: { couponId: coupon.id, userId: auth.session.user.id },
+        })
+      );
       if (userRedemptions >= coupon.perUserLimit) {
         return NextResponse.json({ valid: false, reason: 'user_limit_reached' }, { status: 400 });
       }
     }
 
-    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    const course = await withRetry(() => prisma.course.findUnique({ where: { id: courseId } }));
     if (!course) {
       return NextResponse.json({ valid: false, reason: 'course_not_found' }, { status: 404 });
     }
@@ -68,7 +72,9 @@ export async function POST(req: NextRequest) {
       discountType: coupon.discountType,
       discountValue: Number(coupon.discountValue),
     });
-  } catch {
+  } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     return NextResponse.json({ error: 'Failed to validate coupon' }, { status: 500 });
   }
 }

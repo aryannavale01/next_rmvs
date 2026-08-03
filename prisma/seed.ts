@@ -144,7 +144,6 @@ const COURSES = [
     startDate: dateStr(-30),
     endDate: dateStr(26),
     seatsTotal: 30,
-    seatsAvailable: 22,
     instructorName: "Dr. Priya Sharma",
     instructorRole: "Senior Health Consultant",
     benefits: ["Free certification", "Job placement assistance", "Stipend provided"],
@@ -168,7 +167,6 @@ const COURSES = [
     startDate: dateStr(-15),
     endDate: dateStr(27),
     seatsTotal: 50,
-    seatsAvailable: 38,
     instructorName: "Anita Desai",
     instructorRole: "Digital Skills Trainer",
     benefits: ["Free smartphone access", "Certificate", "Ongoing support group"],
@@ -192,7 +190,6 @@ const COURSES = [
     startDate: dateStr(14),
     endDate: dateStr(84),
     seatsTotal: 25,
-    seatsAvailable: 20,
     instructorName: "Sunita Kulkarni",
     instructorRole: "Leadership Coach",
     benefits: ["Mentorship program", "Networking opportunities", "Certificate"],
@@ -216,7 +213,6 @@ const COURSES = [
     startDate: dateStr(30),
     endDate: dateStr(114),
     seatsTotal: 20,
-    seatsAvailable: 18,
     instructorName: "Prof. Ramesh Patil",
     instructorRole: "Environmental Scientist",
     benefits: ["Field visits", "Equipment provided", "Certificate", "Project funding"],
@@ -240,7 +236,6 @@ const COURSES = [
     startDate: dateStr(7),
     endDate: dateStr(91),
     seatsTotal: 25,
-    seatsAvailable: 20,
     instructorName: "Dr. Meera Iyer",
     instructorRole: "Yoga Therapist & Ayurveda Practitioner",
     benefits: ["Yoga certification", "Wellness toolkit", "Certificate", "Monthly wellness kit"],
@@ -265,12 +260,12 @@ async function seedCourses() {
           description = $4, duration = $5, price = $6,
           mode = $7::training_mode, location = $8,
           start_date = $9::date, end_date = $10::date,
-          seats_total = $11, seats_available = $12,
-          instructor_name = $13, instructor_role = $14,
-          benefits = $15, eligibility = $16, required_documents = $17,
-          visibility = $18::course_visibility, status = $19::course_status,
+          seats_total = $11,
+          instructor_name = $12, instructor_role = $13,
+          benefits = $14, eligibility = $15, required_documents = $16,
+          visibility = $17::course_visibility, status = $18::course_status,
           updated_at = NOW()
-        WHERE slug = $20`,
+        WHERE slug = $19`,
         c.title,
         c.category,
         c.level,
@@ -282,7 +277,6 @@ async function seedCourses() {
         c.startDate,
         c.endDate,
         c.seatsTotal,
-        c.seatsAvailable,
         c.instructorName,
         c.instructorRole,
         c.benefits,
@@ -300,17 +294,17 @@ async function seedCourses() {
       `INSERT INTO courses (
         id, title, slug, category, level, description, duration,
         price, mode, location, start_date, end_date,
-        seats_total, seats_available,
+        seats_total,
         instructor_name, instructor_role,
         benefits, eligibility, required_documents,
         visibility, status, created_at, updated_at
       ) VALUES (
         $1, $2, $3, $4::course_category, $5::course_level, $6, $7,
         $8, $9::training_mode, $10, $11::date, $12::date,
-        $13, $14,
-        $15, $16,
-        $17, $18, $19,
-        $20::course_visibility, $21::course_status, NOW(), NOW()
+        $13,
+        $14, $15,
+        $16, $17, $18,
+        $19::course_visibility, $20::course_status, NOW(), NOW()
       )`,
       c.id,
       c.title,
@@ -325,7 +319,6 @@ async function seedCourses() {
       c.startDate,
       c.endDate,
       c.seatsTotal,
-      c.seatsAvailable,
       c.instructorName,
       c.instructorRole,
       c.benefits,
@@ -597,7 +590,7 @@ async function seedApplications(userId: string) {
   const existingCourseIds = new Set(existing.map((r) => r.course_id));
 
   const slugs = [
-    { slug: "community-health-worker-training", status: "approved", daysAgo: 60 },
+    { slug: "community-health-worker-training", status: "seat_reserved", daysAgo: 60 },
     { slug: "digital-literacy-for-women", status: "pending", daysAgo: 30 },
     { slug: "womens-leadership-program", status: "under_review", daysAgo: 10 },
   ];
@@ -789,6 +782,165 @@ async function seedActivities(userId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Bulk test data for Training Operations Dashboard
+// ---------------------------------------------------------------------------
+
+type Scale = "small" | "medium" | "large";
+
+function getScaleConfig(scale: Scale) {
+  switch (scale) {
+    case "small":
+      return { users: 10, appsPerUser: [1, 3] as [number, number], enrolledPct: 0.2 };
+    case "medium":
+      return { users: 50, appsPerUser: [1, 4] as [number, number], enrolledPct: 0.15 };
+    case "large":
+      return { users: 200, appsPerUser: [2, 5] as [number, number], enrolledPct: 0.12 };
+  }
+}
+
+const APPLICATION_STATUSES: { status: string; weight: number }[] = [
+  { status: "pending", weight: 25 },
+  { status: "under_review", weight: 20 },
+  { status: "documents_verified", weight: 15 },
+  { status: "seat_reserved", weight: 15 },
+  { status: "waitlisted", weight: 10 },
+  { status: "rejected", weight: 15 },
+];
+
+function weightedRandom<T extends { weight: number }>(items: T[]): T {
+  const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+  let random = Math.random() * totalWeight;
+  for (const item of items) {
+    random -= item.weight;
+    if (random <= 0) return item;
+  }
+  return items[items.length - 1];
+}
+
+function randomBetween(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+async function seedBulkTestData() {
+  const scale: Scale = (process.env.SEED_SCALE as Scale) || "small";
+  if (!["small", "medium", "large"].includes(scale)) {
+    console.log(`  Invalid SEED_SCALE "${scale}", defaulting to "small"`);
+  }
+  const config = getScaleConfig(scale === "small" ? scale : scale);
+  console.log(`\n=== Seeding Bulk Test Data (scale: ${scale}, ~${config.users} users) ===\n`);
+
+  const courseRows = await prisma.$queryRawUnsafe<{ id: string; slug: string; seats_total: number }[]>(
+    "SELECT id, slug, seats_total FROM courses WHERE status = 'active'"
+  );
+  if (courseRows.length === 0) {
+    console.log("  SKIP: no active courses found");
+    return;
+  }
+
+  const existingBulkCount = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+    "SELECT COUNT(*) as count FROM course_applications WHERE profile_id IN (SELECT id FROM profiles WHERE email LIKE 'test.bulk_%@example.com')"
+  );
+  if (existingBulkCount[0].count > BigInt(10)) {
+    console.log(`  SKIP: ${existingBulkCount[0].count} bulk test applications already exist`);
+    return;
+  }
+
+  const BATCH_SIZE = 50;
+  let totalApps = 0;
+  let totalEnrollments = 0;
+
+  for (let batchStart = 0; batchStart < config.users; batchStart += BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, config.users);
+    const userIds: string[] = [];
+
+    for (let i = batchStart; i < batchEnd; i++) {
+      const userId = uuid();
+      const email = `test.bulk_${i}@example.com`;
+      const name = `Test User ${i}`;
+      const now = new Date();
+
+      await prisma.$executeRawUnsafe(
+        'INSERT INTO "User" (id, email, "emailVerified", name, role, "mustChangePassword", "createdAt", "updatedAt") VALUES ($1, $2, true, $3, $4::"Role", false, $5, $6) ON CONFLICT DO NOTHING',
+        userId, email, name, "MEMBER", now, now
+      );
+
+      try {
+        await prisma.$executeRawUnsafe(
+          'INSERT INTO profiles (id, full_name, email, role, district, state, updated_at) VALUES ($1, $2, $3, $4::user_role, $5, $6, $7) ON CONFLICT (id) DO NOTHING',
+          userId, name, email, "member",
+          ["Pune", "Nashik", "Satara", "Mumbai", "Nagpur"][i % 5],
+          "Maharashtra", now
+        );
+      } catch { /* trigger may handle it */ }
+
+      userIds.push(userId);
+    }
+
+    for (const userId of userIds) {
+      const numApps = randomBetween(config.appsPerUser[0], config.appsPerUser[1]);
+      const usedCourseIds = new Set<string>();
+
+      for (let a = 0; a < numApps; a++) {
+        const course = courseRows[randomBetween(0, courseRows.length - 1)];
+        if (usedCourseIds.has(course.id)) continue;
+        usedCourseIds.add(course.id);
+
+        const statusObj = weightedRandom(APPLICATION_STATUSES);
+        const appliedDaysAgo = randomBetween(1, 90);
+        const appId = uuid();
+
+        const seatReservedAt = statusObj.status === "seat_reserved" ? daysAgo(appliedDaysAgo - randomBetween(1, 5)) : null;
+        const waitlistedAt = statusObj.status === "waitlisted" ? daysAgo(appliedDaysAgo - 1) : null;
+        const reviewNotes = ["Approved after document verification", "Documents look good", "Waiting for recommendation letter", "Incomplete application", "Duplicate application detected", null][randomBetween(0, 5)];
+
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO course_applications (id, profile_id, course_id, applied_date, status, has_testimonial, notes, coupon_applied, payment_status, documents, seat_reserved_at, waitlisted_at, review_notes, converted_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5::application_status, $6, $7, false, 'pending'::payment_status, $8::jsonb, $9, $10, $11, $12, NOW(), NOW())
+           ON CONFLICT (profile_id, course_id) DO NOTHING`,
+          appId,
+          userId,
+          course.id,
+          daysAgo(appliedDaysAgo),
+          statusObj.status,
+          Math.random() > 0.8,
+          `Application note for ${statusObj.status}`,
+          JSON.stringify([
+            { type: "aadhaar", status: Math.random() > 0.3 ? "verified" : "pending" },
+            { type: "photo", status: "verified" },
+          ]),
+          seatReservedAt,
+          waitlistedAt,
+          reviewNotes,
+          statusObj.status === "seat_reserved" && Math.random() > 0.5 ? daysAgo(appliedDaysAgo - randomBetween(2, 7)) : null,
+        );
+        totalApps++;
+
+        if (statusObj.status === "seat_reserved" && Math.random() < config.enrolledPct) {
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO course_enrollments (id, profile_id, course_id, enrollment_date, status, attendance, documents_verified, batch_label, seat_number, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5::enrollment_status, $6, true, $7, $8, NOW(), NOW())
+             ON CONFLICT DO NOTHING`,
+            uuid(),
+            userId,
+            course.id,
+            daysAgo(appliedDaysAgo - randomBetween(3, 10)),
+            Math.random() > 0.3 ? "enrolled" : "in_progress",
+            randomBetween(40, 95),
+            `Batch ${new Date().getFullYear()}-${String(Math.floor(Math.random() * 4) + 1).padStart(2, "0")}`,
+            randomBetween(1, course.seats_total ?? 30),
+          );
+          totalEnrollments++;
+        }
+      }
+    }
+
+    console.log(`  Batch ${batchStart + 1}-${batchEnd}: created ${userIds.length} users`);
+  }
+
+  console.log(`\n  Total: ${totalApps} applications, ${totalEnrollments} enrollments across ${config.users} users`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -836,6 +988,8 @@ async function main() {
     await seedNotifications(memberId);
     await seedActivities(memberId);
   }
+
+  await seedBulkTestData();
 
   console.log("\n=== Seed Complete ===");
 }

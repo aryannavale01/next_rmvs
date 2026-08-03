@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireStepUp, stepUpErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity-log';
 
 function mapCoupon(c: any) {
   return {
@@ -23,9 +24,9 @@ function mapCoupon(c: any) {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   const { id } = await params;
@@ -39,9 +40,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!normalizedCode) {
         return NextResponse.json({ error: 'Code cannot be empty' }, { status: 400 });
       }
-      const existing = await prisma.coupon.findFirst({
-        where: { code: { equals: normalizedCode, mode: 'insensitive' }, id: { not: id } },
-      });
+      const existing = await withRetry(() =>
+        prisma.coupon.findFirst({
+          where: { code: { equals: normalizedCode, mode: 'insensitive' }, id: { not: id } },
+        })
+      );
       if (existing) {
         return NextResponse.json({ error: 'A coupon with this code already exists' }, { status: 409 });
       }
@@ -96,13 +99,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       updateData.isActive = Boolean(body.isActive);
     }
 
-    const coupon = await prisma.coupon.update({
-      where: { id },
-      data: updateData,
+    const coupon = await withRetry(() =>
+      prisma.coupon.update({
+        where: { id },
+        data: updateData,
+      })
+    );
+
+    await logActivity({
+      entity: 'coupon',
+      entityId: coupon.id,
+      action: 'coupon_update',
+      description: `Updated coupon ${coupon.code}`,
+      performedBy: auth.session.user.id,
     });
 
     return NextResponse.json(mapCoupon(coupon));
   } catch (e: any) {
+    const dbResp = dbErrorResponse(e);
+    if (dbResp) return dbResp;
     if (e?.code === 'P2025') {
       return NextResponse.json({ error: 'Coupon not found' }, { status: 404 });
     }
@@ -114,29 +129,59 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   const { id } = await params;
 
   try {
-    const redemptionCount = await prisma.couponRedemption.count({
-      where: { couponId: id },
-    });
+    const existing = await withRetry(() =>
+      prisma.coupon.findUnique({
+        where: { id },
+        select: { code: true },
+      })
+    );
+    if (!existing) {
+      return NextResponse.json({ error: 'Coupon not found' }, { status: 404 });
+    }
+
+    const redemptionCount = await withRetry(() =>
+      prisma.couponRedemption.count({
+        where: { couponId: id },
+      })
+    );
 
     if (redemptionCount > 0) {
-      const coupon = await prisma.coupon.update({
-        where: { id },
-        data: { isActive: false },
+      const coupon = await withRetry(() =>
+        prisma.coupon.update({
+          where: { id },
+          data: { isActive: false },
+        })
+      );
+      await logActivity({
+        entity: 'coupon',
+        entityId: id,
+        action: 'coupon_delete',
+        description: `Deactivated coupon ${existing.code} (has redemptions)`,
+        performedBy: auth.session.user.id,
       });
       return NextResponse.json({ deleted: false, deactivated: true, coupon: mapCoupon(coupon) });
     }
 
-    await prisma.coupon.delete({ where: { id } });
+    await withRetry(() => prisma.coupon.delete({ where: { id } }));
+    await logActivity({
+      entity: 'coupon',
+      entityId: id,
+      action: 'coupon_delete',
+      description: `Deleted coupon ${existing.code}`,
+      performedBy: auth.session.user.id,
+    });
     return NextResponse.json({ deleted: true, deactivated: false });
   } catch (e: any) {
+    const dbResp = dbErrorResponse(e);
+    if (dbResp) return dbResp;
     if (e?.code === 'P2025') {
       return NextResponse.json({ error: 'Coupon not found' }, { status: 404 });
     }

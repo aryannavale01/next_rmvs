@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
 
 export const dynamic = 'force-dynamic';
@@ -11,13 +11,13 @@ export async function PATCH(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
     const { id } = await params;
 
-    const existing = await prisma.teacher.findUnique({ where: { id } });
+    const existing = await withRetry(() => prisma.teacher.findUnique({ where: { id } }));
     if (!existing) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 404 });
     }
@@ -29,10 +29,12 @@ export async function PATCH(
       );
     }
 
-    const updated = await prisma.teacher.update({
-      where: { id },
-      data: { status: 'active' },
-    });
+    const updated = await withRetry(() =>
+      prisma.teacher.update({
+        where: { id },
+        data: { status: 'active' },
+      }),
+    );
 
     await logActivity({
       entity: 'teacher',
@@ -48,6 +50,8 @@ export async function PATCH(
       status: updated.status,
     });
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[PATCH /api/admin/teachers/[id]/restore]', error);
     return NextResponse.json(
       { error: 'Failed to restore teacher' },

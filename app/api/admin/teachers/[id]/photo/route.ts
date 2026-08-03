@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
 import { uploadFile, deleteFile, getPublicUrl } from '@/lib/supabase-storage';
 import { BUCKETS } from '@/lib/upload-config';
@@ -16,13 +16,15 @@ export async function POST(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
     const { id } = await params;
 
-    const existing = await prisma.teacher.findUnique({ where: { id }, select: { id: true, profilePhoto: true } });
+    const existing = await withRetry(() =>
+      prisma.teacher.findUnique({ where: { id }, select: { id: true, profilePhoto: true } }),
+    );
     if (!existing) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 404 });
     }
@@ -84,10 +86,12 @@ export async function POST(
       uploadFile(BUCKET, avatarPath, avatarBuffer, 'image/webp'),
     ]);
 
-    await prisma.teacher.update({
-      where: { id },
-      data: { profilePhoto: avatarPath },
-    });
+    await withRetry(() =>
+      prisma.teacher.update({
+        where: { id },
+        data: { profilePhoto: avatarPath },
+      }),
+    );
 
     if (oldPath) {
       try { await deleteFile(BUCKET, oldPath); } catch { /* ignore */ }
@@ -107,6 +111,8 @@ export async function POST(
       storagePath: avatarPath,
     });
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[POST /api/admin/teachers/[id]/photo]', error);
     return NextResponse.json(
       { error: 'Failed to upload photo — try again' },
@@ -121,13 +127,15 @@ export async function DELETE(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
     const { id } = await params;
 
-    const existing = await prisma.teacher.findUnique({ where: { id }, select: { profilePhoto: true } });
+    const existing = await withRetry(() =>
+      prisma.teacher.findUnique({ where: { id }, select: { profilePhoto: true } }),
+    );
     if (!existing) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 404 });
     }
@@ -136,13 +144,17 @@ export async function DELETE(
       try { await deleteFile(BUCKET, existing.profilePhoto); } catch { /* ignore */ }
     }
 
-    await prisma.teacher.update({
-      where: { id },
-      data: { profilePhoto: null },
-    });
+    await withRetry(() =>
+      prisma.teacher.update({
+        where: { id },
+        data: { profilePhoto: null },
+      }),
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[DELETE /api/admin/teachers/[id]/photo]', error);
     return NextResponse.json(
       { error: 'Failed to delete photo — try again' },

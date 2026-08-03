@@ -26,7 +26,15 @@ export type ActivityAction =
   | "status_change"
   | "document_verify"
   | "document_reject"
-  | "document_view";
+  | "document_view"
+  | "coupon_create"
+  | "coupon_update"
+  | "coupon_delete"
+  | "certificate_generate"
+  | "certificate_approve"
+  | "certificate_revoke"
+  | "certificate_request_approve"
+  | "certificate_request_reject";
 
 const ENTITY_ICONS: Record<ActivityEntity, string> = {
   member: "Users",

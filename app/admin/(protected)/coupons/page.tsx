@@ -8,6 +8,9 @@ import {
 } from 'lucide-react';
 import MetricCards from '@/components/MetricCards';
 import { EmptyState } from '@/components/ui/empty-state';
+import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from '@/lib/admin-stepup';
+
+const COUPON_ACTION = 'manage_coupons';
 
 export default function AdminCouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -84,6 +87,7 @@ export default function AdminCouponsPage() {
 
   const handleSave = async () => {
     if (!form.code || !form.description) return;
+    if (!(await requireStepUpClient('/admin/coupons', COUPON_ACTION))) return;
     const payload = {
       code: form.code.trim().toUpperCase(),
       description: form.description.trim(),
@@ -107,6 +111,10 @@ export default function AdminCouponsPage() {
         });
         if (!res.ok) {
           const data = await res.json();
+          if (isStepUpRequiredResponse(res.status, data.error)) {
+            redirectToStepUp('/admin/coupons', COUPON_ACTION);
+            return;
+          }
           setError(data.error || 'Failed to update coupon');
           return;
         }
@@ -118,6 +126,10 @@ export default function AdminCouponsPage() {
         });
         if (!res.ok) {
           const data = await res.json();
+          if (isStepUpRequiredResponse(res.status, data.error)) {
+            redirectToStepUp('/admin/coupons', COUPON_ACTION);
+            return;
+          }
           setError(data.error || 'Failed to create coupon');
           return;
         }
@@ -131,10 +143,15 @@ export default function AdminCouponsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!(await requireStepUpClient('/admin/coupons', COUPON_ACTION))) return;
     try {
       const res = await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
+        if (isStepUpRequiredResponse(res.status, data.error)) {
+          redirectToStepUp('/admin/coupons', COUPON_ACTION);
+          return;
+        }
         setError(data.error || 'Failed to delete coupon');
         setDeleteConfirm(null);
         return;
@@ -158,6 +175,7 @@ export default function AdminCouponsPage() {
   };
 
   const toggleStatus = async (c: Coupon) => {
+    if (!(await requireStepUpClient('/admin/coupons', COUPON_ACTION))) return;
     try {
       const res = await fetch(`/api/admin/coupons/${c.id}`, {
         method: 'PATCH',
@@ -166,6 +184,10 @@ export default function AdminCouponsPage() {
       });
       if (!res.ok) {
         const data = await res.json();
+        if (isStepUpRequiredResponse(res.status, data.error)) {
+          redirectToStepUp('/admin/coupons', COUPON_ACTION);
+          return;
+        }
         setError(data.error || 'Failed to toggle status');
         return;
       }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { createMemberSchema } from '@/lib/validations/admin-member';
 import { logActivity } from '@/lib/activity-log';
 import { hashPassword } from '@better-auth/utils/password';
@@ -38,7 +38,7 @@ function generateTempPassword(): string {
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
@@ -56,9 +56,11 @@ export async function POST(request: NextRequest) {
 
     // Pre-check: collect all emails and find which ones already exist
     const emails = rows.map(r => r.email);
-    const existingUsers = await prisma.$queryRawUnsafe<{ email: string }[]>(
-      'SELECT email FROM "User" WHERE email IN (' + emails.map((_, i) => `$${i + 1}`).join(',') + ')',
-      ...emails,
+    const existingUsers = await withRetry(() =>
+      prisma.$queryRawUnsafe<{ email: string }[]>(
+        'SELECT email FROM "User" WHERE email IN (' + emails.map((_, i) => `$${i + 1}`).join(',') + ')',
+        ...emails,
+      ),
     );
     const existingEmails = new Set(existingUsers.map(u => u.email));
 
@@ -79,7 +81,8 @@ export async function POST(request: NextRequest) {
         const userId = crypto.randomBytes(16).toString('hex');
         const now = new Date();
 
-        const profile = await prisma.$transaction(async (tx) => {
+        const profile = await withRetry(() =>
+          prisma.$transaction(async (tx) => {
           await tx.$executeRawUnsafe(
             'INSERT INTO "User" (id, email, "emailVerified", name, role, "mustChangePassword", "lastLoginAt", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5::"Role", $6, $7, $8, $9)',
             userId,
@@ -141,7 +144,8 @@ export async function POST(request: NextRequest) {
           }
 
           return prof;
-        });
+        })
+        );
 
         results.push({ row: i + 1, success: true, id: profile.id, email: data.email, temporaryPassword });
       } catch (err: any) {
@@ -162,6 +166,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ results, successCount, failureCount });
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[POST /api/admin/members/bulk-import]', error);
     return NextResponse.json(
       { error: 'Failed to process bulk import' },

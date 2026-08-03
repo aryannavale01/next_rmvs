@@ -13,7 +13,9 @@ import { getStatusStyle } from '@/lib/status-styles';
 
 export default function AdminRootPage() {
   const router = useRouter();
-  const { members, courses, enrollments, certificates, teachers, coupons, notifications, activityLogs } = useAdmin();
+  const { members, certificates, teachers, coupons, notifications, activityLogs } = useAdmin();
+  const [courses] = useState<any[]>([]);
+  const [enrollments] = useState<any[]>([]);
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [hoveredLine, setHoveredLine] = useState<number | null>(null);
   const [hoveredArea, setHoveredArea] = useState<number | null>(null);

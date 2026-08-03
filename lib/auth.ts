@@ -135,7 +135,7 @@ export const auth = betterAuth({
     customRules: {
       "/sign-in/email": {
         window: 900,
-        max: 5,
+        max: parseInt(process.env.AUTH_SIGNIN_RATE_LIMIT_MAX || "5", 10),
       },
       "/sign-up/email": {
         window: 900,

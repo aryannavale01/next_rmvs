@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { reviewDocumentSchema } from '@/lib/validations/admin-member';
 import { logActivity } from '@/lib/activity-log';
 
@@ -12,7 +12,7 @@ export async function PATCH(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
@@ -27,12 +27,12 @@ export async function PATCH(
       );
     }
 
-    const profile = await prisma.profile.findUnique({ where: { id } });
+    const profile = await withRetry(() => prisma.profile.findUnique({ where: { id } }));
     if (!profile) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
 
-    const doc = await prisma.beneficiaryDocument.findUnique({ where: { id: docId } });
+    const doc = await withRetry(() => prisma.beneficiaryDocument.findUnique({ where: { id: docId } }));
     if (!doc || doc.profileId !== id) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
@@ -51,15 +51,17 @@ export async function PATCH(
         );
       }
 
-      const updated = await prisma.beneficiaryDocument.update({
-        where: { id: docId },
-        data: {
-          status: 'verified',
-          verifiedDate: now,
-          verifiedBy: auth.session.user.id,
-          rejectionReason: null,
-        },
-      });
+      const updated = await withRetry(() =>
+        prisma.beneficiaryDocument.update({
+          where: { id: docId },
+          data: {
+            status: 'verified',
+            verifiedDate: now,
+            verifiedBy: auth.session.user.id,
+            rejectionReason: null,
+          },
+        }),
+      );
 
       await logActivity({
         entity: 'member',
@@ -83,15 +85,17 @@ export async function PATCH(
         );
       }
 
-      const updated = await prisma.beneficiaryDocument.update({
-        where: { id: docId },
-        data: {
-          status: 'rejected',
-          verifiedDate: now,
-          verifiedBy: auth.session.user.id,
-          rejectionReason: rejectionReason!,
-        },
-      });
+      const updated = await withRetry(() =>
+        prisma.beneficiaryDocument.update({
+          where: { id: docId },
+          data: {
+            status: 'rejected',
+            verifiedDate: now,
+            verifiedBy: auth.session.user.id,
+            rejectionReason: rejectionReason!,
+          },
+        }),
+      );
 
       await logActivity({
         entity: 'member',
@@ -106,6 +110,8 @@ export async function PATCH(
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[PATCH /api/admin/members/[id]/documents/[docId]]', error);
     return NextResponse.json(
       { error: 'Failed to review document' },

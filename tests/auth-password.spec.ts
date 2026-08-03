@@ -36,6 +36,6 @@ test.describe("Password reset flow", () => {
 test.describe("Force password change flow", () => {
   test("redirects to force-password-change when unauthenticated", async ({ page }) => {
     await page.goto("/force-password-change");
-    await expect(page).toHaveURL(/\/admin\/login|\/force-password-change/);
+    await expect(page).toHaveURL(/\/login/);
   });
 });

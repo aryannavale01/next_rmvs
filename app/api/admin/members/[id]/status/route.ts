@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireStepUp, stepUpErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { updateMemberStatusSchema } from '@/lib/validations/admin-member';
 import { logActivity } from '@/lib/activity-log';
 
@@ -10,9 +10,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
@@ -29,7 +29,7 @@ export async function PATCH(
 
     const { status, reason } = parsed.data;
 
-    const existing = await prisma.profile.findUnique({ where: { id } });
+    const existing = await withRetry(() => prisma.profile.findUnique({ where: { id } }));
     if (!existing) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
@@ -42,10 +42,12 @@ export async function PATCH(
     }
 
     const previousStatus = existing.status;
-    const updated = await prisma.profile.update({
-      where: { id },
-      data: { status },
-    });
+    const updated = await withRetry(() =>
+      prisma.profile.update({
+        where: { id },
+        data: { status },
+      })
+    );
 
     const reasonText = reason ? ` Reason: ${reason}` : '';
     await logActivity({
@@ -62,6 +64,8 @@ export async function PATCH(
       newStatus: updated.status,
     });
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[PATCH /api/admin/members/[id]/status]', error);
     return NextResponse.json(
       { error: 'Failed to update member status' },

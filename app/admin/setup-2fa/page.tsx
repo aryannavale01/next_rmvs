@@ -1,20 +1,32 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { prisma, isTransientPrismaError } from '@/lib/prisma';
 import TOTPSetupForm from './totp-setup-form';
+import DbUnavailableInterstitial from '@/components/db-unavailable-interstitial';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Setup2FAPage() {
   const auth = await requireAdmin();
   if (!auth.success) {
+    if (auth.error === 'DATABASE_UNAVAILABLE') {
+      return <DbUnavailableInterstitial />;
+    }
     redirect('/admin/login');
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: auth.session.user.id },
-    select: { twoFactorEnabled: true, mustChangePassword: true },
-  });
+  let user: { twoFactorEnabled: boolean; mustChangePassword: boolean } | null;
+  try {
+    user = await prisma.user.findUnique({
+      where: { id: auth.session.user.id },
+      select: { twoFactorEnabled: true, mustChangePassword: true },
+    });
+  } catch (error) {
+    if (isTransientPrismaError(error)) {
+      return <DbUnavailableInterstitial />;
+    }
+    throw error;
+  }
 
   if (user?.mustChangePassword) {
     redirect('/force-password-change');

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAuth, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { generateSignedUrl, getPublicUrl } from '@/lib/supabase-storage';
 import { BUCKETS, SIGNED_URL_EXPIRY, type DocumentType } from '@/lib/upload-config';
 
@@ -102,23 +102,28 @@ const PROFILE_SELECT = {
 export async function GET(request: Request) {
   const auth = await requireAuth(new Headers(request.headers));
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   const userId = auth.session.user.id;
 
   try {
-    const profile = await prisma.profile.findUnique({
-      where: { id: userId },
-      select: PROFILE_SELECT,
-    });
+    const profile = await withRetry(() =>
+      prisma.profile.findUnique({
+        where: { id: userId },
+        select: PROFILE_SELECT,
+      })
+    );
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    return NextResponse.json(await formatProfileResponse(profile, userId));
+    const formatted = await withRetry(() => formatProfileResponse(profile, userId));
+    return NextResponse.json(formatted);
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[profile] GET error:', error);
     return NextResponse.json({ error: 'Failed to load profile' }, { status: 500 });
   }
@@ -127,7 +132,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   const auth = await requireAuth(new Headers(request.headers));
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   const userId = auth.session.user.id;
@@ -154,43 +159,50 @@ export async function PUT(request: Request) {
 
     const fullName = [firstName, lastName].filter(Boolean).join(' ');
 
-    await prisma.$transaction(async (tx) => {
-      await tx.profile.update({
-        where: { id: userId },
-        data: {
-          fullName,
-          email,
-          phone: phone || null,
-          aadhaarNumber: aadhaarNo || null,
-          panNumber: panNo || null,
-        },
-      });
-
-      await tx.user.update({
-        where: { id: userId },
-        data: { email },
-      });
-
-      if (rationCardNo !== undefined) {
-        await tx.beneficiaryDetail.upsert({
-          where: { profileId: userId },
-          create: { profileId: userId, rationCard: rationCardNo || null },
-          update: { rationCard: rationCardNo || null },
+    await withRetry(() =>
+      prisma.$transaction(async (tx) => {
+        await tx.profile.update({
+          where: { id: userId },
+          data: {
+            fullName,
+            email,
+            phone: phone || null,
+            aadhaarNumber: aadhaarNo || null,
+            panNumber: panNo || null,
+          },
         });
-      }
-    });
 
-    const updatedProfile = await prisma.profile.findUnique({
-      where: { id: userId },
-      select: PROFILE_SELECT,
-    });
+        await tx.user.update({
+          where: { id: userId },
+          data: { email },
+        });
+
+        if (rationCardNo !== undefined) {
+          await tx.beneficiaryDetail.upsert({
+            where: { profileId: userId },
+            create: { profileId: userId, rationCard: rationCardNo || null },
+            update: { rationCard: rationCardNo || null },
+          });
+        }
+      })
+    );
+
+    const updatedProfile = await withRetry(() =>
+      prisma.profile.findUnique({
+        where: { id: userId },
+        select: PROFILE_SELECT,
+      })
+    );
 
     if (!updatedProfile) {
       return NextResponse.json({ error: 'Profile not found after update' }, { status: 500 });
     }
 
-    return NextResponse.json(await formatProfileResponse(updatedProfile, userId));
+    const formatted = await withRetry(() => formatProfileResponse(updatedProfile, userId));
+    return NextResponse.json(formatted);
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[profile] PUT error:', error);
     return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
   }

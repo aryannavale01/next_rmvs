@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
+import { requireStepUp, stepUpErrorResponse } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
 
@@ -9,9 +9,9 @@ export async function PATCH(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {

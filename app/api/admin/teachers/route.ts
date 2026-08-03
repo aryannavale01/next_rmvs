@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 import { createTeacherSchema } from '@/lib/validations/admin-teacher';
 import { logActivity } from '@/lib/activity-log';
 import { getPublicUrl } from '@/lib/supabase-storage';
@@ -95,15 +95,17 @@ export async function GET(request: NextRequest) {
 
     const skip = (q.page - 1) * q.pageSize;
 
-    const [data, total] = await Promise.all([
-      prisma.teacher.findMany({
-        where,
-        orderBy: { [q.sortBy]: q.sortOrder },
-        skip,
-        take: q.pageSize,
-      }),
-      prisma.teacher.count({ where }),
-    ]);
+    const [data, total] = await withRetry(() =>
+      Promise.all([
+        prisma.teacher.findMany({
+          where,
+          orderBy: { [q.sortBy]: q.sortOrder },
+          skip,
+          take: q.pageSize,
+        }),
+        prisma.teacher.count({ where }),
+      ]),
+    );
 
     return NextResponse.json({
       data: data.map(mapTeacher),
@@ -116,6 +118,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[GET /api/admin/teachers]', error);
+    if (isTransientPrismaError(error)) {
+      return NextResponse.json(
+        { error: 'Database temporarily unavailable, please retry.' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to fetch teachers' },
       { status: 500 },

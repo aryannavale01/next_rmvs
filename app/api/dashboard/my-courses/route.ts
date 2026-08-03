@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +48,8 @@ function computeProgress(
   courseStartDate: Date | null,
   courseEndDate: Date | null,
   duration: string,
-  applicationStatus: string
+  applicationStatus: string,
+  convertedAt: Date | null
 ): {
   displayStatus: 'pending' | 'under_review' | 'not_started' | 'in_progress' | 'completed';
   progress: { percentComplete: number; totalDays: number; daysElapsed: number; daysRemaining: number } | null;
@@ -62,7 +63,7 @@ function computeProgress(
     };
   }
 
-  if (applicationStatus === 'completed') {
+  if (convertedAt) {
     return {
       displayStatus: 'completed',
       progress: { percentComplete: 100, totalDays: 0, daysElapsed: 0, daysRemaining: 0 },
@@ -116,30 +117,32 @@ export async function GET(request: Request) {
   const userId = auth.session.user.id;
 
   try {
-    const [rawApplications, rawCertificates] = await Promise.all([
-      prisma.courseApplication.findMany({
-        where: { profileId: userId, status: { not: 'rejected' } },
-        include: {
-          course: {
-            select: {
-              id: true,
-              title: true,
-              category: true,
-              level: true,
-              duration: true,
-              mode: true,
-              startDate: true,
-              endDate: true,
+    const [rawApplications, rawCertificates] = await withRetry(() =>
+      Promise.all([
+        prisma.courseApplication.findMany({
+          where: { profileId: userId, status: { not: 'rejected' } },
+          include: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+                category: true,
+                level: true,
+                duration: true,
+                mode: true,
+                startDate: true,
+                endDate: true,
+              },
             },
           },
-        },
-        orderBy: { appliedDate: 'desc' },
-      }),
-      prisma.certificate.findMany({
-        where: { profileId: userId },
-        select: { id: true, courseId: true },
-      }),
-    ]);
+          orderBy: { appliedDate: 'desc' },
+        }),
+        prisma.certificate.findMany({
+          where: { profileId: userId },
+          select: { id: true, courseId: true },
+        }),
+      ]),
+    );
 
     const certificateMap = new Map<string, string>();
     for (const cert of rawCertificates) {
@@ -171,7 +174,8 @@ export async function GET(request: Request) {
         course.startDate,
         course.endDate,
         course.duration,
-        app.status
+        app.status,
+        app.convertedAt
       );
 
       const certId = certificateMap.get(course.id) ?? null;
@@ -197,6 +201,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ myCourses });
   } catch (error) {
     console.error('[my-courses] GET error:', error);
+    if (isTransientPrismaError(error)) {
+      return NextResponse.json(
+        { error: 'Database temporarily unavailable, please retry.' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Failed to load my courses' }, { status: 500 });
   }
 }

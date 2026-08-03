@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { requireAdmin, requireStepUp, stepUpErrorResponse } from "@/lib/session";
+import { prisma, withRetry, dbErrorResponse } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity-log";
 import {
   mapCourseToAdminShape,
@@ -112,25 +112,27 @@ export async function GET(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
     const { courseId } = await params;
 
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-      include: {
-        _count: {
-          select: {
-            applications: { where: { status: { not: "deleted" } } },
-            enrollments: { where: { status: { notIn: ["dropped", "completed"] } } },
+    const course = await withRetry(() =>
+      prisma.course.findUnique({
+        where: { id: courseId },
+        include: {
+          _count: {
+            select: {
+              applications: { where: { status: { not: "deleted" } } },
+              enrollments: { where: { status: { notIn: ["dropped", "completed"] } } },
+            },
           },
+          syllabus: { orderBy: { sortOrder: "asc" } },
+          coupons: true,
         },
-        syllabus: { orderBy: { sortOrder: "asc" } },
-        coupons: true,
-      },
-    });
+      })
+    );
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
@@ -142,6 +144,8 @@ export async function GET(
       }),
     });
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error("[GET /api/admin/courses/[courseId]]", error);
     return NextResponse.json({ error: "Failed to fetch course" }, { status: 500 });
   }
@@ -153,13 +157,15 @@ export async function PATCH(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
     const { courseId } = await params;
 
-    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    const course = await withRetry(() =>
+      prisma.course.findUnique({ where: { id: courseId } })
+    );
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
@@ -179,9 +185,11 @@ export async function PATCH(
     if (body.title !== undefined && body.title !== course.title) {
       const slug = slugify(body.title as string);
       if (slug !== course.slug) {
-        const other = await prisma.course.findFirst({
-          where: { slug, id: { not: courseId } },
-        });
+        const other = await withRetry(() =>
+          prisma.course.findFirst({
+            where: { slug, id: { not: courseId } },
+          })
+        );
         if (other) {
           return NextResponse.json({ error: "A course with this title already exists" }, { status: 409 });
         }
@@ -191,7 +199,9 @@ export async function PATCH(
 
     // Derive instructor display fields when the teacher changes
     if (body.teacher_id && body.teacher_id !== course.teacherId) {
-      const teacher = await prisma.teacher.findUnique({ where: { id: body.teacher_id as string } });
+      const teacher = await withRetry(() =>
+        prisma.teacher.findUnique({ where: { id: body.teacher_id as string } })
+      );
       if (teacher) {
         body.instructorName = teacher.fullName ?? "";
         body.instructorRole = teacher.designation ?? "";
@@ -206,9 +216,11 @@ export async function PATCH(
     if (hasCouponsChange) {
       const codes = couponCodes(body.coupons);
       if (codes.length > 0) {
-        const existingCoupon = await prisma.coupon.findFirst({
-          where: { code: { in: codes, mode: "insensitive" }, courseId: { not: courseId } },
-        });
+        const existingCoupon = await withRetry(() =>
+          prisma.coupon.findFirst({
+            where: { code: { in: codes, mode: "insensitive" }, courseId: { not: courseId } },
+          })
+        );
         if (existingCoupon) {
           return NextResponse.json(
             { error: `Coupon code "${existingCoupon.code}" is already in use on another course` },
@@ -225,12 +237,16 @@ export async function PATCH(
     // Seat capacity guard: prevent reducing capacity below currently filled seats
     if (updateData.seatsTotal !== undefined && typeof updateData.seatsTotal === "number") {
       const newSeats = updateData.seatsTotal;
-      const existingReserved = await prisma.courseApplication.count({
-        where: { courseId, status: "seat_reserved" },
-      });
-      const existingEnrolled = await prisma.courseEnrollment.count({
-        where: { courseId, status: { notIn: ["dropped", "completed"] } },
-      });
+      const existingReserved = await withRetry(() =>
+        prisma.courseApplication.count({
+          where: { courseId, status: "seat_reserved" },
+        })
+      );
+      const existingEnrolled = await withRetry(() =>
+        prisma.courseEnrollment.count({
+          where: { courseId, status: { notIn: ["dropped", "completed"] } },
+        })
+      );
       const filledSeats = existingReserved + existingEnrolled;
       if (newSeats < filledSeats) {
         return NextResponse.json({
@@ -240,17 +256,19 @@ export async function PATCH(
     }
 
     if (Object.keys(updateData).length > 0) {
-      await prisma.course.update({
-        where: { id: courseId },
-        data: updateData as any,
-      });
+      await withRetry(() =>
+        prisma.course.update({
+          where: { id: courseId },
+          data: updateData as any,
+        })
+      );
     }
 
     if (hasSyllabusChange) {
-      await replaceSyllabus(courseId, body.syllabus as any[]);
+      await withRetry(() => replaceSyllabus(courseId, body.syllabus as any[]));
     }
     if (hasCouponsChange) {
-      await syncCoupons(courseId, body.coupons as any[]);
+      await withRetry(() => syncCoupons(courseId, body.coupons as any[]));
     }
 
     await logActivity({
@@ -261,10 +279,12 @@ export async function PATCH(
       performedBy: auth.session.user.id,
     });
 
-    const updated = await prisma.course.findUnique({
-      where: { id: courseId },
-      include: { syllabus: { orderBy: { sortOrder: "asc" } }, coupons: true },
-    });
+    const updated = await withRetry(() =>
+      prisma.course.findUnique({
+        where: { id: courseId },
+        include: { syllabus: { orderBy: { sortOrder: "asc" } }, coupons: true },
+      })
+    );
 
     return NextResponse.json({
       message: "Course updated",
@@ -272,6 +292,8 @@ export async function PATCH(
       coupons: hasCouponsChange ? updated?.coupons.map(mapCouponToAdmin) ?? [] : undefined,
     });
   } catch (error: any) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     if (error?.code === "P2002") {
       return NextResponse.json({ error: "A course or coupon with this title/code already exists" }, { status: 409 });
     }
@@ -284,24 +306,28 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ courseId: string }> },
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
     const { courseId } = await params;
 
-    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    const course = await withRetry(() =>
+      prisma.course.findUnique({ where: { id: courseId } })
+    );
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     // Soft delete: archive the course rather than hard-deleting
-    await prisma.course.update({
-      where: { id: courseId },
-      data: { status: "archived" },
-    });
+    await withRetry(() =>
+      prisma.course.update({
+        where: { id: courseId },
+        data: { status: "archived" },
+      })
+    );
 
     await logActivity({
       entity: "course",
@@ -313,6 +339,8 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Course deleted" });
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error("[DELETE /api/admin/courses/[courseId]]", error);
     return NextResponse.json({ error: "Failed to delete course" }, { status: 500 });
   }

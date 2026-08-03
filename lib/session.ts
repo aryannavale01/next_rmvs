@@ -1,59 +1,19 @@
-import { Prisma } from "@prisma/client";
+import { NextResponse } from "next/server";
 import { auth } from "./auth";
-import { prisma } from "./prisma";
+import { prisma, withRetry, isTransientPrismaError } from "./prisma";
 import { STEP_UP_WINDOW_MS } from "./admin-security";
 import type { BA_Role } from "@prisma/client";
-
-// Prisma error codes that indicate transient connection issues (pooler idle
-// recycling, server restart, network blip). These are safe to retry because
-// the next attempt usually gets a fresh connection from the pool.
-const TRANSIENT_ERROR_CODES = new Set(["P1017", "P1001", "P2024"]);
-
-// Backoff delays in ms for retry attempts 2 and 3.
-const RETRY_DELAYS = [250, 500];
-
-function isTransientConnectionError(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    TRANSIENT_ERROR_CODES.has(error.code)
-  );
-}
 
 /**
  * Calls auth.api.getSession() with retry logic for transient connection errors.
  *
- * P1017 ("Server has closed the connection") fires when the pooler recycles an
- * idle connection that Prisma still holds. A short wait + retry gets a fresh
- * connection and succeeds. Non-connection errors (expired token, malformed
+ * P1017/P1001/P2024/P2037 (pooler idle recycling, server restart, pool
+ * exhaustion, network blip) are retried with exponential backoff via the
+ * shared withRetry() helper. Non-connection errors (expired token, malformed
  * cookie) are thrown immediately — no retry.
  */
 async function getSessionWithRetry(headers: Headers) {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= 1 + RETRY_DELAYS.length; attempt++) {
-    try {
-      return await auth.api.getSession({ headers });
-    } catch (error) {
-      lastError = error;
-
-      if (
-        isTransientConnectionError(error) &&
-        attempt <= RETRY_DELAYS.length
-      ) {
-        const delay = RETRY_DELAYS[attempt - 1];
-        console.warn(
-          `[session] Transient connection error (attempt ${attempt}/${1 + RETRY_DELAYS.length}): ` +
-            `${(error as { code: string }).code}. Retrying in ${delay}ms…`
-        );
-        await new Promise((r) => setTimeout(r, delay));
-        continue;
-      }
-
-      throw error;
-    }
-  }
-
-  throw lastError;
+  return withRetry(() => auth.api.getSession({ headers }));
 }
 
 export type SessionUser = {
@@ -112,7 +72,14 @@ export async function requireAuth(headers?: Headers): Promise<AuthResult> {
         },
       },
     };
-  } catch {
+  } catch (error) {
+    // A transient DB/pooler failure is NOT a logout. Distinguish it so callers
+    // can return 503 ("still signed in, try again") instead of a 401 that the
+    // client would read as "you've been logged out". Real auth failures
+    // (expired/invalid session) still map to Unauthorized.
+    if (isTransientPrismaError(error)) {
+      return { success: false, error: "DATABASE_UNAVAILABLE" };
+    }
     return { success: false, error: "Unauthorized" };
   }
 }
@@ -156,17 +123,85 @@ export async function requireStepUp(headers?: Headers): Promise<AuthResult> {
     return result;
   }
 
-  const session = await prisma.session.findUnique({
-    where: { id: result.session.session.id },
-    select: { stepUpVerifiedAt: true },
-  });
+  try {
+    const session = await prisma.session.findUnique({
+      where: { id: result.session.session.id },
+      select: { stepUpVerifiedAt: true },
+    });
 
-  if (
-    !session?.stepUpVerifiedAt ||
-    Date.now() - session.stepUpVerifiedAt.getTime() > STEP_UP_WINDOW_MS
-  ) {
-    return { success: false, error: "STEP_UP_REQUIRED" };
+    if (
+      !session?.stepUpVerifiedAt ||
+      Date.now() - session.stepUpVerifiedAt.getTime() > STEP_UP_WINDOW_MS
+    ) {
+      return { success: false, error: "STEP_UP_REQUIRED" };
+    }
+  } catch (error) {
+    // A DB blip while reading step-up state is not an auth failure — surface
+    // it as a retryable service error rather than a confusing 401/500.
+    if (isTransientPrismaError(error)) {
+      return { success: false, error: "DATABASE_UNAVAILABLE" };
+    }
+    throw error;
   }
 
   return result;
 }
+
+/**
+ * Convert a failed step-up guard into an HTTP response for API routes.
+ * Returns null when the guard passed so the route can proceed.
+ *
+ * STEP_UP_REQUIRED -> 403 { error: 'STEP_UP_REQUIRED' } so clients can detect
+ * the exact condition and redirect to the verify-stepup flow.
+ * DATABASE_UNAVAILABLE -> 503 { error: 'SERVICE_UNAVAILABLE' } so a transient
+ * pooler blip is never read by the client as "logged out" (a 401).
+ * Forbidden -> 403. Any other failure keeps the route's existing 401 semantics.
+ *
+ * Usage in API Routes:
+ *   const auth = await requireStepUp();
+ *   const resp = stepUpErrorResponse(auth);
+ *   if (resp) return resp;
+ */
+export function stepUpErrorResponse(
+  auth: AuthResult
+): NextResponse | null {
+  if (auth.success) {
+    return null;
+  }
+
+  if (auth.error === "STEP_UP_REQUIRED") {
+    return NextResponse.json(
+      {
+        error: "STEP_UP_REQUIRED",
+        message:
+          "This action requires recent authentication. Please verify your password.",
+      },
+      { status: 403 }
+    );
+  }
+
+  if (auth.error === "DATABASE_UNAVAILABLE") {
+    return NextResponse.json(
+      {
+        error: "SERVICE_UNAVAILABLE",
+        message:
+          "Database temporarily unavailable. You are still signed in — please try again.",
+        retryable: true,
+      },
+      { status: 503 }
+    );
+  }
+
+  if (auth.error === "Forbidden") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+/**
+ * Generic auth-guard response mapper for requireAuth()/requireAdmin() callers.
+ * Same contract as stepUpErrorResponse(); use it in routes that gate with
+ * requireAdmin()/requireAuth() rather than requireStepUp().
+ */
+export const authErrorResponse = stepUpErrorResponse;

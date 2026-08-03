@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/session';
 import { getRecentActivity } from '@/lib/activity-log';
+import { withRetry, isTransientPrismaError } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,9 +12,16 @@ export async function GET() {
   }
 
   try {
-    const logs = await getRecentActivity(100);
+    const logs = await withRetry(() => getRecentActivity(100));
     return NextResponse.json({ logs });
-  } catch {
+  } catch (error) {
+    console.error('[GET /api/admin/activity-logs]', error);
+    if (isTransientPrismaError(error)) {
+      return NextResponse.json(
+        { error: 'Database temporarily unavailable, please retry.' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Failed to fetch activity logs' }, { status: 500 });
   }
 }

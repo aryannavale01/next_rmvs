@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
+    const response = await withRetry(async () => {
     const body = await request.json();
     const ids: string[] | undefined = body.ids;
 
@@ -95,7 +96,12 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ data: results });
+    });
+
+    return response;
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[POST /api/admin/members/export]', error);
     return NextResponse.json(
       { error: 'Failed to export members' },

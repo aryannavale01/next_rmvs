@@ -1,12 +1,16 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/session';
 import Verify2FAForm from './verify-2fa-form';
+import DbUnavailableInterstitial from '@/components/db-unavailable-interstitial';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Verify2FAPage() {
   const auth = await requireAdmin();
   if (!auth.success) {
+    if (auth.error === 'DATABASE_UNAVAILABLE') {
+      return <DbUnavailableInterstitial />;
+    }
     redirect('/admin/login');
   }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
 import { mapCourseToAdminShape, buildPrismaCreateData, slugify } from '@/lib/course-mapping';
 
@@ -39,20 +39,22 @@ export async function GET() {
   }
 
   try {
-    const courses = await prisma.course.findMany({
-      where: { status: { not: 'archived' } },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        _count: {
-          select: {
-            applications: { where: { status: { not: 'deleted' } } },
-            enrollments: { where: { status: { notIn: ['dropped', 'completed'] } } },
+    const courses = await withRetry(() =>
+      prisma.course.findMany({
+        where: { status: { not: 'archived' } },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          _count: {
+            select: {
+              applications: { where: { status: { not: 'deleted' } } },
+              enrollments: { where: { status: { notIn: ['dropped', 'completed'] } } },
+            },
           },
+          syllabus: { orderBy: { sortOrder: 'asc' } },
+          coupons: true,
         },
-        syllabus: { orderBy: { sortOrder: 'asc' } },
-        coupons: true,
-      },
-    });
+      }),
+    );
 
     const result = courses.map((c) =>
       mapCourseToAdminShape(c, {
@@ -64,6 +66,12 @@ export async function GET() {
     return NextResponse.json(result);
   } catch (e) {
     console.error('[GET /api/admin/courses]', e);
+    if (isTransientPrismaError(e)) {
+      return NextResponse.json(
+        { error: 'Database temporarily unavailable, please retry.' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Failed to fetch courses' }, { status: 500 });
   }
 }

@@ -243,17 +243,21 @@ enum TrainingMode {
 enum ApplicationStatus {
   pending
   under_review
-  approved
+  documents_verified
+  seat_reserved
   rejected
-  completed
+  waitlisted
+  deleted
 
   @@map("application_status")
 }
 
 enum EnrollmentStatus {
   enrolled
+  in_progress
   completed
   dropped
+  certified
 
   @@map("enrollment_status")
 }
@@ -547,7 +551,6 @@ model Course {
   startDate          DateTime?        @map("start_date") @db.Date
   endDate            DateTime?        @map("end_date") @db.Date
   seatsTotal         Int?             @map("seats_total")
-  seatsAvailable     Int?             @map("seats_available")
   teacherId          String?          @map("teacher_id")
   instructorName     String           @map("instructor_name")
   instructorRole     String?          @map("instructor_role")
@@ -601,6 +604,11 @@ model CourseApplication {
   reviewedBy      String?           @map("reviewed_by")
   reviewedAt      DateTime?         @map("reviewed_at")
   rejectionReason String?           @map("rejection_reason")
+  seatReservedAt  DateTime?         @map("seat_reserved_at")
+  waitlistedAt    DateTime?         @map("waitlisted_at")
+  reviewNotes     String?           @map("review_notes")
+  approvedById    String?           @map("approved_by_id")
+  convertedAt     DateTime?         @map("converted_at")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
@@ -608,6 +616,7 @@ model CourseApplication {
   profile           Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
   course            Course             @relation(fields: [courseId], references: [id], onDelete: Restrict)
   couponRedemptions CouponRedemption[]
+  adminNotes        AdminNote[]
 
   @@unique([profileId, courseId])
   @@index([profileId], map: "idx_course_applications_profile")
@@ -620,12 +629,13 @@ model CourseEnrollment {
   id                   String           @id @default(uuid())
   profileId            String           @map("profile_id")
   courseId             String           @map("course_id")
-  batch                String?
+  batchLabel           String?          @map("batch_label")
   trainer              String?
   enrollmentDate       DateTime         @default(now()) @map("enrollment_date")
   completionDate       DateTime?        @map("completion_date")
   appliedAt            DateTime?        @map("applied_at")
   status               EnrollmentStatus @default(enrolled)
+  droppedAt            DateTime?        @map("dropped_at")
   attendance           Int              @default(0)
   assessmentScore      Int?             @map("assessment_score")
   certificateGenerated Boolean          @default(false) @map("certificate_generated")
@@ -633,6 +643,8 @@ model CourseEnrollment {
   verificationNotes    String?          @map("verification_notes")
   adminNotes           String?          @map("admin_notes")
   autoApproved         Boolean          @default(false) @map("auto_approved")
+  seatNumber           Int?             @map("seat_number")
+  startedAt            DateTime?        @map("started_at")
   createdAt            DateTime         @default(now()) @map("created_at")
   updatedAt            DateTime         @updatedAt @map("updated_at")
 
@@ -640,9 +652,24 @@ model CourseEnrollment {
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   course  Course  @relation(fields: [courseId], references: [id], onDelete: Restrict)
 
+  @@unique([profileId, courseId])
   @@index([profileId], map: "idx_course_enrollments_profile")
   @@index([courseId], map: "idx_course_enrollments_course")
   @@map("course_enrollments")
+}
+
+model AdminNote {
+  id            String   @id @default(uuid())
+  applicationId String   @map("application_id")
+  authorId      String   @map("author_id")
+  text          String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application CourseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId], map: "idx_admin_notes_application")
+  @@index([authorId], map: "idx_admin_notes_author")
+  @@map("admin_notes")
 }
 
 model CourseSyllabus {

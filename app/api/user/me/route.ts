@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/session";
+import { requireAuth, authErrorResponse } from "@/lib/session";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const auth = await requireAuth();
   if (!auth.success) {
-    return NextResponse.json({ user: null, session: null }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   return NextResponse.json({

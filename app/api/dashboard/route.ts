@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,30 +83,32 @@ export async function GET(request: Request) {
   const userId = auth.session.user.id;
 
   try {
-    const [rawApplications, rawCertificates, rawNotifications, rawActivities] = await Promise.all([
-      prisma.courseApplication.findMany({
-        where: { profileId: userId },
-        include: { course: { select: { title: true } } },
-        orderBy: { appliedDate: 'desc' },
-        take: 50,
-      }),
-      prisma.certificate.findMany({
-        where: { profileId: userId },
-        include: { course: { select: { title: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
-      prisma.notification.findMany({
-        where: { profileId: userId },
-        orderBy: { timestamp: 'desc' },
-        take: 50,
-      }),
-      prisma.activity.findMany({
-        where: { profileId: userId },
-        orderBy: { timestamp: 'desc' },
-        take: 50,
-      }),
-    ]);
+    const [rawApplications, rawCertificates, rawNotifications, rawActivities] = await withRetry(() =>
+      Promise.all([
+        prisma.courseApplication.findMany({
+          where: { profileId: userId },
+          include: { course: { select: { title: true } } },
+          orderBy: { appliedDate: 'desc' },
+          take: 50,
+        }),
+        prisma.certificate.findMany({
+          where: { profileId: userId },
+          include: { course: { select: { title: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        prisma.notification.findMany({
+          where: { profileId: userId },
+          orderBy: { timestamp: 'desc' },
+          take: 50,
+        }),
+        prisma.activity.findMany({
+          where: { profileId: userId },
+          orderBy: { timestamp: 'desc' },
+          take: 50,
+        }),
+      ]),
+    );
 
     const applications = rawApplications.map((app) => {
       const date = new Date(app.appliedDate);
@@ -170,6 +172,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ applications, certificates, notifications, activities });
   } catch (error) {
     console.error('[dashboard] GET error:', error);
+    if (isTransientPrismaError(error)) {
+      return NextResponse.json(
+        { error: 'Database temporarily unavailable, please retry.' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Failed to load dashboard data' }, { status: 500 });
   }
 }

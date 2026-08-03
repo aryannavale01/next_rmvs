@@ -56,7 +56,8 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { members, teachers, courses } = useAdmin();
+  const { members, teachers } = useAdmin();
+  const [courses] = React.useState<any[]>([]);
   const [query, setQuery] = useState('');
   const router = useRouter();
 

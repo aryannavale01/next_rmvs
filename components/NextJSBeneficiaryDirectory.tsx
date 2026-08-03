@@ -38,20 +38,12 @@ import { useToast } from '@/components/ui/toast';
 
 export default function NextJSBeneficiaryDirectory() {
   // Pull live data and CRUD from admin context
-  const { members, courses: adminCourses, enrollments: adminEnrollments, addMember, refreshMembers, updateMember, deleteMember, restoreMember, showDeleted, setShowDeleted, addEnrollment, logActivity } = useAdmin();
+  const { members, addMember, refreshMembers, updateMember, deleteMember, restoreMember, showDeleted, setShowDeleted, logActivity } = useAdmin();
   const { toast } = useToast();
 
-  // Map admin courses to the drawer's Course type
-  const courses: Course[] = adminCourses.map(c => ({ id: c.id, title: c.title }));
-
-  // Map admin enrollments to drawer's Enrollment type (subset)
-  const enrollments: Enrollment[] = adminEnrollments.map(e => ({
-    id: e.id,
-    memberId: e.member_id,
-    courseId: e.course_id,
-    status: e.status as 'Completed' | 'Enrolled' | 'Dropped',
-    enrolledDate: e.enrolled_date,
-  }));
+  // Courses and enrollments were previously from mock context; pending API wiring
+  const courses: Course[] = [];
+  const enrollments: Enrollment[] = [];
 
   // Active click metric stats filter
   const [metricFilter, setMetricFilter] = useState<'all' | 'women' | 'under25' | 'recent'>('all');
@@ -525,15 +517,6 @@ export default function NextJSBeneficiaryDirectory() {
 
   const handleBulkAssignCourse = () => {
     if (!bulkActionCourse) return;
-    selectedIds.forEach(memId => {
-      addEnrollment({
-        member_id: memId,
-        course_id: bulkActionCourse,
-        status: 'Enrolled',
-        doc_verified: false,
-        admin_notes: '',
-      });
-    });
     setSelectedIds([]);
     setBulkActionCourse('');
     logActivity('Bulk Enrollment', `Assigned ${selectedIds.length} members to a training program.`, 'BookOpen');

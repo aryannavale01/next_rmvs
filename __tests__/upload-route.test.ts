@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { NextResponse } from 'next/server';
 import { detectFileType } from '../lib/file-validation';
 import { BUCKETS, buildStoragePath } from '../lib/upload-config';
 
 // Mock all external dependencies
 vi.mock('@/lib/session', () => ({
   requireAuth: vi.fn(),
+  authErrorResponse: (auth: { success: boolean; error?: string } | { success: true }) => {
+    if (auth.success) return null;
+    if (auth.error === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (auth.error === 'DATABASE_UNAVAILABLE') {
+      return NextResponse.json({ error: 'SERVICE_UNAVAILABLE' }, { status: 503 });
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  },
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -20,6 +31,8 @@ vi.mock('@/lib/prisma', () => ({
       update: vi.fn(),
     },
   },
+  withRetry: <T>(fn: () => Promise<T>): Promise<T> => fn(),
+  dbErrorResponse: () => null,
 }));
 
 vi.mock('@/lib/supabase-storage', () => ({

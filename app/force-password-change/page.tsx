@@ -1,12 +1,16 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/session';
 import ForcePasswordChangeForm from './force-password-change-form';
+import DbUnavailableInterstitial from '@/components/db-unavailable-interstitial';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ForcePasswordChangePage() {
   const auth = await requireAdmin();
   if (!auth.success) {
+    if (auth.error === 'DATABASE_UNAVAILABLE') {
+      return <DbUnavailableInterstitial />;
+    }
     redirect('/admin/login');
   }
 

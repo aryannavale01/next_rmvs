@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { updateTeacherSchema } from '@/lib/validations/admin-teacher';
 import { logActivity } from '@/lib/activity-log';
 import { getPublicUrl } from '@/lib/supabase-storage';
@@ -45,7 +45,7 @@ function mapTeacher(t: any) {
     })) ?? [],
     courses: t.courses?.map((tc: any) => ({
       id: tc.id,
-      batch: tc.batch,
+      batch: tc.batchLabel,
       startDate: tc.startDate?.toISOString?.()?.split('T')[0] ?? null,
       endDate: tc.endDate?.toISOString?.()?.split('T')[0] ?? null,
       totalStudents: tc.totalStudents,
@@ -62,22 +62,24 @@ export async function GET(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
     const { id } = await params;
 
-    const teacher = await prisma.teacher.findUnique({
-      where: { id },
-      include: {
-        documents: { orderBy: { createdAt: 'desc' } },
-        courses: {
-          include: { course: { select: { id: true, title: true } } },
-          orderBy: { createdAt: 'desc' },
+    const teacher = await withRetry(() =>
+      prisma.teacher.findUnique({
+        where: { id },
+        include: {
+          documents: { orderBy: { createdAt: 'desc' } },
+          courses: {
+            include: { course: { select: { id: true, title: true } } },
+            orderBy: { createdAt: 'desc' },
+          },
         },
-      },
-    });
+      }),
+    );
 
     if (!teacher) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 404 });
@@ -85,6 +87,8 @@ export async function GET(
 
     return NextResponse.json(mapTeacher(teacher));
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[GET /api/admin/teachers/[id]]', error);
     return NextResponse.json(
       { error: 'Failed to fetch teacher' },
@@ -99,13 +103,13 @@ export async function PATCH(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
     const { id } = await params;
 
-    const existing = await prisma.teacher.findUnique({ where: { id } });
+    const existing = await withRetry(() => prisma.teacher.findUnique({ where: { id } }));
     if (!existing) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 404 });
     }
@@ -129,9 +133,11 @@ export async function PATCH(
     const data = parsed.data;
 
     if (data.email && data.email !== existing.email) {
-      const emailTaken = await prisma.teacher.findFirst({
-        where: { email: data.email, id: { not: id } },
-      });
+      const emailTaken = await withRetry(() =>
+        prisma.teacher.findFirst({
+          where: { email: data.email, id: { not: id } },
+        }),
+      );
       if (emailTaken) {
         return NextResponse.json(
           { error: 'A teacher with this email already exists' },
@@ -140,27 +146,29 @@ export async function PATCH(
       }
     }
 
-    const updated = await prisma.teacher.update({
-      where: { id },
-      data: {
-        ...(data.fullName !== undefined && { fullName: data.fullName }),
-        ...(data.email !== undefined && { email: data.email }),
-        ...(data.mobile !== undefined && { mobile: data.mobile }),
-        ...(data.designation !== undefined && { designation: data.designation }),
-        ...(data.qualification !== undefined && { qualification: data.qualification ?? null }),
-        ...(data.specializations !== undefined && { specializations: data.specializations ?? [] }),
-        ...(data.experienceYears !== undefined && { experienceYears: data.experienceYears ?? null }),
-        ...(data.village !== undefined && { village: data.village ?? null }),
-        ...(data.taluka !== undefined && { taluka: data.taluka ?? null }),
-        ...(data.district !== undefined && { district: data.district ?? null }),
-        ...(data.state !== undefined && { state: data.state ?? 'Maharashtra' }),
-        ...(data.pincode !== undefined && { pincode: data.pincode ?? null }),
-        ...(data.teacherType !== undefined && { teacherType: data.teacherType }),
-        ...(data.status !== undefined && { status: data.status }),
-        ...(data.joinedDate !== undefined && { joinedDate: data.joinedDate }),
-        ...(data.bio !== undefined && { bio: data.bio ?? null }),
-      },
-    });
+    const updated = await withRetry(() =>
+      prisma.teacher.update({
+        where: { id },
+        data: {
+          ...(data.fullName !== undefined && { fullName: data.fullName }),
+          ...(data.email !== undefined && { email: data.email }),
+          ...(data.mobile !== undefined && { mobile: data.mobile }),
+          ...(data.designation !== undefined && { designation: data.designation }),
+          ...(data.qualification !== undefined && { qualification: data.qualification ?? null }),
+          ...(data.specializations !== undefined && { specializations: data.specializations ?? [] }),
+          ...(data.experienceYears !== undefined && { experienceYears: data.experienceYears ?? null }),
+          ...(data.village !== undefined && { village: data.village ?? null }),
+          ...(data.taluka !== undefined && { taluka: data.taluka ?? null }),
+          ...(data.district !== undefined && { district: data.district ?? null }),
+          ...(data.state !== undefined && { state: data.state ?? 'Maharashtra' }),
+          ...(data.pincode !== undefined && { pincode: data.pincode ?? null }),
+          ...(data.teacherType !== undefined && { teacherType: data.teacherType }),
+          ...(data.status !== undefined && { status: data.status }),
+          ...(data.joinedDate !== undefined && { joinedDate: data.joinedDate }),
+          ...(data.bio !== undefined && { bio: data.bio ?? null }),
+        },
+      }),
+    );
 
     await logActivity({
       entity: 'teacher',
@@ -172,6 +180,8 @@ export async function PATCH(
 
     return NextResponse.json(mapTeacher(updated));
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[PATCH /api/admin/teachers/[id]]', error);
     return NextResponse.json(
       { error: 'Failed to update teacher' },

@@ -5,8 +5,6 @@ import useSWR from 'swr';
 import {
   Member,
   Teacher,
-  AdminCourse,
-  Enrollment,
   AdminCertificate,
   Coupon,
   AdminNotification,
@@ -14,11 +12,8 @@ import {
   WebsiteContent,
   AdminSettings,
   AdminUser,
-  WebsiteItem,
 } from './admin-types';
 import {
-  MOCK_COURSES,
-  MOCK_ENROLLMENTS,
   MOCK_CERTIFICATES,
   MOCK_NOTIFICATIONS,
   MOCK_ACTIVITY_LOGS,
@@ -27,15 +22,13 @@ import {
   MOCK_COUPONS,
 } from './mock-admin-data';
 import { fetcher, SWR_DEFAULTS } from './swr-fetcher';
-import { requireStepUpClient } from './admin-stepup';
+import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from './admin-stepup';
 
 const STORAGE_KEY = 'adminState';
 
 interface AdminContextType {
   members: Member[];
   teachers: Teacher[];
-  courses: AdminCourse[];
-  enrollments: Enrollment[];
   certificates: AdminCertificate[];
   notifications: AdminNotification[];
   coupons: Coupon[];
@@ -66,17 +59,6 @@ interface AdminContextType {
   updateTeacher: (id: string, data: Record<string, unknown>) => Promise<void>;
   deleteTeacher: (id: string) => Promise<void>;
   restoreTeacher: (id: string) => Promise<void>;
-
-  addCourse: (course: Omit<AdminCourse, 'id' | 'seats_enrolled'>) => void;
-  updateCourse: (id: string, updated: Partial<AdminCourse>) => void;
-  deleteCourse: (id: string) => void;
-
-  addEnrollment: (enrollment: Omit<Enrollment, 'id' | 'enrolled_date'>) => void;
-  updateEnrollment: (id: string, updated: Partial<Enrollment>) => void;
-  approveEnrollment: (id: string) => void;
-  rejectEnrollment: (id: string, reason: string) => void;
-  markEnrollmentCompleted: (id: string) => void;
-  markEnrollmentDropped: (id: string) => void;
 
   addCertificate: (cert: Omit<AdminCertificate, 'id'>) => void;
   generateCertificateForEnrollment: (enrollmentId: string) => void;
@@ -129,8 +111,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const { data: teachersRes, mutate: mutateTeachers } = useSWR<{ data: Teacher[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } }>(teachersUrl, fetcher, SWR_DEFAULTS);
   const teachers = teachersRes?.data ?? [];
 
-  const [courses, setCourses] = useState<AdminCourse[]>(() => loadState()?.courses ?? MOCK_COURSES);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(() => loadState()?.enrollments ?? MOCK_ENROLLMENTS);
   const [certificates, setCertificates] = useState<AdminCertificate[]>(() => loadState()?.certificates ?? MOCK_CERTIFICATES);
   const [notifications, setNotifications] = useState<AdminNotification[]>(() => loadState()?.notifications ?? MOCK_NOTIFICATIONS);
   const [coupons, setCoupons] = useState<Coupon[]>(() => loadState()?.coupons ?? MOCK_COUPONS);
@@ -185,10 +165,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   // Persist to localStorage on state changes (read-only, no setState calls)
   useEffect(() => {
     saveState({
-      teachers, courses, enrollments, certificates,
+      teachers, certificates,
       notifications, coupons, websiteContent, settings, activityLogs, adminUser,
     });
-  }, [teachers, courses, enrollments, certificates, notifications, coupons, websiteContent, settings, activityLogs, adminUser]);
+  }, [teachers, certificates, notifications, coupons, websiteContent, settings, activityLogs, adminUser]);
 
   const logCounterRef = useRef(0);
   const logActivity = useCallback((title: string, description: string, icon: string) => {
@@ -210,8 +190,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [logActivity]);
 
   const resetAdmin = useCallback(() => {
-    setCourses(MOCK_COURSES);
-    setEnrollments(MOCK_ENROLLMENTS);
     setCertificates(MOCK_CERTIFICATES);
     setNotifications(MOCK_NOTIFICATIONS);
     setCoupons(MOCK_COUPONS);
@@ -279,6 +257,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to delete member' }));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/members', 'delete_user');
+        return;
+      }
       throw new Error(err.error || 'Failed to delete member');
     }
     await mutateMembers();
@@ -297,6 +279,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [mutateMembers]);
 
   const changeMemberStatus = useCallback(async (id: string, status: string, reason?: string) => {
+    if (!(await requireStepUpClient('/admin/members', 'member_status_change'))) {
+      throw new Error('Step-up verification required');
+    }
     const res = await fetch(`/api/admin/members/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -304,6 +289,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to change status' }));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/members', 'member_status_change');
+        throw new Error(err.error || 'Failed to change status');
+      }
       throw new Error(err.error || 'Failed to change status');
     }
     await mutateMembers();
@@ -364,9 +353,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [mutateTeachers]);
 
   const deleteTeacher = useCallback(async (id: string) => {
+    if (!(await requireStepUpClient('/admin/teachers', 'delete_teacher'))) return;
     const res = await fetch(`/api/admin/teachers/${id}/delete`, { method: 'PATCH' });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to delete teacher' }));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/teachers', 'delete_teacher');
+        return;
+      }
       throw new Error(err.error || 'Failed to delete teacher');
     }
     await mutateTeachers();
@@ -381,85 +375,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     await mutateTeachers();
   }, [mutateTeachers]);
 
-  // Courses
-  const addCourse = useCallback((c: Omit<AdminCourse, 'id' | 'seats_enrolled'>) => {
-    const newCourse: AdminCourse = { ...c, id: `c-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, seats_enrolled: 0 };
-    setCourses(prev => [newCourse, ...prev]);
-    logActivity('Training Created', `New training program "${newCourse.title}" drafted.`, 'BookOpen');
-  }, [logActivity]);
-
-  const updateCourse = useCallback((id: string, updated: Partial<AdminCourse>) => {
-    setCourses(prev => prev.map(c => c.id === id ? { ...c, ...updated } as AdminCourse : c));
-    logActivity('Training Updated', `Updated details/settings for "${id}".`, 'BookOpen');
-  }, [logActivity]);
-
-  const deleteCourse = useCallback(async (id: string) => {
-    if (!(await requireStepUpClient('/admin/training', 'delete_course'))) return;
-    setCourses(prev => prev.filter(c => c.id !== id));
-    logActivity('Training Removed', `Archived and deleted training program "${id}".`, 'BookOpen');
-  }, [logActivity]);
-
-  // Enrollments
-  const addEnrollment = useCallback((e: Omit<Enrollment, 'id' | 'enrolled_date'>) => {
-    const course = courses.find(c => c.id === e.course_id);
-    if (course && course.seats_enrolled >= course.seats_total) return;
-    const newEnrollment: Enrollment = { ...e, id: `enr-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, enrolled_date: new Date().toISOString().split('T')[0] };
-    setEnrollments(prev => [newEnrollment, ...prev]);
-    setCourses(prev => prev.map(c => c.id === e.course_id ? { ...c, seats_enrolled: c.seats_enrolled + 1 } : c));
-    logActivity('Enrollment Created', `Enrolled member in training program.`, 'Calendar');
-  }, [logActivity, courses]);
-
-  const updateEnrollment = useCallback((id: string, updated: Partial<Enrollment>) => {
-    setEnrollments(prev => prev.map(e => e.id === id ? { ...e, ...updated } as Enrollment : e));
-  }, []);
-
-  const approveEnrollment = useCallback(async (id: string) => {
-    if (!(await requireStepUpClient('/admin/enrollments', 'approve_enrollment'))) return;
-    setEnrollments(prev => prev.map(e => {
-      if (e.id === id) {
-        logActivity('Enrollment Approved', `Approved admission application ${id}.`, 'CheckCircle');
-        return { ...e, status: 'Enrolled' as const, doc_verified: true, admin_notes: `Application approved on ${new Date().toLocaleDateString()}` };
-      }
-      return e;
-    }));
-  }, [logActivity]);
-
-  const rejectEnrollment = useCallback(async (id: string, reason: string) => {
-    if (!(await requireStepUpClient('/admin/enrollments', 'reject_enrollment'))) return;
-    setEnrollments(prev => prev.map(e => {
-      if (e.id === id) {
-        logActivity('Application Rejected', `Rejected enrollment application ${id}. Reason: ${reason}`, 'Bell');
-        return { ...e, status: 'Dropped' as const, admin_notes: `Application rejected. Reason: ${reason}` };
-      }
-      return e;
-    }));
-  }, [logActivity]);
-
-  const markEnrollmentCompleted = useCallback((id: string) => {
-    setEnrollments(prev => prev.map(e => {
-      if (e.id === id) {
-        logActivity('Training Completed', `Marked program completed for enrollment ${id}.`, 'Award');
-        return { ...e, status: 'Completed' as const };
-      }
-      return e;
-    }));
-  }, [logActivity]);
-
-  const markEnrollmentDropped = useCallback((id: string) => {
-    let droppedCourseId: string | null = null;
-    setEnrollments(prev => prev.map(e => {
-      if (e.id === id) {
-        logActivity('Training Dropped', `Member dropped/withdrew from enrollment ${id}.`, 'Bell');
-        droppedCourseId = e.course_id;
-        return { ...e, status: 'Dropped' as const };
-      }
-      return e;
-    }));
-    if (droppedCourseId) {
-      setCourses(prev => prev.map(c => c.id === droppedCourseId ? { ...c, seats_enrolled: Math.max(0, c.seats_enrolled - 1) } : c));
-    }
-  }, [logActivity]);
-
   // Certificates
   const addCertificate = useCallback((cert: Omit<AdminCertificate, 'id'>) => {
     const newCert: AdminCertificate = { ...cert, id: `cert-${Date.now()}-${crypto.randomUUID().slice(0, 8)}` };
@@ -467,22 +382,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const generateCertificateForEnrollment = useCallback((enrId: string) => {
-    setEnrollments(prev => {
-      const enr = prev.find(e => e.id === enrId);
-      if (!enr) return prev;
-      const certNo = `MH-SKILL-2026-${Math.floor(10000 + Math.random() * 90000)}`;
-      const newCert: AdminCertificate = {
-        id: `cert-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-        course_id: enr.course_id,
-        member_id: enr.member_id,
-        certificate_no: certNo,
-        issue_date: new Date().toISOString().split('T')[0],
-        status: 'generated',
-      };
-      setCertificates(certs => [newCert, ...certs]);
-      logActivity('Certificate Auto-Generated', `Created certification serial ${certNo} for enrollment ${enrId}.`, 'Award');
-      return prev;
-    });
+    const certNo = `MH-SKILL-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+    const newCert: AdminCertificate = {
+      id: `cert-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+      course_id: '',
+      member_id: enrId,
+      certificate_no: certNo,
+      issue_date: new Date().toISOString().split('T')[0],
+      status: 'generated',
+    };
+    setCertificates(certs => [newCert, ...certs]);
+    logActivity('Certificate Auto-Generated', `Created certification serial ${certNo} for enrollment ${enrId}.`, 'Award');
   }, [logActivity]);
 
   const approveCertificate = useCallback((id: string) => {
@@ -546,8 +456,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   // Reset
   const resetAllData = useCallback(() => {
-    setCourses(MOCK_COURSES);
-    setEnrollments(MOCK_ENROLLMENTS);
     setCertificates(MOCK_CERTIFICATES);
     setNotifications(MOCK_NOTIFICATIONS);
     setCoupons(MOCK_COUPONS);
@@ -561,7 +469,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AdminContext.Provider value={{
-      members, teachers, courses, enrollments, certificates,
+      members, teachers, certificates,
       notifications, coupons, websiteContent, settings, activityLogs, adminUser, mounted,
       showDeleted, setShowDeleted,
       showDeletedTeachers, setShowDeletedTeachers,
@@ -569,8 +477,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       addMember, refreshMembers, updateMember, deleteMember, restoreMember, changeMemberStatus,
       verifyDocument, rejectDocument,
       addTeacher, refreshTeachers, updateTeacher, deleteTeacher, restoreTeacher,
-      addCourse, updateCourse, deleteCourse,
-      addEnrollment, updateEnrollment, approveEnrollment, rejectEnrollment, markEnrollmentCompleted, markEnrollmentDropped,
       addCertificate, generateCertificateForEnrollment, approveCertificate, rejectCertificate,
       addNotification,
       addCoupon, updateCoupon, deleteCoupon,

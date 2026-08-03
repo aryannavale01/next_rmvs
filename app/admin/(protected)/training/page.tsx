@@ -14,6 +14,9 @@ import { EmptyState } from '@/components/ui/empty-state';
 import MetricCards from '@/components/MetricCards';
 import { motion, AnimatePresence } from 'motion/react';
 import { getStatusStyle } from '@/lib/status-styles';
+import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from '@/lib/admin-stepup';
+
+const TRAINING_ACTION = 'delete_course';
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
@@ -105,26 +108,48 @@ export default function AdminTrainingPage() {
 
   const [courses, setCourses] = useState<AdminCourse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Published' | 'Draft'>('All');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [editCourseId, setEditCourseId] = useState<string | null>(null);
 
   const fetchCourses = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/courses');
-      if (res.ok) {
-        const data = await res.json();
-        setCourses(Array.isArray(data) ? data : []);
+    setLoading(true);
+    setLoadError(null);
+    let lastStatus = 0;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await fetch('/api/admin/courses');
+        if (res.ok) {
+          const data = await res.json();
+          setCourses(Array.isArray(data) ? data : []);
+          setLoading(false);
+          return;
+        }
+        lastStatus = res.status;
+        // 4xx (401/403/404) will not recover on retry — fail fast
+        if (res.status < 500) break;
+      } catch {
+        // network error — treated as transient, retried below
       }
-    } catch {
-      // fallback to empty
-    } finally {
-      setLoading(false);
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+      }
     }
+    setCourses([]);
+    setLoadError(
+      lastStatus === 503
+        ? 'The database is temporarily unavailable. Please try again in a moment.'
+        : `Failed to load trainings${lastStatus ? ` (${lastStatus})` : ' due to a network error'}.`,
+    );
+    setLoading(false);
   }, []);
 
-  useEffect(() => { fetchCourses(); }, [fetchCourses]);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => { fetchCourses(); });
+    return () => cancelAnimationFrame(id);
+  }, [fetchCourses]);
 
   // Wizard state
   const [showWizard, setShowWizard] = useState(false);
@@ -298,8 +323,20 @@ export default function AdminTrainingPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!(await requireStepUpClient('/admin/training', TRAINING_ACTION))) {
+      setDeleteConfirm(null);
+      return;
+    }
     try {
-      await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        if (isStepUpRequiredResponse(res.status, data.error)) {
+          redirectToStepUp('/admin/training', TRAINING_ACTION);
+          setDeleteConfirm(null);
+          return;
+        }
+      }
       await fetchCourses();
     } catch {}
     setDeleteConfirm(null);
@@ -544,6 +581,18 @@ export default function AdminTrainingPage() {
         </button>
       </div>
 
+      {/* Load error banner */}
+      {loadError && (
+        <div className="bg-destructive-bg border border-destructive/20 rounded-xl p-4 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-destructive">{loadError}</p>
+          </div>
+          <button onClick={fetchCourses} className="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-destructive hover:bg-destructive/90 rounded-lg">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
@@ -565,7 +614,7 @@ export default function AdminTrainingPage() {
                     <span className="ml-2 text-xs text-muted-foreground">Loading courses...</span>
                   </div>
                 </td></tr>
-              ) : filtered.length === 0 && (
+              ) : filtered.length === 0 && !loadError && (
                 <tr><td colSpan={5} className="py-12">
                   <EmptyState icon={BookOpen} title="No trainings" description="Create your first training to start enrolling beneficiaries." />
                 </td></tr>

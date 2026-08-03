@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { generateSignedUrl } from '@/lib/supabase-storage';
 import { BUCKETS } from '@/lib/upload-config';
 import { logActivity } from '@/lib/activity-log';
@@ -19,13 +19,15 @@ export async function GET(
 ) {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return authErrorResponse(auth)!;
   }
 
   try {
     const { id, docId } = await params;
 
-    const doc = await prisma.beneficiaryDocument.findUnique({ where: { id: docId } });
+    const doc = await withRetry(() =>
+      prisma.beneficiaryDocument.findUnique({ where: { id: docId } }),
+    );
     if (!doc || doc.profileId !== id) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
@@ -51,6 +53,8 @@ export async function GET(
 
     return NextResponse.redirect(signedUrl);
   } catch (error) {
+    const dbResp = dbErrorResponse(error);
+    if (dbResp) return dbResp;
     console.error('[GET /api/admin/members/[id]/documents/[docId]/view]', error);
     return NextResponse.json(
       { error: 'Failed to generate document URL' },

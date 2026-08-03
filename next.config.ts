@@ -13,7 +13,27 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  // turbopack: {},
+  // Turbopack disabled - using webpack dev server.
+  // The webpack watcher reacts to ANY file change under the project root,
+  // including test artifacts (e.g. .playwright-mcp/). Each such change
+  // triggers a full Fast Refresh rebuild (~seconds), during which RSC
+  // navigation requests fail with 500 -> "Unexpected end of JSON input"
+  // in the browser. Ignore non-source paths so dev stays fast and stable.
+  webpack(config, { dev }) {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          '**/node_modules/**',
+          '**/.next/**',
+          '**/.git/**',
+          '**/.playwright-mcp/**',
+          '**/*.tsbuildinfo',
+        ],
+      };
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 import { createMemberSchema } from '@/lib/validations/admin-member';
 import { logActivity } from '@/lib/activity-log';
 import { getPublicUrl } from '@/lib/supabase-storage';
@@ -144,35 +144,37 @@ export async function GET(request: NextRequest) {
 
     const skip = (q.page - 1) * q.pageSize;
 
-    const [data, total] = await prisma.$transaction([
-      prisma.profile.findMany({
-        where,
-        include: {
-          beneficiaryDetail: {
-            select: {
-              category: true,
-              occupation: true,
-              maritalStatus: true,
-              annualIncome: true,
+    const [data, total] = await withRetry(() =>
+      prisma.$transaction([
+        prisma.profile.findMany({
+          where,
+          include: {
+            beneficiaryDetail: {
+              select: {
+                category: true,
+                occupation: true,
+                maritalStatus: true,
+                annualIncome: true,
+              },
+            },
+            beneficiaryAddresses: {
+              select: {
+                village: true,
+                taluka: true,
+                district: true,
+                state: true,
+                pincode: true,
+              },
+              take: 1,
             },
           },
-          beneficiaryAddresses: {
-            select: {
-              village: true,
-              taluka: true,
-              district: true,
-              state: true,
-              pincode: true,
-            },
-            take: 1,
-          },
-        },
-        skip,
-        take: q.pageSize,
-        orderBy,
-      }),
-      prisma.profile.count({ where }),
-    ]);
+          skip,
+          take: q.pageSize,
+          orderBy,
+        }),
+        prisma.profile.count({ where }),
+      ]),
+    );
 
     const totalPages = Math.ceil(total / q.pageSize);
 
@@ -187,6 +189,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[GET /api/admin/members]', error);
+    if (isTransientPrismaError(error)) {
+      return NextResponse.json(
+        { error: 'Database temporarily unavailable, please retry.' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to fetch members' },
       { status: 500 },
@@ -258,7 +266,7 @@ function mapProfileDetail(p: any) {
     courseEnrollments: (p.courseEnrollments ?? []).map((e: any) => ({
       id: e.id,
       course: e.course ? { id: e.course.id, title: e.course.title } : null,
-      batch: e.batch,
+      batch: e.batchLabel,
       trainer: e.trainer,
       enrollmentDate: e.enrollmentDate.toISOString().split('T')[0],
       completionDate: e.completionDate?.toISOString().split('T')[0] ?? null,

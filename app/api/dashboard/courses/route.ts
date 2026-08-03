@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
+import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,19 +38,21 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rawCourses = await prisma.course.findMany({
-      where: { status: 'active' },
-      include: {
-        syllabus: { orderBy: { sortOrder: 'asc' } },
-        _count: {
-          select: {
-            enrollments: { where: { status: { in: ['enrolled', 'in_progress'] } } },
+    const rawCourses = await withRetry(() =>
+      prisma.course.findMany({
+        where: { status: 'active' },
+        include: {
+          syllabus: { orderBy: { sortOrder: 'asc' } },
+          _count: {
+            select: {
+              enrollments: { where: { status: { in: ['enrolled', 'in_progress'] } } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+    );
 
     const courses = rawCourses.map((c) => ({
       id: c.id,
@@ -84,6 +86,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ courses });
   } catch (error) {
     console.error('[courses] GET error:', error);
+    if (isTransientPrismaError(error)) {
+      return NextResponse.json(
+        { error: 'Database temporarily unavailable, please retry.' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Failed to load courses' }, { status: 500 });
   }
 }
