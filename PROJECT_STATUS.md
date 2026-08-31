@@ -450,3 +450,29 @@ This is the central flow (from `ARCHITECTURE.md` Section 7):
 ---
 
 *This report reflects the actual state of the codebase as of August 20, 2026, based on automated code review and full codebase scan.*
+
+---
+
+## Update — August 31, 2026
+
+Corrections / resolution of items in the original report, following the production-readiness pass:
+
+- **Migration history (see §12).** The original table listed 20 migrations, but only **9 migration folders are committed** in `prisma/migrations/`. The other 15 were generated against the live DB (via `migrate dev`/`resolve`) during earlier provisioning but were **never committed to this repo** (verified via `git log --all`). The migration history is now reproducible end-to-end:
+  1. `20260720064509_init`
+  2. `20260722000000_add_login_attempts`
+  3. `20260722092000_add_session_token_unique`
+  4. `20260722120000_add_must_change_password_and_audit_log`
+  5. `20260723000000_add_photo_variants`
+  6. `20260726120000_add_document_verification_audit_fields`
+  7. `20260728120000_training_operations`
+  8. `20260831100000_add_missing_content_tables` (tables/columns that existed on live via db-push-era work but were absent from committed history)
+  9. `20260831110000_add_user_email_unique_and_drift_fixes` (DB-level unique email index + two drift corrections)
+  - A **fresh deploy** now reproduces the full schema with **zero drift** vs `schema.prisma` (`migrate diff` empty, verified on a clean shadow and on live).
+- **Email uniqueness** is now enforced at the **database level** (`User_email_key` unique index on `"User"("email")`), in addition to Better Auth's application-layer find-then-create check.
+- **`og-default.png`** (see "Before Production Launch" #6) is **resolved**: it is generated dynamically by `app/og-default.png/route.tsx` (Next `ImageResponse`, 1200×630).
+- **SEO** — added `app/sitemap.xml` (static public routes + live active course slugs) and `app/robots.txt` (disallow admin/dashboard/api/private paths).
+- **Schema/enum counts.** `schema.prisma` declares **48 models / 32 enums** (the report's header said 20 migrations / 31 enums).
+- **README.md** was the Google AI Studio boilerplate; it has been replaced with a project-specific README, and `.env.example` gained `SHADOW_DATABASE_URL` + `NEXT_PUBLIC_SITE_URL`.
+- **Unit tests.** `npm test` (Vitest) is green (5 files / 56 tests). The upload-route test's `@/lib/prisma` mock was completed so the background rate-limit path no longer produces unhandled errors / false 429s.
+- **Type-check / lint / build** all pass with 0 errors.
+
