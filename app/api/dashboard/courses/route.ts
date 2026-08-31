@@ -1,15 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/session';
 import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
+import { CATEGORY_DISPLAY } from '@/lib/course-categories';
 
 export const dynamic = 'force-dynamic';
-
-const CATEGORY_DISPLAY: Record<string, string> = {
-  tech: 'Technology',
-  health: 'Health',
-  leadership: 'Leadership',
-  environment: 'Environment',
-};
 
 const LEVEL_DISPLAY: Record<string, 'Beginner' | 'Intermediate' | 'Advanced'> = {
   beginner: 'Beginner',
@@ -38,21 +32,30 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rawCourses = await withRetry(() =>
-      prisma.course.findMany({
-        where: { status: 'active' },
-        include: {
-          syllabus: { orderBy: { sortOrder: 'asc' } },
-          _count: {
-            select: {
-              enrollments: { where: { status: { in: ['enrolled', 'in_progress'] } } },
+    const userId = auth.session.user.id;
+    const [rawCourses, enrollments] = await withRetry(() =>
+      Promise.all([
+        prisma.course.findMany({
+          where: { status: 'active' },
+          include: {
+            teacher: { select: { rating: true } },
+            syllabus: { orderBy: { sortOrder: 'asc' } },
+            _count: {
+              select: {
+                enrollments: { where: { status: { in: ['enrolled', 'in_progress'] } } },
+              },
             },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        prisma.courseEnrollment.findMany({
+          where: { profileId: userId, status: { in: ['enrolled', 'in_progress', 'completed', 'certified'] } },
+          select: { courseId: true },
+        }),
+      ]),
     );
+    const enrolledCourseIds = new Set(enrollments.map((e) => e.courseId));
 
     const courses = rawCourses.map((c) => ({
       id: c.id,
@@ -69,14 +72,16 @@ export async function GET(request: Request) {
       price: c.price != null ? Number(c.price) : 0,
       syllabus: c.syllabus.map((s) => ({
         title: s.title,
+        description: s.description ?? '',
         duration: s.durationMinutes ? `${Math.ceil(s.durationMinutes / 60)} Hours` : '',
         type: LESSON_TYPE_MAP[s.lessonType] ?? 'document',
         isFreePreview: s.isFreePreview,
+        ...(enrolledCourseIds.has(c.id) ? { content: s.content ?? '', videoUrl: s.videoUrl ?? '' } : {}),
       })),
       instructor: {
         name: c.instructorName,
         designation: c.instructorRole ?? '',
-        rating: 4.5,
+        rating: c.teacher?.rating ? Number(c.teacher.rating) : null,
         photo: c.instructorImage ?? '',
       },
       description: c.description,

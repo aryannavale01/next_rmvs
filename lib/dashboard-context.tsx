@@ -14,7 +14,7 @@ import {
   Profile,
   INITIAL_PROFILE,
 } from './store';
-import { makeId, makeCertificateNo, getTodayIsoDate, getCurrentIsoString } from './purity-helpers';
+import { makeId, getTodayIsoDate, getCurrentIsoString } from './purity-helpers';
 
 interface DashboardResponse {
   applications: Application[];
@@ -37,15 +37,17 @@ interface DashboardContextType {
   language: 'en' | 'hi' | 'mr';
   loading: boolean;
   error: { dashboard?: string; courses?: string } | null;
+  orgName: string;
   updateProfile: (updated: Partial<Profile>) => Promise<void>;
   applyToCourse: (
     courseId: string,
     couponCode?: string,
     discountAmount?: number,
     finalPrice?: number,
-    docs?: { aadhaar?: { name?: string; recordId?: string }; pan?: { name?: string; recordId?: string }; rationCard?: { name?: string; recordId?: string } }
+    docs?: { aadhaar?: { name?: string; recordId?: string }; pan?: { name?: string; recordId?: string }; rationCard?: { name?: string; recordId?: string } },
+    extra?: { education?: string; address?: string; motivation?: string }
   ) => Promise<boolean>;
-  generateCertificate: (courseId: string) => void;
+  requestCertificate: (courseId: string) => Promise<boolean>;
   markAllAsRead: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   setLanguage: (lang: 'en' | 'hi' | 'mr') => void;
@@ -265,7 +267,7 @@ export const TRANSLATIONS = {
   }
 };
 
-export function DashboardProvider({ children }: { children: ReactNode }) {
+export function DashboardProvider({ children, orgName = '' }: { children: ReactNode; orgName?: string }) {
   const initialStored = useMemo(() => getStoredState(), []);
 
   const [language, setLanguageState] = useState<'en' | 'hi' | 'mr'>(() => {
@@ -366,7 +368,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     couponCode?: string,
     _discountAmount = 0,
     _finalPrice?: number,
-    docs?: { aadhaar?: { name?: string; recordId?: string }; pan?: { name?: string; recordId?: string }; rationCard?: { name?: string; recordId?: string } }
+    docs?: { aadhaar?: { name?: string; recordId?: string }; pan?: { name?: string; recordId?: string }; rationCard?: { name?: string; recordId?: string } },
+    extra?: { education?: string; address?: string; motivation?: string }
   ): Promise<boolean> => {
     const course = courses.find((c: Course) => c.id === courseId);
     if (!course) return false;
@@ -426,7 +429,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courseId, couponCode: couponCode || undefined, documents: Object.keys(serverDocuments).length > 0 ? serverDocuments : undefined }),
+        body: JSON.stringify({
+          courseId,
+          couponCode: couponCode || undefined,
+          education: extra?.education || undefined,
+          address: extra?.address || undefined,
+          motivation: extra?.motivation || undefined,
+          documents: Object.keys(serverDocuments).length > 0 ? serverDocuments : undefined
+        }),
       });
 
       if (!res.ok) {
@@ -443,43 +453,68 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [courses, applications, profile, dashboardSWR, coursesSWR]);
 
-  const generateCertificate = useCallback((courseId: string) => {
+  const requestCertificate = useCallback(async (courseId: string): Promise<boolean> => {
     const course = courses.find((c: Course) => c.id === courseId);
-    if (!course) return;
+    if (!course) return false;
 
     const exists = certificates.some((c: Certificate) => c.courseId === courseId);
-    if (exists) return;
+    if (exists) return false;
 
-    const newCert: Certificate = {
-      id: makeId('cert'),
-      courseId,
-      courseTitle: course.title,
-      certificateNo: makeCertificateNo(courseId),
-      completionDate: getTodayIsoDate(),
-      status: 'generated',
-      photoUrlHQ: profile.photoUrlHQ || undefined,
-    };
+    try {
+      const res = await fetch('/api/member/certificates/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId }),
+      });
 
-    const newNotif: AppNotification = {
-      id: makeId('notif'),
-      title: 'Certificate Generated Successfully',
-      description: `Your digital certificate for ${course.title} has been compiled and is ready for download.`,
-      type: 'success',
-      time: 'Just now',
-      group: 'Today',
-      read: false,
-    };
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error('[requestCertificate] failed', res.status, data);
+        return false;
+      }
 
-    dashboardSWR.mutate(
-      (current) => ({
-        certificates: [newCert, ...(current?.certificates ?? [])],
-        notifications: [newNotif, ...(current?.notifications ?? [])],
-        applications: (current?.applications ?? []).map((a: Application) => a.courseId === courseId ? { ...a, status: 'Course Completed' as const } : a),
-        activities: current?.activities ?? [],
-      }),
-      { revalidate: false }
-    );
-  }, [courses, certificates, profile.photoUrlHQ, dashboardSWR]);
+      const { certificate } = await res.json();
+
+      const newCert: Certificate = {
+        id: certificate.id,
+        courseId: courseId,
+        courseTitle: course.title,
+        certificateNo: certificate.certificateNumber,
+        completionDate: certificate.completionDate
+          ? new Date(certificate.completionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
+          : getTodayIsoDate(),
+        status: 'pending',
+        verificationCode: certificate.verificationCode,
+        verificationUrl: certificate.verificationUrl,
+        memberName: certificate.memberName,
+      };
+
+      const newNotif: AppNotification = {
+        id: makeId('notif'),
+        title: 'Certificate Requested',
+        description: `Your certificate request for ${course.title} has been submitted and is pending approval.`,
+        type: 'info',
+        time: 'Just now',
+        group: 'Today',
+        read: false,
+      };
+
+      dashboardSWR.mutate(
+        (current) => ({
+          certificates: [newCert, ...(current?.certificates ?? [])],
+          notifications: [newNotif, ...(current?.notifications ?? [])],
+          applications: current?.applications ?? [],
+          activities: current?.activities ?? [],
+        }),
+        { revalidate: false }
+      );
+
+      return true;
+    } catch (err) {
+      console.error('[requestCertificate] error', err);
+      return false;
+    }
+  }, [courses, certificates, dashboardSWR]);
 
   const markAsRead = useCallback(async (id: string) => {
     dashboardSWR.mutate(
@@ -584,9 +619,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     language,
     loading: isLoadingAll,
     error,
+    orgName,
     updateProfile,
     applyToCourse,
-    generateCertificate,
+    requestCertificate,
     markAllAsRead,
     markAsRead,
     setLanguage,
@@ -594,8 +630,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     resetDashboard,
   }), [
     profile, applications, certificates, notifications, activities, courses,
-    language, isLoadingAll, error,
-    updateProfile, applyToCourse, generateCertificate,
+    language, isLoadingAll, error, orgName,
+    updateProfile, applyToCourse, requestCertificate,
     markAllAsRead, markAsRead, setLanguage, addActivity, resetDashboard,
   ]);
 

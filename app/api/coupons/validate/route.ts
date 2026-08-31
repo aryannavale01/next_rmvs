@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const coupon = await withRetry(() =>
       prisma.coupon.findFirst({
-        where: { code: { equals: normalizedCode, mode: 'insensitive' } },
+        where: { code: { equals: normalizedCode, mode: 'insensitive' }, status: { not: 'deleted' } },
       })
     );
 

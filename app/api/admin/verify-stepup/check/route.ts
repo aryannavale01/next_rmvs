@@ -1,27 +1,30 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { requireAdmin, stepUpErrorResponse } from '@/lib/session';
 import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
-import { STEP_UP_WINDOW_MS } from '@/lib/admin-security';
+import { getStepUpWindowMs } from '@/lib/admin-security';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.success) {
-    return authErrorResponse(auth)!;
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
-    const session = await withRetry(() =>
-      prisma.session.findUnique({
-        where: { id: auth.session.session.id },
-        select: { stepUpVerifiedAt: true },
-      })
-    );
+    const [session, stepUpWindowMs] = await Promise.all([
+      withRetry(() =>
+        prisma.session.findUnique({
+          where: { id: auth.session.session.id },
+          select: { stepUpVerifiedAt: true },
+        })
+      ),
+      getStepUpWindowMs(),
+    ]);
 
     const needsStepUp =
       !session?.stepUpVerifiedAt ||
-      Date.now() - session.stepUpVerifiedAt.getTime() > STEP_UP_WINDOW_MS;
+      Date.now() - session.stepUpVerifiedAt.getTime() > stepUpWindowMs;
 
     return NextResponse.json({
       needsStepUp,

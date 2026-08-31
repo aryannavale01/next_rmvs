@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { requireStepUp, stepUpErrorResponse } from '@/lib/session';
 import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
 import { uploadFile, deleteFile, getPublicUrl } from '@/lib/supabase-storage';
@@ -14,9 +14,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return authErrorResponse(auth)!;
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
@@ -125,9 +125,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return authErrorResponse(auth)!;
+    return stepUpErrorResponse(auth)!;
   }
 
   try {

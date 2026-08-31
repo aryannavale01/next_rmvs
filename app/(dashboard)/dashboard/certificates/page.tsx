@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Clock,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useToast } from '@/components/ui/toast';
@@ -19,13 +20,14 @@ import { EmptyState } from '@/components/dashboard-ui';
 
 export default function CertificatesPage() {
   const router = useRouter();
-  const { certificates, applications, generateCertificate, language, profile } = useDashboard();
+  const { certificates, applications, requestCertificate, language, profile, orgName } = useDashboard();
   const { toast } = useToast();
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   // Track which courseId is compiling
   const [compilingId, setCompilingId] = useState<string | null>(null);
   const [previewCert, setPreviewCert] = useState<typeof certificates[0] | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const getInitials = (title: string) => {
     return title
@@ -45,12 +47,33 @@ export default function CertificatesPage() {
     return !certificates.some(cert => cert.courseId === completed.courseId);
   });
 
-  const handleCompile = (courseId: string) => {
+  const handleCompile = async (courseId: string) => {
     setCompilingId(courseId);
-    setTimeout(() => {
-      generateCertificate(courseId);
-      setCompilingId(null);
-    }, 1500);
+    const success = await requestCertificate(courseId);
+    setCompilingId(null);
+    if (success) {
+      toast({ title: 'Certificate Requested', description: 'Your certificate request has been submitted for approval.' });
+    } else {
+      toast({ title: 'Request Failed', description: 'Could not request certificate. Please try again.', variant: 'error' });
+    }
+  };
+
+  const handleDownload = async (cert: typeof certificates[0]) => {
+    if (!cert.pdfStoragePath) {
+      toast({ title: 'Not Available Yet', description: 'Your certificate PDF is still being processed. Please check back soon.', variant: 'error' });
+      return;
+    }
+    setDownloadingId(cert.id);
+    try {
+      const res = await fetch(`/api/member/certificates/${cert.id}/download`);
+      if (!res.ok) throw new Error('Download failed');
+      const { url } = await res.json();
+      window.open(url, '_blank');
+    } catch {
+      toast({ title: 'Download Failed', description: 'Could not download certificate.', variant: 'error' });
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const getAccentStripStyle = (status: string) => {
@@ -59,6 +82,8 @@ export default function CertificatesPage() {
         return 'bg-primary';
       case 'pending':
         return 'bg-primary-light';
+      case 'revoked':
+        return 'bg-red-500';
       default:
         return 'bg-success';
     }
@@ -70,6 +95,8 @@ export default function CertificatesPage() {
         return 'bg-primary-light text-primary border-primary/10';
       case 'pending':
         return 'bg-primary-light text-primary border-primary/10';
+      case 'revoked':
+        return 'bg-red-100 text-red-600 border-red-200';
       default:
         return 'bg-success-bg text-success-text border-success/10';
     }
@@ -220,26 +247,46 @@ export default function CertificatesPage() {
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-3 pt-4 border-t border-border mt-4">
-                      {/* View Certificate */}
-                      <button
-                        onClick={() => setPreviewCert(cert)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-light/50 text-xs font-bold text-foreground hover:text-primary transition-colors"
-                      >
-                        <FileCheck size={14} />
-                        View Cert
-                      </button>
+                      {cert.status === 'revoked' ? (
+                        <button
+                          disabled
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-red-100 text-red-600 text-xs font-bold rounded-lg cursor-not-allowed"
+                        >
+                          <X size={14} />
+                          Certificate Revoked
+                        </button>
+                      ) : (
+                        <>
+                          {/* View Certificate */}
+                          <button
+                            onClick={() => setPreviewCert(cert)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary-light/50 text-xs font-bold text-foreground hover:text-primary transition-colors"
+                          >
+                            <FileCheck size={14} />
+                            View Cert
+                          </button>
 
-                      {/* Download PDF */}
-                      <button
-                        onClick={() => {
-                          setPreviewCert(cert);
-                          setTimeout(() => window.print(), 300);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
-                      >
-                        <Download size={14} />
-                        Download PDF
-                      </button>
+                          {/* Download PDF */}
+                          {cert.pdfStoragePath ? (
+                            <button
+                              onClick={() => handleDownload(cert)}
+                              disabled={downloadingId === cert.id}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary hover:bg-primary-hover disabled:bg-primary/30 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+                            >
+                              <Download size={14} />
+                              {downloadingId === cert.id ? 'Downloading...' : 'Download PDF'}
+                            </button>
+                          ) : (
+                            <button
+                              disabled
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-muted text-muted-foreground text-xs font-bold rounded-lg cursor-not-allowed"
+                            >
+                              <Clock size={14} />
+                              Pending Approval
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -326,7 +373,9 @@ export default function CertificatesPage() {
               <div className="absolute bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 border-primary/30 rounded-bl-lg" />
               <div className="absolute bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 border-primary/30 rounded-br-lg" />
 
-              <p className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1">Ministry of Skill Development</p>
+              {orgName && (
+                <p className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1">{orgName}</p>
+              )}
               <h2 className="text-xl font-bold text-foreground mb-6">{t.certificateOfCompletion}</h2>
 
               <p className="text-xs text-muted-foreground mb-1">{t.recipientName}</p>
@@ -347,13 +396,21 @@ export default function CertificatesPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => window.print()}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
-            >
-              <Download size={14} />
-              {t.downloadCert}
-            </button>
+            {previewCert.pdfStoragePath ? (
+              <button
+                onClick={() => previewCert && handleDownload(previewCert)}
+                disabled={downloadingId === previewCert?.id}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary-hover disabled:bg-primary/30 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+              >
+                <Download size={14} />
+                {downloadingId === previewCert?.id ? 'Downloading...' : t.downloadCert}
+              </button>
+            ) : (
+              <div className="w-full flex items-center justify-center gap-2 py-2.5 bg-muted text-muted-foreground text-xs font-semibold rounded-lg">
+                <Clock size={14} />
+                PDF pending approval — download will be available once processed
+              </div>
+            )}
           </div>
         )}
       </Modal>

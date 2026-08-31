@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { requireAdmin, requireStepUp, authErrorResponse, stepUpErrorResponse } from '@/lib/session';
 import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { createMemberSchema } from '@/lib/validations/admin-member';
 import { logActivity } from '@/lib/activity-log';
 import { hashPassword } from '@better-auth/utils/password';
 import * as crypto from 'node:crypto';
 import { z } from 'zod';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,9 +37,14 @@ function generateTempPassword(): string {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return authErrorResponse(auth)!;
+    return stepUpErrorResponse(auth)!;
+  }
+
+  const rateLimit = checkRateLimit(request, 'admin_bulk_import', 5, 15 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
   }
 
   try {

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import type { Prisma } from "@prisma/client";
 import { buildVerificationUrl } from "./certificate-pdf";
 
@@ -8,13 +9,17 @@ export interface CertifiableEnrollment {
   batchLabel: string | null;
   trainer: string | null;
   completionDate: Date | null;
+  memberName: string;
+  courseName: string;
 }
 
 export interface GeneratedCertificate {
   id: string;
   certificateNumber: string;
+  verificationCode: string;
   profileId: string;
   courseId: string | null;
+  enrollmentId: string | null;
   batch: string | null;
   teacherName: string | null;
   completionDate: Date | null;
@@ -25,7 +30,14 @@ export interface GeneratedCertificate {
   templateName: string | null;
   language: string;
   verificationUrl: string | null;
+  pdfStoragePath: string | null;
+  memberName: string | null;
+  courseName: string | null;
   generatedBy: string | null;
+}
+
+function generateVerificationCode(): string {
+  return crypto.randomBytes(16).toString("base64url");
 }
 
 export async function nextCertificateNumber(
@@ -45,8 +57,10 @@ export async function nextCertificateNumber(
 /**
  * Create Certificate rows for the given enrollments inside the caller's
  * transaction. Certificate numbers are precomputed from a single max-number
- * query, then all rows are written with createMany/updateMany — no per-row
- * round trips, so it stays well within interactive-transaction timeouts.
+ * query, then all rows are written with createMany — no per-row round trips.
+ *
+ * Each certificate gets a cryptographically random verificationCode for
+ * public verification URLs and QR codes.
  */
 export async function generateCertificatesForEnrollments(opts: {
   tx: Prisma.TransactionClient;
@@ -69,42 +83,71 @@ export async function generateCertificatesForEnrollments(opts: {
   });
   const startSeq = last ? parseInt(last.certificateNumber.slice(prefix.length), 10) : 0;
 
-  const certificateNumbers = enrollments.map(
-    (_, i) => `${prefix}${String(startSeq + i + 1).padStart(5, "0")}`,
-  );
-
-  await tx.certificate.createMany({
-    data: enrollments.map((enr, i) => ({
-      certificateNumber: certificateNumbers[i],
-      profileId: enr.profileId,
-      courseId: enr.courseId,
-      batch: enr.batchLabel,
-      teacherName: enr.trainer,
-      completionDate: enr.completionDate,
-      generationDate: now,
-      status: "pending",
-      publishedStatus: "pending",
-      templateName: "default",
-      language: "English",
-      verificationUrl: buildVerificationUrl(baseUrl, certificateNumbers[i]),
-      generatedBy: adminId,
-    })),
+  // Generate certificate numbers and verification codes
+  const certData = enrollments.map((enr, i) => {
+    const certNumber = `${prefix}${String(startSeq + i + 1).padStart(5, "0")}`;
+    const verificationCode = generateVerificationCode();
+    return { certNumber, verificationCode, enrollment: enr };
   });
+
+  // Insert one by one to handle rare verificationCode collisions via retry
+  const created: Array<{ id: string; certificateNumber: string; verificationCode: string }> = [];
+  for (const { certNumber, verificationCode, enrollment } of certData) {
+    let attempts = 0;
+    const MAX_ATTEMPTS = 3;
+    while (attempts < MAX_ATTEMPTS) {
+      try {
+        const cert = await tx.certificate.create({
+          data: {
+            certificateNumber: certNumber,
+            verificationCode,
+            profileId: enrollment.profileId,
+            courseId: enrollment.courseId,
+            enrollmentId: enrollment.id,
+            batch: enrollment.batchLabel,
+            teacherName: enrollment.trainer,
+            completionDate: enrollment.completionDate,
+            generationDate: now,
+            memberName: enrollment.memberName,
+            courseName: enrollment.courseName,
+            status: "pending",
+            publishedStatus: "pending",
+            templateName: "default",
+            language: "English",
+            verificationUrl: buildVerificationUrl(baseUrl, verificationCode),
+            generatedBy: adminId,
+          },
+        });
+        created.push({ id: cert.id, certificateNumber: cert.certificateNumber, verificationCode });
+        break;
+      } catch (err: unknown) {
+        // P2002 = unique constraint violation — retry with new code
+        if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2002" && attempts < MAX_ATTEMPTS - 1) {
+          attempts++;
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
 
   await tx.courseEnrollment.updateMany({
     where: { id: { in: enrollments.map((e) => e.id) } },
     data: { certificateGenerated: true, status: "certified" },
   });
 
-  const created = await tx.certificate.findMany({
-    where: { certificateNumber: { in: certificateNumbers } },
+  const certIds = created.map((c) => c.id);
+  const fullCerts = await tx.certificate.findMany({
+    where: { id: { in: certIds } },
   });
 
-  return created.map((cert) => ({
+  return fullCerts.map((cert) => ({
     id: cert.id,
     certificateNumber: cert.certificateNumber,
+    verificationCode: cert.verificationCode ?? "",
     profileId: cert.profileId,
     courseId: cert.courseId,
+    enrollmentId: cert.enrollmentId,
     batch: cert.batch,
     teacherName: cert.teacherName,
     completionDate: cert.completionDate,
@@ -115,6 +158,9 @@ export async function generateCertificatesForEnrollments(opts: {
     templateName: cert.templateName,
     language: cert.language,
     verificationUrl: cert.verificationUrl,
+    pdfStoragePath: cert.pdfStoragePath,
+    memberName: cert.memberName,
+    courseName: cert.courseName,
     generatedBy: cert.generatedBy,
   }));
 }

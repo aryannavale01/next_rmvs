@@ -122,6 +122,7 @@ export async function renderCertificateHtml(data: CertificatePdfData): Promise<s
   );
 
   const qrTarget = data.verificationUrl ?? data.certificateNumber;
+  const verificationCode = data.verificationCode ?? data.certificateNumber;
   const qrDataUrl = await QRCode.toDataURL(qrTarget, {
     width: 256,
     margin: 1,
@@ -129,6 +130,12 @@ export async function renderCertificateHtml(data: CertificatePdfData): Promise<s
   });
   html = html.replace(/src="https:\/\/api\.qrserver\.com[^"]*"/, `src="${qrDataUrl}"`);
   html = html.replace("RMVS-2026-T8924", escapeHtml(data.certificateNumber));
+
+  // Inject verification code text near the QR area
+  html = html.replace(
+    /(<div[^>]*id="qr-section"[^>]*>)/,
+    `$1<p style="font-size:9px;color:#64748b;margin-top:4px;">Verification Code: <strong>${escapeHtml(verificationCode)}</strong></p>`,
+  );
 
   html = await inlineImage(html, "certification_circular-removebg-preview.png");
   html = await inlineImage(html, "certification_stamp-removebg-preview.png");

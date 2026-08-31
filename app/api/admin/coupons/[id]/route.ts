@@ -33,70 +33,158 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   try {
     const body = await req.json();
+    const current = await withRetry(() =>
+      prisma.coupon.findUnique({ where: { id } })
+    );
+    if (!current) {
+      return NextResponse.json({ error: 'Coupon not found' }, { status: 404 });
+    }
+
     const updateData: Record<string, any> = {};
 
     if (body.code !== undefined) {
       const normalizedCode = body.code.trim().toUpperCase();
-      if (!normalizedCode) {
-        return NextResponse.json({ error: 'Code cannot be empty' }, { status: 400 });
+      if (!normalizedCode || normalizedCode.length > 50) {
+        return NextResponse.json({ error: 'Code must be 1-50 characters' }, { status: 400 });
       }
-      const existing = await withRetry(() =>
+      const duplicate = await withRetry(() =>
         prisma.coupon.findFirst({
-          where: { code: { equals: normalizedCode, mode: 'insensitive' }, id: { not: id } },
+          where: { code: { equals: normalizedCode, mode: 'insensitive' }, id: { not: id }, status: { not: 'deleted' } },
         })
       );
-      if (existing) {
+      if (duplicate) {
         return NextResponse.json({ error: 'A coupon with this code already exists' }, { status: 409 });
       }
       updateData.code = normalizedCode;
     }
 
-    if (body.description !== undefined) updateData.description = body.description;
+    if (body.description !== undefined) {
+      if (body.description !== null && (typeof body.description !== 'string' || body.description.length > 500)) {
+        return NextResponse.json({ error: 'description must be a string of at most 500 characters' }, { status: 400 });
+      }
+      updateData.description = body.description;
+    }
+
+    // Effective discount pair (fall back to stored values so single-field
+    // updates are still validated against each other).
+    const effType = body.discountType !== undefined ? body.discountType : current.discountType;
+    const effValue = body.discountValue !== undefined ? body.discountValue : Number(current.discountValue);
 
     if (body.discountType !== undefined) {
-      if (body.discountType !== 'percentage' && body.discountType !== 'fixed') {
+      if (effType !== 'percentage' && effType !== 'fixed') {
         return NextResponse.json({ error: 'discountType must be "percentage" or "fixed"' }, { status: 400 });
       }
-      updateData.discountType = body.discountType;
+      updateData.discountType = effType;
     }
 
     if (body.discountValue !== undefined) {
-      if (typeof body.discountValue !== 'number' || body.discountValue < 0) {
+      if (typeof effValue !== 'number' || !Number.isFinite(effValue) || effValue < 0) {
         return NextResponse.json({ error: 'discountValue must be a non-negative number' }, { status: 400 });
       }
-      updateData.discountValue = body.discountValue;
+      if (effType === 'percentage' && effValue > 100) {
+        return NextResponse.json({ error: 'Percentage discount cannot exceed 100%' }, { status: 400 });
+      }
+      if (effType === 'fixed' && effValue > 1_000_000) {
+        return NextResponse.json({ error: 'Fixed discount cannot exceed ₹1,000,000' }, { status: 400 });
+      }
+      updateData.discountValue = effValue;
+    } else if (effType === 'percentage' && Number(current.discountValue) > 100) {
+      // Type switched to percentage without an accompanying value that fits.
+      return NextResponse.json({ error: 'Existing discount value exceeds 100% — provide a valid discountValue' }, { status: 400 });
     }
 
-    if (body.discountType === 'percentage' && body.discountValue > 100) {
-      return NextResponse.json({ error: 'Percentage discount cannot exceed 100%' }, { status: 400 });
-    }
+    const effValidFrom = body.validFrom !== undefined ? body.validFrom : current.validFrom?.toISOString() ?? null;
+    const effExpiresAt = body.expiresAt !== undefined ? body.expiresAt : current.expiresAt?.toISOString() ?? null;
 
     if (body.expiresAt !== undefined) {
-      updateData.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
+      if (body.expiresAt === null) {
+        updateData.expiresAt = null;
+      } else {
+        const d = new Date(body.expiresAt);
+        if (Number.isNaN(d.getTime())) {
+          return NextResponse.json({ error: 'expiresAt must be a valid date' }, { status: 400 });
+        }
+        updateData.expiresAt = d;
+      }
     }
 
     if (body.validFrom !== undefined) {
-      updateData.validFrom = body.validFrom ? new Date(body.validFrom) : null;
+      if (body.validFrom === null) {
+        updateData.validFrom = null;
+      } else {
+        const d = new Date(body.validFrom);
+        if (Number.isNaN(d.getTime())) {
+          return NextResponse.json({ error: 'validFrom must be a valid date' }, { status: 400 });
+        }
+        updateData.validFrom = d;
+      }
+    }
+
+    if (
+      effValidFrom && effExpiresAt &&
+      new Date(effValidFrom).getTime() >= new Date(effExpiresAt).getTime()
+    ) {
+      return NextResponse.json({ error: 'validFrom must be before expiresAt' }, { status: 400 });
     }
 
     if (body.maxUses !== undefined) {
-      updateData.maxUses = body.maxUses === null ? null : Number(body.maxUses);
+      if (body.maxUses === null) {
+        updateData.maxUses = null;
+      } else {
+        const n = Number(body.maxUses);
+        if (!Number.isInteger(n) || n < 1 || n > 1_000_000) {
+          return NextResponse.json({ error: 'maxUses must be an integer between 1 and 1,000,000 (or null)' }, { status: 400 });
+        }
+        updateData.maxUses = n;
+      }
     }
 
     if (body.perUserLimit !== undefined) {
-      updateData.perUserLimit = body.perUserLimit === null ? null : Number(body.perUserLimit);
+      if (body.perUserLimit === null) {
+        updateData.perUserLimit = null;
+      } else {
+        const n = Number(body.perUserLimit);
+        if (!Number.isInteger(n) || n < 1 || n > 1000) {
+          return NextResponse.json({ error: 'perUserLimit must be an integer between 1 and 1000 (or null)' }, { status: 400 });
+        }
+        updateData.perUserLimit = n;
+      }
     }
 
     if (body.minAmount !== undefined) {
-      updateData.minAmount = body.minAmount === null ? null : Number(body.minAmount);
+      if (body.minAmount === null) {
+        updateData.minAmount = null;
+      } else {
+        const n = Number(body.minAmount);
+        if (!Number.isFinite(n) || n < 0 || n > 10_000_000) {
+          return NextResponse.json({ error: 'minAmount must be a number between 0 and 10,000,000 (or null)' }, { status: 400 });
+        }
+        updateData.minAmount = n;
+      }
     }
 
     if (body.courseId !== undefined) {
-      updateData.courseId = body.courseId === 'global' || body.courseId === '' ? null : body.courseId;
+      const cid = body.courseId === 'global' || body.courseId === '' ? null : body.courseId;
+      if (cid !== null) {
+        if (typeof cid !== 'string') {
+          return NextResponse.json({ error: 'courseId must be a string, "global", or null' }, { status: 400 });
+        }
+        const course = await withRetry(() =>
+          prisma.course.findUnique({ where: { id: cid }, select: { id: true } })
+        );
+        if (!course) {
+          return NextResponse.json({ error: 'Course not found' }, { status: 400 });
+        }
+      }
+      updateData.courseId = cid;
     }
 
     if (body.isActive !== undefined) {
       updateData.isActive = Boolean(body.isActive);
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(mapCoupon(current));
     }
 
     const coupon = await withRetry(() =>
@@ -170,7 +258,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ deleted: false, deactivated: true, coupon: mapCoupon(coupon) });
     }
 
-    await withRetry(() => prisma.coupon.delete({ where: { id } }));
+      await withRetry(() => prisma.coupon.update({ where: { id }, data: { status: 'deleted', deletedAt: new Date() } }));
     await logActivity({
       entity: 'coupon',
       entityId: id,

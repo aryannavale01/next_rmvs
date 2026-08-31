@@ -47,16 +47,17 @@ const APPLICATION_STATUS_MAP: Record<string, string> = {
   under_review: 'Under Review',
   approved: 'Approved',
   completed: 'Course Completed',
-  rejected: 'Under Review',
+  rejected: 'Rejected',
+  dropped: 'Dropped',
 };
 
-const CERTIFICATE_STATUS_MAP: Record<string, 'pending' | 'accepted' | 'generated'> = {
+const CERTIFICATE_STATUS_MAP: Record<string, 'pending' | 'accepted' | 'generated' | 'revoked'> = {
   pending: 'pending',
   approved: 'accepted',
   generated: 'generated',
   published: 'generated',
   downloaded: 'generated',
-  revoked: 'pending',
+  revoked: 'revoked',
 };
 
 const NOTIFICATION_TYPE_MAP: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
@@ -83,7 +84,7 @@ export async function GET(request: Request) {
   const userId = auth.session.user.id;
 
   try {
-    const [rawApplications, rawCertificates, rawNotifications, rawActivities] = await withRetry(() =>
+    const [rawApplications, rawCertificates, rawNotifications, rawActivities, rawEnrollments] = await withRetry(() =>
       Promise.all([
         prisma.courseApplication.findMany({
           where: { profileId: userId },
@@ -107,18 +108,29 @@ export async function GET(request: Request) {
           orderBy: { timestamp: 'desc' },
           take: 50,
         }),
+        prisma.courseEnrollment.findMany({
+          where: { profileId: userId },
+          select: { courseId: true, status: true },
+        }),
       ]),
+    );
+
+    const completedCourseIds = new Set(
+      rawEnrollments
+        .filter(e => ['completed', 'certified'].includes(e.status))
+        .map(e => e.courseId)
     );
 
     const applications = rawApplications.map((app) => {
       const date = new Date(app.appliedDate);
       const docs = (app.documents as Record<string, { name: string; date: string }> | null) || {};
+      const isCourseCompleted = completedCourseIds.has(app.courseId);
       return {
         id: app.id,
         courseId: app.courseId,
         courseTitle: app.course?.title ?? 'Deleted Course',
         appliedDate: date.toISOString().split('T')[0],
-        status: APPLICATION_STATUS_MAP[app.status] ?? 'Under Review',
+        status: isCourseCompleted ? 'Course Completed' : (APPLICATION_STATUS_MAP[app.status] ?? 'Under Review'),
         couponApplied: app.couponApplied ? 'Applied' : undefined,
         discountAmount: undefined,
         finalPrice: app.amountDue != null ? Number(app.amountDue) : undefined,
@@ -133,7 +145,7 @@ export async function GET(request: Request) {
     const certificates = rawCertificates.map((cert) => ({
       id: cert.id,
       courseId: cert.courseId ?? '',
-      courseTitle: cert.course?.title ?? 'Deleted Course',
+      courseTitle: cert.course?.title ?? cert.courseName ?? 'Deleted Course',
       certificateNo: cert.certificateNumber,
       completionDate: cert.completionDate
         ? cert.completionDate.toISOString().split('T')[0]
@@ -141,6 +153,10 @@ export async function GET(request: Request) {
           ? cert.issueDate.toISOString().split('T')[0]
           : '',
       status: CERTIFICATE_STATUS_MAP[cert.status] ?? 'pending',
+      verificationCode: cert.verificationCode ?? undefined,
+      verificationUrl: cert.verificationUrl ?? undefined,
+      memberName: cert.memberName ?? undefined,
+      pdfStoragePath: cert.pdfStoragePath ?? undefined,
     }));
 
     const notifications = rawNotifications.map((n) => {

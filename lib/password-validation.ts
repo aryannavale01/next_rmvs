@@ -3,11 +3,26 @@ export interface PasswordValidation {
   errors: string[];
 }
 
-export function validatePassword(password: string): PasswordValidation {
+interface PasswordRules {
+  minLength: number;
+  requiresSpecial: boolean;
+  requiresNumber: boolean;
+  requiresUppercase: boolean;
+}
+
+const DEFAULT_RULES: PasswordRules = {
+  minLength: 8,
+  requiresSpecial: true,
+  requiresNumber: true,
+  requiresUppercase: true,
+};
+
+export function validatePassword(password: string, rules?: PasswordRules): PasswordValidation {
+  const r = rules || DEFAULT_RULES;
   const errors: string[] = [];
 
-  if (password.length < 8) {
-    errors.push("Password must be at least 8 characters long");
+  if (password.length < r.minLength) {
+    errors.push(`Password must be at least ${r.minLength} characters long`);
   }
   if (password.length > 128) {
     errors.push("Password must be no more than 128 characters long");
@@ -15,13 +30,13 @@ export function validatePassword(password: string): PasswordValidation {
   if (!/[a-z]/.test(password)) {
     errors.push("Password must contain at least one lowercase letter");
   }
-  if (!/[A-Z]/.test(password)) {
+  if (r.requiresUppercase && !/[A-Z]/.test(password)) {
     errors.push("Password must contain at least one uppercase letter");
   }
-  if (!/[0-9]/.test(password)) {
+  if (r.requiresNumber && !/[0-9]/.test(password)) {
     errors.push("Password must contain at least one number");
   }
-  if (!/[^a-zA-Z0-9]/.test(password)) {
+  if (r.requiresSpecial && !/[^a-zA-Z0-9]/.test(password)) {
     errors.push("Password must contain at least one special character");
   }
 
@@ -35,4 +50,15 @@ export function validatePassword(password: string): PasswordValidation {
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+export async function validatePasswordWithConfig(password: string): Promise<PasswordValidation> {
+  const { getOrgConfig } = await import("./org-config");
+  const config = await getOrgConfig();
+  return validatePassword(password, {
+    minLength: config.pwMinLength,
+    requiresSpecial: config.pwRequiresSpecial,
+    requiresNumber: config.pwRequiresNumber,
+    requiresUppercase: config.pwRequiresUppercase,
+  });
 }

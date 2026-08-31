@@ -141,6 +141,24 @@ export default function CourseDetailPage() {
                   <span className="text-xs text-muted-foreground">{lesson.duration}</span>
                   {expandedLesson === i ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
+                {expandedLesson === i && (
+                  <div className="px-4 pb-4 pl-[3.25rem] space-y-3">
+                    {lesson.description && (
+                      <p className="text-xs text-muted-foreground leading-relaxed">{lesson.description}</p>
+                    )}
+                    {lesson.videoUrl && (
+                      <video controls src={lesson.videoUrl} className="w-full rounded-lg border border-border max-h-64 bg-black" />
+                    )}
+                    {lesson.content && (
+                      <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap bg-muted/40 p-3 rounded-lg border border-border">
+                        {lesson.content}
+                      </div>
+                    )}
+                    {!lesson.description && !lesson.videoUrl && !lesson.content && (
+                      <p className="text-xs text-muted-foreground italic">Lesson materials will appear here once your instructor publishes them.</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

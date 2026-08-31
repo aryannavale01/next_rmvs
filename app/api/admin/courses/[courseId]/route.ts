@@ -155,7 +155,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ courseId: string }> },
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
     return stepUpErrorResponse(auth)!;
   }

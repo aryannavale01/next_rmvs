@@ -9,9 +9,10 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  directUrl         = env("DIRECT_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 // =============================================================
@@ -220,6 +221,9 @@ enum CourseCategory {
   tech
   leadership
   environment
+  agriculture
+  skill_dev
+  basic_digital
 
   @@map("course_category")
 }
@@ -298,6 +302,29 @@ enum TeacherStatus {
   deleted
 
   @@map("teacher_status")
+}
+
+enum LeaderStatus {
+  active
+  inactive
+  deleted
+
+  @@map("leader_status")
+}
+
+enum ContentStatus {
+  active
+  deleted
+
+  @@map("content_status")
+}
+
+enum BlogPostStatus {
+  published
+  draft
+  deleted
+
+  @@map("blog_post_status")
 }
 
 enum TeacherType {
@@ -595,6 +622,9 @@ model CourseApplication {
   appliedDate     DateTime          @default(now()) @map("applied_date")
   status          ApplicationStatus @default(pending)
   hasTestimonial  Boolean           @default(false) @map("has_testimonial")
+  education       String?
+  address         String?
+  motivation      String?
   notes           String?
   couponApplied   Boolean           @default(false) @map("coupon_applied")
   amountDue       Decimal?          @default(0) @map("amount_due") @db.Decimal(10, 2)
@@ -649,8 +679,9 @@ model CourseEnrollment {
   updatedAt            DateTime         @updatedAt @map("updated_at")
 
   // Relations
-  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  course  Course  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  profile      Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  course       Course          @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  certificates Certificate[]
 
   @@unique([profileId, courseId])
   @@index([profileId], map: "idx_course_enrollments_profile")
@@ -720,6 +751,7 @@ model Certificate {
   certificateNumber String            @unique @map("certificate_number")
   profileId         String            @map("profile_id")
   courseId          String?           @map("course_id")
+  enrollmentId      String?           @map("enrollment_id")
   batch             String?
   teacherName       String?           @map("teacher_name")
   issueDate         DateTime?         @map("issue_date") @db.Date
@@ -731,20 +763,30 @@ model Certificate {
   templateName      String?           @map("template_name")
   language          String            @default("English")
   verificationUrl   String?           @map("verification_url")
+  verificationCode  String?           @unique @db.VarChar(32) @map("verification_code")
   pdfUrl            String?           @map("pdf_url")
+  pdfStoragePath    String?           @map("pdf_storage_path")
+  memberName        String?           @map("member_name")
+  courseName        String?           @map("course_name")
   generatedBy       String?           @map("generated_by")
   verifiedBy        String?           @map("verified_by")
   remarks           String?
+  revokedAt         DateTime?         @map("revoked_at")
+  revokedReason     String?           @map("revoked_reason")
   createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
 
   // Relations
-  profile Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
-  course  Course? @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  profile  Profile           @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  course   Course?           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  enrollment CourseEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
 
   @@index([profileId], map: "idx_certificates_profile")
   @@index([courseId], map: "idx_certificates_course")
+  @@index([enrollmentId], map: "idx_certificates_enrollment")
   @@index([status], map: "idx_certificates_status")
   @@index([certificateNumber], map: "idx_certificates_number")
+  @@index([verificationCode], map: "idx_certificates_verification_code")
   @@map("certificates")
 }
 
@@ -876,6 +918,8 @@ model Program {
   image       String?
   isStrategic Boolean          @default(false) @map("is_strategic")
   visibility  CourseVisibility @default(both)
+  status      ContentStatus    @default(active)
+  deletedAt   DateTime?        @map("deleted_at")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
@@ -883,43 +927,50 @@ model Program {
 }
 
 model Leader {
-  id         String   @id @default(uuid())
+  id         String       @id @default(uuid())
   name       String
   role       String
+  status     LeaderStatus @default(active)
   image      String?
   department String?
   bio        String?
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  quote      String?      @db.Text
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
 
   @@map("leaders")
 }
 
 model GalleryItem {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   title       String
   category    String
   image       String?
   description String?
-  isVideo     Boolean  @default(false) @map("is_video")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  location    String?
+  loggedDate  DateTime? @db.Date @map("logged_date")
+  isVideo     Boolean   @default(false) @map("is_video")
+  status      ContentStatus @default(active)
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@map("gallery_items")
 }
 
 model BlogPost {
-  id          String    @id @default(uuid())
+  id          String         @id @default(uuid())
   title       String
+  status      BlogPostStatus @default(published)
   category    String?
   description String?
   content     String?
-  readTime    String?   @map("read_time")
-  date        DateTime? @db.Date
+  readTime    String?        @map("read_time")
+  date        DateTime?      @db.Date
   image       String?
   author      String?
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
 
   @@map("blog_posts")
 }
@@ -927,10 +978,15 @@ model BlogPost {
 model Newsletter {
   id        String    @id @default(uuid())
   title     String
+  body      String?
   date      DateTime? @db.Date
   readTime  String?   @map("read_time")
   image     String?
   fileUrl   String?   @map("file_url")
+  sentAt    DateTime? @map("sent_at")
+  sentCount Int?      @map("sent_count")
+  status    ContentStatus @default(active)
+  deletedAt DateTime? @map("deleted_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
   @@map("newsletters")
@@ -949,8 +1005,10 @@ model Location {
   address        String?
   coordinates    String?
   description    String?
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  status         ContentStatus @default(active)
+  deletedAt      DateTime?     @map("deleted_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
 
   @@map("locations")
 }
@@ -992,6 +1050,8 @@ model Testimonial {
   quote     String
   rating    Int      @default(5)
   avatarUrl String?  @map("avatar_url")
+  status    ContentStatus @default(active)
+  deletedAt DateTime? @map("deleted_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
@@ -1008,6 +1068,8 @@ model Milestone {
   year        Int
   title       String
   description String?
+  status      ContentStatus @default(active)
+  deletedAt   DateTime? @map("deleted_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("milestones")
@@ -1031,6 +1093,8 @@ model Partner {
   id        String   @id @default(uuid())
   name      String
   icon      String   @default("HeartHandshake")
+  status    ContentStatus @default(active)
+  deletedAt DateTime? @map("deleted_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("partners")
@@ -1054,8 +1118,10 @@ model Coupon {
   discountValue Decimal?     @default(0) @map("discount_value") @db.Decimal(10, 2)
   minAmount     Decimal?     @map("min_amount") @db.Decimal(10, 2)
   description   String?
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  status        ContentStatus @default(active)
+  deletedAt     DateTime?     @map("deleted_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   // Relations
   course      Course?            @relation(fields: [courseId], references: [id], onDelete: SetNull)
@@ -1167,4 +1233,148 @@ model Setting {
   @@unique([category, key])
   @@index([category], map: "idx_settings_category")
   @@map("settings")
+}
+
+model SiteSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text
+  label     String
+  category  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([category], map: "idx_site_settings_category")
+  @@map("site_settings")
+}
+
+// -------------------------------------------------------------
+// GROUP 7: COMPLIANCE / ORG DOCUMENTS
+// -------------------------------------------------------------
+
+enum OrgDocumentType {
+  NGO_REGISTRATION_CERTIFICATE
+  PAN_CARD
+  TAN_CARD
+  NITI_AAYOG_REGISTRATION
+  CSR1
+  ANNUAL_REPORT
+  WORK_ORDER
+  ORG_PROFILE
+  CERTIFICATE_12A
+  CERTIFICATE_80G
+
+  @@map("org_document_type")
+}
+
+/// Organisation-level compliance documents (certificates, annual reports, etc.)
+model OrgDocument {
+  id           String           @id @default(uuid())
+  type         OrgDocumentType
+  title        String
+  description  String?          @db.Text
+  fileUrl      String?          @map("file_url")
+  storagePath  String?          @map("storage_path")
+  mimeType     String?          @map("mime_type")
+  fileSize     Int?             @map("file_size")
+  year         Int?
+  isPublic     Boolean          @default(true) @map("is_public")
+  displayOrder Int              @default(0) @map("display_order")
+  isActive     Boolean          @default(true) @map("is_active")
+  uploadedBy   String?          @map("uploaded_by")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@index([type], map: "idx_org_documents_type")
+  @@index([isPublic, isActive], map: "idx_org_documents_public")
+  @@index([displayOrder], map: "idx_org_documents_order")
+  @@map("org_documents")
+}
+
+model BroadcastNotification {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  icon        String   @default("Bell")
+  target      String   @default("All Members")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt], map: "idx_broadcast_notifications_created")
+  @@map("broadcast_notifications")
+}
+
+// -------------------------------------------------------------
+// GROUP 9: PUBLIC FORMS — VOLUNTEER & DONATIONS
+// -------------------------------------------------------------
+
+model VolunteerInquiry {
+  id           String   @id @default(uuid())
+  name         String
+  email        String
+  role         String
+  hoursPerWeek String   @map("hours_per_week")
+  motivation   String
+  status       String   @default("pending")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([status], map: "idx_volunteer_inquiries_status")
+  @@index([createdAt], map: "idx_volunteer_inquiries_created")
+  @@map("volunteer_inquiries")
+}
+
+model Donation {
+  id                String         @id @default(uuid())
+  donorName         String         @map("donor_name")
+  donorEmail        String         @map("donor_email")
+  donorPhone        String?        @map("donor_phone")
+  amount            Float
+  currency          String         @default("INR")
+  frequency         String         @default("one-time")
+  receiptId         String?        @unique @map("receipt_id")
+  status            String         @default("pending")
+  razorpayOrderId   String?        @unique @map("razorpay_order_id")
+  razorpayPaymentId String?        @unique @map("razorpay_payment_id")
+  razorpaySignature String?        @map("razorpay_signature")
+  paymentMethod     String?        @map("payment_method")
+  failureReason     String?        @map("failure_reason")
+  paidAt            DateTime?      @map("paid_at") @db.Timestamptz(3)
+  message           String?
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([donorEmail], map: "idx_donations_donor_email")
+  @@index([status], map: "idx_donations_status")
+  @@index([razorpayOrderId], map: "idx_donations_razorpay_order")
+  @@index([createdAt], map: "idx_donations_created")
+  @@map("donations")
+}
+
+// -------------------------------------------------------------
+// GROUP 10: NEWSLETTER SUBSCRIBERS & COURSE ENROLLMENTS (PUBLIC)
+// -------------------------------------------------------------
+
+model NewsletterSubscriber {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  source        String    @default("footer")
+  unsubscribed  Boolean   @default(false)
+  unsubscribedAt DateTime? @map("unsubscribed_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([email], map: "idx_newsletter_subscribers_email")
+  @@map("newsletter_subscribers")
+}
+
+// -------------------------------------------------------------
+// GROUP 11: RATE LIMITING (infrastructure)
+// -------------------------------------------------------------
+
+model RateLimitEntry {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  count     Int      @default(1)
+  windowEnd DateTime @map("window_end")
+
+  @@index([windowEnd], map: "idx_rate_limit_window_end")
+  @@map("rate_limit_entries")
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireStepUp, stepUpErrorResponse } from "@/lib/session";
 import { prisma, withRetry } from "@/lib/prisma";
 import { getServiceRoleClient } from "@/lib/supabase-storage";
 import { BUCKETS } from "@/lib/upload-config";
@@ -16,9 +16,9 @@ const DOC_TYPE_TO_BUCKET: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {

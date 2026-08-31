@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAdmin } from '@/lib/admin-context';
 import { AdminCourse, SyllabusLesson, Coupon } from '@/lib/admin-types';
 import {
   BookOpen, Search, Plus, Pencil, Trash2, X, Eye, ChevronLeft, ChevronRight,
@@ -15,6 +14,7 @@ import MetricCards from '@/components/MetricCards';
 import { motion, AnimatePresence } from 'motion/react';
 import { getStatusStyle } from '@/lib/status-styles';
 import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from '@/lib/admin-stepup';
+import { useToast } from '@/components/ui/toast';
 
 const TRAINING_ACTION = 'delete_course';
 
@@ -104,14 +104,16 @@ const emptyWizard = {
 
 export default function AdminTrainingPage() {
   const router = useRouter();
-  const { teachers } = useAdmin();
+  const { toast } = useToast();
 
+  const [teachers, setTeachers] = useState<{ id: string; fullName: string; designation: string; profilePhoto: string | null; specializations?: string[] }[]>([]);
   const [courses, setCourses] = useState<AdminCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Published' | 'Draft'>('All');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [editCourseId, setEditCourseId] = useState<string | null>(null);
 
   const fetchCourses = useCallback(async () => {
@@ -150,6 +152,13 @@ export default function AdminTrainingPage() {
     const id = requestAnimationFrame(() => { fetchCourses(); });
     return () => cancelAnimationFrame(id);
   }, [fetchCourses]);
+
+  useEffect(() => {
+    fetch('/api/admin/teachers/list')
+      .then(r => r.json())
+      .then(d => setTeachers(d.data || []))
+      .catch(() => {});
+  }, []);
 
   // Wizard state
   const [showWizard, setShowWizard] = useState(false);
@@ -198,7 +207,7 @@ export default function AdminTrainingPage() {
       currency: course.currency,
       coupons: course.coupons.map(c => ({
         code: c.code,
-        description: c.description,
+        description: c.description ?? '',
         discountType: c.discountType,
         discountValue: c.discountValue,
         maxUses: c.maxUses ?? 10,
@@ -258,27 +267,50 @@ export default function AdminTrainingPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = editCourseId
-        ? await fetch(`/api/admin/courses/${editCourseId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(courseData),
-          })
-        : await fetch('/api/admin/courses', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(courseData),
-          });
+      // Both creating and editing require step-up re-verification.
+      if (!(await requireStepUpClient('/admin/training', editCourseId ? 'update_course' : 'create_course'))) {
+        return;
+      }
+      let res: Response;
+      try {
+        res = editCourseId
+          ? await fetch(`/api/admin/courses/${editCourseId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(courseData),
+              signal: AbortSignal.timeout(20000),
+            })
+          : await fetch('/api/admin/courses', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(courseData),
+              signal: AbortSignal.timeout(20000),
+            });
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'TimeoutError') {
+          throw new Error('The server took too long to respond. Please try again.');
+        }
+        throw e;
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => null);
+        if (isStepUpRequiredResponse(res.status, err?.error)) {
+          redirectToStepUp('/admin/training', editCourseId ? 'update_course' : 'create_course');
+          return;
+        }
         setSubmitError(err?.error || `Failed to save training (${res.status}). Please try again.`);
         return;
       }
+      toast({
+        title: editCourseId ? 'Training Saved' : 'Training Created',
+        description: `"${wiz.title}" has been ${editCourseId ? 'updated' : 'created'} successfully.`,
+        variant: 'success',
+      });
       await fetchCourses();
       setShowWizard(false);
       setEditCourseId(null);
-    } catch {
-      setSubmitError('Failed to save training. Please try again.');
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Failed to save training. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -291,7 +323,7 @@ export default function AdminTrainingPage() {
     if (editId && courses.length > 0) {
       const course = courses.find(c => c.id === editId);
       if (course) {
-        openEdit(course);
+        void Promise.resolve().then(() => openEdit(course));
         window.history.replaceState({}, '', '/admin/training');
       }
     }
@@ -299,47 +331,38 @@ export default function AdminTrainingPage() {
 
   const getTeacherName = (id: string) => teachers.find(t => t.id === id)?.fullName || 'Not assigned';
 
-  const togglePublish = async (c: AdminCourse) => {
-    const newStatus = c.status === 'Published' ? 'Draft' : 'Published';
-    try {
-      await fetch(`/api/admin/courses/${c.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      await fetchCourses();
-    } catch {}
-  };
-
-  const toggleAutoApprove = async (c: AdminCourse) => {
-    try {
-      await fetch(`/api/admin/courses/${c.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auto_approve: !c.auto_approve }),
-      });
-      await fetchCourses();
-    } catch {}
-  };
-
   const handleDelete = async (id: string) => {
     if (!(await requireStepUpClient('/admin/training', TRAINING_ACTION))) {
       setDeleteConfirm(null);
       return;
     }
+    setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+      let res: Response;
+      try {
+        res = await fetch(`/api/admin/courses/${id}`, { method: 'DELETE', signal: AbortSignal.timeout(15000) });
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'TimeoutError') {
+          throw new Error('The server took too long to respond. Please try again.');
+        }
+        throw e;
+      }
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (isStepUpRequiredResponse(res.status, data.error)) {
           redirectToStepUp('/admin/training', TRAINING_ACTION);
-          setDeleteConfirm(null);
           return;
         }
+        throw new Error(data.error || 'Failed to delete training');
       }
+      toast({ title: 'Training Deleted', description: 'The training and its listings have been removed.', variant: 'success' });
       await fetchCourses();
-    } catch {}
-    setDeleteConfirm(null);
+    } catch (err: any) {
+      toast({ title: 'Delete Failed', description: err?.message || 'Could not delete this training.', variant: 'error' });
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(null);
+    }
   };
 
   const renderWizardStep = () => {
@@ -551,8 +574,12 @@ export default function AdminTrainingPage() {
     <div className="space-y-4 font-sans">
       {/* Stat Cards */}
       <MetricCards
-        activeFilter="total"
-        onFilterChange={() => {}}
+        activeFilter={statusFilter === 'All' ? 'total' : statusFilter === 'Published' ? 'published' : 'draft'}
+        onFilterChange={(id) => {
+          if (id === 'published') setStatusFilter('Published');
+          else if (id === 'draft') setStatusFilter('Draft');
+          else setStatusFilter('All');
+        }}
         columns={5}
         cards={[
           { id: 'total', label: 'Total', value: stats.total, icon: BookOpen },
@@ -651,7 +678,7 @@ export default function AdminTrainingPage() {
       <AnimatePresence>
         {showWizard && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowWizard(false)} />
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !submitting && setShowWizard(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
               className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] overflow-hidden flex flex-col">
               <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
@@ -708,8 +735,11 @@ export default function AdminTrainingPage() {
             <h3 className="text-sm font-bold text-foreground mb-2">Delete Training?</h3>
             <p className="text-xs text-muted-foreground mb-6">This action cannot be undone. The training and all its data will be permanently removed.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-4 py-2.5 text-xs font-semibold border border-border rounded-lg hover:bg-muted">Cancel</button>
-              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-destructive hover:bg-destructive/90 rounded-lg">Delete</button>
+              <button onClick={() => setDeleteConfirm(null)} disabled={deleting} className="flex-1 px-4 py-2.5 text-xs font-semibold border border-border rounded-lg hover:bg-muted disabled:opacity-50">Cancel</button>
+              <button onClick={() => handleDelete(deleteConfirm)} disabled={deleting}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-destructive hover:bg-destructive/90 rounded-lg disabled:opacity-50">
+                {deleting ? (<><Loader2 className="w-3.5 h-3.5 animate-spin" />Deleting...</>) : 'Delete'}
+              </button>
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ export const BUCKETS = {
   aadhaar: 'aadhaar-docs',
   pan: 'pan-docs',
   rationCard: 'ration-docs',
+  cmsImages: 'cms-images',
 } as const;
 
 export type DocumentType = keyof typeof BUCKETS;
@@ -34,6 +35,18 @@ export const IMAGE_PROCESSING = {
   fit: 'inside' as const,
   withoutEnlargement: true,
   quality: 75,
+} as const;
+
+// Max upload size for CMS gallery/content images (10MB)
+export const MAX_CMS_IMAGE_SIZE = 10 * 1024 * 1024;
+
+// Sharp processing for CMS images (optimized WebP, wide enough for hero/covers)
+export const CMS_IMAGE_PROCESSING = {
+  width: 2000,
+  height: 2000,
+  fit: 'inside' as const,
+  withoutEnlargement: true,
+  quality: 82,
 } as const;
 
 // Signed URL expiry for display (1 hour)

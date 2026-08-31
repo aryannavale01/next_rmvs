@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TRANSLATIONS } from '@/lib/dashboard-context';
+import { ALL_CATEGORY_LABELS } from '@/lib/course-categories';
 import { useDashboardData } from '@/lib/hooks/useDashboardData';
 import { useLanguage } from '@/lib/hooks/useLanguage';
 import {
@@ -70,24 +71,13 @@ export default function TrainingPage() {
   });
 
   // Categories list
-  const categories = ['All', 'Technology', 'Skill Dev', 'Agriculture', 'Basic Digital'];
+  const categories = ['All', ...ALL_CATEGORY_LABELS];
   const levels = ['All', 'Beginner', 'Intermediate', 'Advanced'];
 
   const enrolledCount = applications.length;
 
-  const getCategoryColor = (cat: string) => {
-    switch (cat) {
-      case 'Technology':
-        return 'bg-primary-light text-primary border-primary/20';
-      case 'Skill Dev':
-        return 'bg-primary-light text-primary border-primary/20';
-      case 'Agriculture':
-        return 'bg-primary-light text-primary border-primary/20';
-      case 'Basic Digital':
-        return 'bg-secondary-blue/20 text-primary border-secondary-blue/30';
-      default:
-        return 'bg-primary-light text-primary border-primary/20';
-    }
+  const getCategoryColor = (_cat: string) => {
+    return 'bg-primary-light text-primary border-primary/20';
   };
 
   return (

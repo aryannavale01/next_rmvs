@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import AdminLayoutWrapper from '@/components/admin-layout-wrapper';
 import DbUnavailableInterstitial from '@/components/db-unavailable-interstitial';
+import { getOrgConfig } from '@/lib/org-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,19 +19,25 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
     redirect('/admin/login');
   }
 
+  const config = await getOrgConfig();
+
   const user = await prisma.user.findUnique({
     where: { id: auth.session.user.id },
-    select: { mustChangePassword: true },
+    select: { mustChangePassword: true, twoFactorEnabled: true },
   });
 
   if (user?.mustChangePassword) {
     redirect('/force-password-change');
   }
 
-  // 2FA enforcement disabled for now
-  // if (!user?.twoFactorEnabled) {
-  //   redirect('/admin/setup-2fa');
-  // }
+  if (config.enable2FA && !user?.twoFactorEnabled) {
+    redirect('/admin/setup-2fa');
+  }
 
-  return <AdminLayoutWrapper>{children}</AdminLayoutWrapper>;
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: `:root { --brand-primary: ${config.brandColor}; --brand-primary-hover: ${config.brandColor}dd; }` }} />
+      <AdminLayoutWrapper siteName={config.siteName} logoText={config.logoText} brandColor={config.brandColor}>{children}</AdminLayoutWrapper>
+    </>
+  );
 }

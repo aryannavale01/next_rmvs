@@ -30,10 +30,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ data: { certificate: { id, status: "revoked" } } });
     }
 
+    const now = new Date();
+
     const operations: Prisma.PrismaPromise<unknown>[] = [
       prisma.certificate.update({
         where: { id },
-        data: { status: "revoked", remarks: remarks ?? undefined },
+        data: {
+          status: "revoked",
+          remarks: remarks ?? undefined,
+          revokedAt: now,
+          revokedReason: remarks ?? undefined,
+        },
       }),
     ];
 

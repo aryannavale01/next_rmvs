@@ -3,5 +3,5 @@ the full path of user shoud user --> sign up --> user login --> user dashbord --
 
 
 Role	Email	Password
-Admin	admin@compassionglobal.org	Admin@123
+Admin	admin@compassionglobal.org	Admin@12345
 Member	test.member@example.com	Testuser@123

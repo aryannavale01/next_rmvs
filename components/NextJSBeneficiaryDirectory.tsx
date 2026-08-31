@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users,
-  UserCheck,
   UserX,
   Plus,
   Download,
@@ -23,6 +22,8 @@ import {
   MoreHorizontal,
   MapPin,
   Clock,
+  BookOpen,
+  Loader2,
 } from 'lucide-react';
 import MetricCards from '@/components/MetricCards';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -31,6 +32,7 @@ import { exportCSV, exportPDF, exportDOCX } from '@/lib/dossier-export';
 import MemberProfileDrawer, { Member, Course, Enrollment } from '@/components/NextJSMemberDrawer';
 import { useAdmin } from '@/lib/admin-context';
 import { useToast } from '@/components/ui/toast';
+import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from '@/lib/admin-stepup';
 
 // ============================================================================
 // 1. MAIN COMPONENT DEFINITION
@@ -38,15 +40,54 @@ import { useToast } from '@/components/ui/toast';
 
 export default function NextJSBeneficiaryDirectory() {
   // Pull live data and CRUD from admin context
-  const { members, addMember, refreshMembers, updateMember, deleteMember, restoreMember, showDeleted, setShowDeleted, logActivity } = useAdmin();
+  const { members, addMember, refreshMembers, updateMember, deleteMember, restoreMember, showDeleted, setShowDeleted } = useAdmin();
   const { toast } = useToast();
 
-  // Courses and enrollments were previously from mock context; pending API wiring
-  const courses: Course[] = [];
-  const enrollments: Enrollment[] = [];
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/admin/courses').then(r => r.json()).then(d => setCourses(Array.isArray(d) ? d : d.data || [])).catch(() => {});
+    fetch('/api/admin/teachers').then(r => r.json()).then(d => {
+      const list = (Array.isArray(d) ? d : d.data || []).map((t: { id: string; fullName: string }) => ({ id: t.id, name: t.fullName }));
+      setTeachers(list);
+    }).catch(() => {});
+
+    // Load all course applications (paginated API, 100 per page)
+    const loadEnrollments = async () => {
+      try {
+        const all: Enrollment[] = [];
+        let page = 1;
+        let totalPages = 1;
+        do {
+          const res = await fetch(`/api/admin/enrollments?page=${page}&limit=100`);
+          if (!res.ok) break;
+          const json = await res.json();
+          const rows = Array.isArray(json) ? json : json.data ?? [];
+          rows.forEach((r: { id: string; status: string; appliedDate?: string; member?: { id: string }; course?: { id: string } }) => {
+            if (!r.member?.id || !r.course?.id) return;
+            all.push({
+              id: r.id,
+              memberId: r.member.id,
+              courseId: r.course.id,
+              status: r.status ?? 'applied',
+              enrolledDate: r.appliedDate ?? '',
+            });
+          });
+          totalPages = json.pagination?.totalPages ?? 1;
+          page++;
+        } while (page <= totalPages && page <= 10);
+        setEnrollments(all);
+      } catch {
+        // enrollments stay empty; course-based filters simply match nothing
+      }
+    };
+    loadEnrollments();
+  }, []);
 
   // Active click metric stats filter
-  const [metricFilter, setMetricFilter] = useState<'all' | 'women' | 'under25' | 'recent'>('all');
+  const [metricFilter, setMetricFilter] = useState<'all' | 'applied' | 'under25' | 'recent'>('all');
 
   // Interactive Panel visibility toggles
   const [showFilters, setShowFilters] = useState(false);
@@ -57,6 +98,9 @@ export default function NextJSBeneficiaryDirectory() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showProfileDrawer, setShowProfileDrawer] = useState(false);
+
+  // Add/Edit submission in-flight flag
+  const [savingMember, setSavingMember] = useState(false);
 
   // Search input query
   const [searchQuery, setSearchQuery] = useState('');
@@ -143,7 +187,7 @@ export default function NextJSBeneficiaryDirectory() {
     district: 'Satara',
     state: 'Maharashtra',
     village: 'Satara Rural',
-    assignedVolunteer: 'Amit Sharma',
+    assignedVolunteer: '',
   });
 
   // ============================================================================
@@ -151,7 +195,7 @@ export default function NextJSBeneficiaryDirectory() {
   // ============================================================================
 
   const totalCount = members.length;
-  const womenCount = members.filter(m => m.gender === 'female').length;
+  const appliedCount = new Set(enrollments.map(e => e.memberId).filter(Boolean)).size;
 
   const youthCount = members.filter(m => m.age !== null && m.age < 25).length;
   const recentCount = members.filter(m => m.createdAt >= '2026-05-01').length;
@@ -164,16 +208,20 @@ export default function NextJSBeneficiaryDirectory() {
     let result = [...members];
 
     // Clickable Stat Metrics filter
-    if (metricFilter === 'women') result = result.filter(m => m.gender === 'female');
+    if (metricFilter === 'applied') {
+      const appliedIds = new Set(enrollments.map(e => e.memberId));
+      result = result.filter(m => appliedIds.has(m.id));
+    }
     else if (metricFilter === 'under25') result = result.filter(m => m.age !== null && m.age < 25);
     else if (metricFilter === 'recent') result = result.filter(m => m.createdAt >= '2026-05-01');
 
     // Text query search constraints
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(m => 
-        m.fullName.toLowerCase().includes(q) || 
-        (m.village ?? '').toLowerCase().includes(q) || 
+      result = result.filter(m =>
+        m.fullName.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q) ||
+        (m.village ?? '').toLowerCase().includes(q) ||
         (m.assignedVolunteer ?? '').toLowerCase().includes(q)
       );
     }
@@ -260,7 +308,9 @@ export default function NextJSBeneficiaryDirectory() {
   // Add / Edit Beneficiary Submission
   const handleAddMemberSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingMember) return;
     setFormError(null);
+    setSavingMember(true);
 
     const apiPayload: Record<string, unknown> = {
       fullName: newMemberForm.fullName,
@@ -294,7 +344,10 @@ export default function NextJSBeneficiaryDirectory() {
       setProfileMember(null);
       resetForm();
     } catch (err: any) {
+      if (err?.message === 'STEP_UP_PENDING') return;
       setFormError(err.message || 'Something went wrong. Please check your inputs and try again.');
+    } finally {
+      setSavingMember(false);
     }
   };
 
@@ -310,7 +363,7 @@ export default function NextJSBeneficiaryDirectory() {
       district: 'Satara',
       state: 'Maharashtra',
       village: 'Satara Rural',
-      assignedVolunteer: 'Amit Sharma',
+      assignedVolunteer: '',
     });
   };
 
@@ -429,6 +482,11 @@ export default function NextJSBeneficiaryDirectory() {
         return;
       }
 
+      if (!(await requireStepUpClient(window.location.pathname, 'bulk_import_members'))) {
+        setImporting(false);
+        return;
+      }
+
       // Single batch POST
       const res = await fetch('/api/admin/members/bulk-import', {
         method: 'POST',
@@ -438,6 +496,11 @@ export default function NextJSBeneficiaryDirectory() {
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({ error: 'Batch import request failed' }));
+        if (isStepUpRequiredResponse(res.status, errBody.error)) {
+          redirectToStepUp(window.location.pathname, 'bulk_import_members');
+          setImporting(false);
+          return;
+        }
         throw new Error(errBody.error || 'Batch import request failed');
       }
 
@@ -463,7 +526,6 @@ export default function NextJSBeneficiaryDirectory() {
       });
 
       if (batch.successCount > 0) {
-        logActivity('CSV Import', `Imported ${batch.successCount} member(s) from CSV.`, 'Users');
         await refreshMembers();
       }
     } catch (err: any) {
@@ -474,10 +536,13 @@ export default function NextJSBeneficiaryDirectory() {
     }
   };
 
-  // Multi-step Export Wizard Download Simulation
+  // Multi-step Export Wizard Download
   const handleExportFinish = async () => {
     setExportStep(4);
+    const { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } = await import('@/lib/admin-stepup');
     try {
+      if (!(await requireStepUpClient('/admin/members', 'export_dossiers'))) return;
+
       const scopeIds = selectedIds.length > 0 ? selectedIds : undefined;
 
       const res = await fetch('/api/admin/members/export', {
@@ -486,7 +551,14 @@ export default function NextJSBeneficiaryDirectory() {
         body: JSON.stringify({ ids: scopeIds }),
       });
 
-      if (!res.ok) throw new Error('Failed to fetch export data');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to fetch export data' }));
+        if (isStepUpRequiredResponse(res.status, err.error)) {
+          redirectToStepUp('/admin/members', 'export_dossiers');
+          return;
+        }
+        throw new Error(err.error || 'Failed to fetch export data');
+      }
       const { data: exportData } = await res.json();
 
       await new Promise(r => setTimeout(r, 400));
@@ -498,6 +570,9 @@ export default function NextJSBeneficiaryDirectory() {
       } else if (exportFormat === 'DOCX') {
         await exportDOCX(exportData, exportFields);
       }
+      toast({ title: 'Export Ready', description: `${exportFormat} file has been downloaded.`, variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Export Failed', description: err?.message || 'Something went wrong while generating the file.', variant: 'error' });
     } finally {
       setShowExportModal(false);
       setExportStep(1);
@@ -519,15 +594,15 @@ export default function NextJSBeneficiaryDirectory() {
     if (!bulkActionCourse) return;
     setSelectedIds([]);
     setBulkActionCourse('');
-    logActivity('Bulk Enrollment', `Assigned ${selectedIds.length} members to a training program.`, 'BookOpen');
   };
 
   const handleBulkAssignVolunteer = () => {
     if (!bulkActionVolunteer) return;
-    selectedIds.forEach(id => updateMember(id, { assignedVolunteer: bulkActionVolunteer }));
+    selectedIds.forEach(id => {
+      updateMember(id, { assignedVolunteer: bulkActionVolunteer }).catch(() => {});
+    });
     setSelectedIds([]);
     setBulkActionVolunteer('');
-    logActivity('Bulk Coordinator Update', `Changed coordinator assignments for ${selectedIds.length} members.`, 'Users');
   };
 
   return (
@@ -551,7 +626,7 @@ export default function NextJSBeneficiaryDirectory() {
         columns={4}
         cards={[
           { id: 'all', label: 'Total Registered', value: totalCount, icon: Users },
-          { id: 'women', label: 'Women Enrolled', value: womenCount, icon: UserCheck },
+          { id: 'applied', label: 'Applied in Courses', value: appliedCount, icon: BookOpen },
           { id: 'under25', label: 'Youth Users (<25)', value: youthCount, icon: UserX },
           { id: 'recent', label: 'Recently Joined', value: recentCount, icon: Clock },
         ]}
@@ -746,9 +821,9 @@ export default function NextJSBeneficiaryDirectory() {
                 className="block w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
               >
                 <option value="all">Staff Coordinator (All)</option>
-                <option value="Amit Sharma">Amit Sharma</option>
-                <option value="Sneha Patil">Sneha Patil</option>
-                <option value="Vikram Singh">Vikram Singh</option>
+                {teachers.map(t => (
+                  <option key={t.id} value={t.name}>{t.name}</option>
+                ))}
               </select>
             </div>
 
@@ -806,9 +881,9 @@ export default function NextJSBeneficiaryDirectory() {
                 className="p-1.5 bg-slate-800 border border-slate-700 text-[10px] font-bold rounded-lg focus:outline-none text-white cursor-pointer"
               >
                 <option value="">Change Coord...</option>
-                <option value="Amit Sharma">Amit Sharma</option>
-                <option value="Sneha Patil">Sneha Patil</option>
-                <option value="Vikram Singh">Vikram Singh</option>
+                {teachers.map(t => (
+                  <option key={t.id} value={t.name}>{t.name}</option>
+                ))}
               </select>
               <button onClick={handleBulkAssignVolunteer} className="px-2.5 py-1.5 bg-primary hover:bg-primary-hover font-bold text-[10px] rounded-lg cursor-pointer">
                 Change
@@ -870,7 +945,9 @@ export default function NextJSBeneficiaryDirectory() {
               {paginatedMembers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-10 text-center text-slate-400 font-bold bg-slate-50/50">
-                    No beneficiary portfolios found matching specified search.
+                    {showDeleted
+                      ? 'No deleted beneficiaries found. Deleted records will appear here.'
+                      : 'No beneficiary portfolios found matching specified search.'}
                   </td>
                 </tr>
               ) : (
@@ -892,7 +969,7 @@ export default function NextJSBeneficiaryDirectory() {
                           </div>
                           <div>
                             <p>{m.fullName}</p>
-                            <span className="block text-[10px] text-slate-400 font-mono font-normal">Dossier ID: {m.id}</span>
+                            <span className="block text-[10px] text-slate-500 font-mono font-normal">Dossier ID: {m.id}</span>
                           </div>
                         </div>
                       </td>
@@ -910,13 +987,21 @@ export default function NextJSBeneficiaryDirectory() {
                     {visibleColumns.village && (
                       <td className="p-4 text-slate-700 font-semibold">
                         <p className="flex items-center gap-0.5"><MapPin className="w-3 h-3 text-blue-500" /> {m.village ?? '—'}</p>
-                        <span className="block text-[10px] text-slate-400">{m.district ?? '—'}, {m.state ?? '—'}</span>
+                        <span className="block text-[10px] text-slate-500">{m.district ?? '—'}, {m.state ?? '—'}</span>
                       </td>
                     )}
                     <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
                       {m.status === 'deleted' ? (
-                        <button 
-                          onClick={async () => { try { await restoreMember(m.id); } catch { /* handled in context */ } }}
+                        <button
+                          onClick={async () => {
+                            try {
+                              await restoreMember(m.id);
+                              toast({ title: 'Member Restored', description: `${m.fullName} has been restored.`, variant: 'success' });
+                            } catch (err: any) {
+                              if (err?.message === 'STEP_UP_PENDING') return;
+                              toast({ title: 'Restore Failed', description: err?.message || 'Something went wrong. Please try again.', variant: 'error' });
+                            }
+                          }}
                           className="px-2 py-1 text-green-600 hover:bg-green-50 rounded-lg cursor-pointer transition-colors text-[10px] font-bold"
                           title="Restore Member"
                         >
@@ -984,7 +1069,7 @@ export default function NextJSBeneficiaryDirectory() {
               <option value="10">10 rows</option>
               <option value="20">20 rows</option>
             </select>
-            <span className="text-slate-400 ml-2">
+            <span className="text-slate-500 ml-2">
               Displaying {filteredMembers.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} - {Math.min(currentPage * pageSize, filteredMembers.length)} of {filteredMembers.length} records
             </span>
           </div>
@@ -1032,7 +1117,7 @@ export default function NextJSBeneficiaryDirectory() {
       {/* REGISTER / EDIT BENEFICIARY MODAL */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full overflow-hidden shadow-2xl animate-scale-up">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-up">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="font-bold text-slate-900 text-sm tracking-tight uppercase">
                 {profileMember ? 'Edit Beneficiary Portfolio' : 'Register New Beneficiary'}
@@ -1136,7 +1221,6 @@ export default function NextJSBeneficiaryDirectory() {
                   <label className="block text-slate-500 font-extrabold uppercase tracking-wide mb-1">Village Location</label>
                   <input
                     type="text"
-                    required
                     value={newMemberForm.village}
                     onChange={(e) => setNewMemberForm(p => ({ ...p, village: e.target.value }))}
                     className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
@@ -1164,9 +1248,9 @@ export default function NextJSBeneficiaryDirectory() {
                     onChange={(e) => setNewMemberForm(p => ({ ...p, assignedVolunteer: e.target.value }))}
                     className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 text-slate-800"
                   >
-                    <option value="Amit Sharma">Amit Sharma</option>
-                    <option value="Sneha Patil">Sneha Patil</option>
-                    <option value="Vikram Singh">Vikram Singh</option>
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1187,9 +1271,13 @@ export default function NextJSBeneficiaryDirectory() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+                  disabled={savingMember}
+                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg shadow-sm transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 min-w-[9.5rem] justify-center"
                 >
-                  {profileMember ? 'Save Changes' : 'Register Beneficiary'}
+                  {savingMember && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                  {!savingMember && profileMember && 'Save Changes'}
+                  {!savingMember && !profileMember && 'Register Beneficiary'}
+                  {savingMember && (profileMember ? 'Saving…' : 'Registering…')}
                 </button>
               </div>
             </form>
@@ -1200,7 +1288,7 @@ export default function NextJSBeneficiaryDirectory() {
       {/* CSV IMPORT WIZARD MODAL */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full overflow-hidden shadow-2xl animate-scale-up">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-up">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="font-bold text-slate-900 text-sm uppercase tracking-tight">CSV Importer Wizard</h3>
               <button onClick={() => { setShowImportModal(false); setImportResults(null); }} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1" aria-label="Close import">
@@ -1357,7 +1445,7 @@ export default function NextJSBeneficiaryDirectory() {
                         type="button"
                         onClick={() => setExportFormat(fmt as 'CSV' | 'PDF' | 'DOCX')}
                         className={`p-5 border-2 rounded-xl font-bold uppercase tracking-wider text-center transition-all cursor-pointer ${
-                          exportFormat === fmt ? 'bg-blue-50 border-blue-600 text-blue-600 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300'
+                          exportFormat === fmt ? 'bg-blue-50 border-blue-600 text-blue-600 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
                         }`}
                       >
                         <FileText className="w-6 h-6 mx-auto mb-2" />
@@ -1446,7 +1534,12 @@ export default function NextJSBeneficiaryDirectory() {
         onConfirm={async () => {
           let failed = 0;
           for (const id of selectedIds) {
-            try { await deleteMember(id); } catch { failed++; }
+            try {
+              await deleteMember(id);
+            } catch (err: any) {
+              if (err?.message === 'STEP_UP_PENDING') return;
+              failed++;
+            }
           }
           setSelectedIds([]);
           if (failed > 0) {
@@ -1465,8 +1558,15 @@ export default function NextJSBeneficiaryDirectory() {
         onConfirm={async () => {
           if (!deleteTarget) return;
           const name = deleteTarget.fullName;
-          await deleteMember(deleteTarget.id);
-          toast({ title: 'Member Deleted', description: `${name} has been deleted.`, variant: 'success' });
+          try {
+            await deleteMember(deleteTarget.id);
+            toast({ title: 'Member Deleted', description: `${name} has been deleted.`, variant: 'success' });
+          } catch (err: any) {
+            if (err?.message === 'STEP_UP_PENDING') return;
+            toast({ title: 'Delete Failed', description: err?.message || 'Something went wrong. Please try again.', variant: 'error' });
+          } finally {
+            setDeleteTarget(null);
+          }
         }}
         title="Delete Member"
         description={`Soft-delete record for ${deleteTarget?.fullName}?`}
@@ -1474,9 +1574,9 @@ export default function NextJSBeneficiaryDirectory() {
       />
 
       {/* TEMP PASSWORD DIALOG */}
-      {tempPassword && (
+       {tempPassword && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full overflow-hidden shadow-2xl animate-scale-up">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-up">
             <div className="bg-green-50 px-5 py-4 border-b border-green-200 flex justify-between items-center">
               <h3 className="font-bold text-green-800 text-sm tracking-tight">Registration Successful</h3>
               <button onClick={() => { setTempPassword(null); setTempPasswordEmail(''); }} className="text-green-600 hover:text-green-800 cursor-pointer p-1" aria-label="Close">

@@ -13,14 +13,21 @@ playwright-report/
 *.yml
 cookies.txt
 *.pdf
-login.json
+# Credential/request capture files — NEVER commit (contain live secrets)
+login*.json
+*login*.json
 resp.json
-response.txt
-response2.txt
-login_response.txt
-body.json
-pdf-test-body.json
-pdf-test-headers.txt
+response*.txt
+login_response*.txt
+*body.json
+body*.json
+pdf-test-*.json
+pdf-test-*.txt
 apps.json
 chw-*.json
 chw-*.pdf
+# Playwright authentication storage-state files — contain live session tokens
+*.auth*.json
+.utim_tmp/
+screenshots/
+test-certificates-e2e.mjs

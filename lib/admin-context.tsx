@@ -1,26 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import useSWR from 'swr';
 import {
   Member,
   Teacher,
-  AdminCertificate,
-  Coupon,
-  AdminNotification,
-  AdminActivityLog,
-  WebsiteContent,
-  AdminSettings,
   AdminUser,
 } from './admin-types';
-import {
-  MOCK_CERTIFICATES,
-  MOCK_NOTIFICATIONS,
-  MOCK_ACTIVITY_LOGS,
-  MOCK_WEBSITE_CONTENT,
-  DEFAULT_ADMIN_SETTINGS,
-  MOCK_COUPONS,
-} from './mock-admin-data';
 import { fetcher, SWR_DEFAULTS } from './swr-fetcher';
 import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from './admin-stepup';
 
@@ -29,12 +15,6 @@ const STORAGE_KEY = 'adminState';
 interface AdminContextType {
   members: Member[];
   teachers: Teacher[];
-  certificates: AdminCertificate[];
-  notifications: AdminNotification[];
-  coupons: Coupon[];
-  websiteContent: WebsiteContent;
-  settings: AdminSettings;
-  activityLogs: AdminActivityLog[];
   adminUser: AdminUser | null;
   mounted: boolean;
   showDeleted: boolean;
@@ -59,22 +39,6 @@ interface AdminContextType {
   updateTeacher: (id: string, data: Record<string, unknown>) => Promise<void>;
   deleteTeacher: (id: string) => Promise<void>;
   restoreTeacher: (id: string) => Promise<void>;
-
-  addCertificate: (cert: Omit<AdminCertificate, 'id'>) => void;
-  generateCertificateForEnrollment: (enrollmentId: string) => void;
-  approveCertificate: (id: string) => void;
-  rejectCertificate: (id: string) => void;
-
-  addNotification: (notif: Omit<AdminNotification, 'id' | 'created_at'>) => void;
-
-  addCoupon: (coupon: Coupon) => void;
-  updateCoupon: (code: string, updated: Partial<Coupon>) => void;
-  deleteCoupon: (code: string) => void;
-
-  updateWebsiteContent: (tab: keyof WebsiteContent, items: WebsiteContent[keyof WebsiteContent]) => void;
-  updateSettings: (domain: keyof AdminSettings, subSettings: any) => void;
-  logActivity: (title: string, description: string, icon: string) => void;
-  resetAllData: () => void;
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
@@ -107,24 +71,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const members = membersRes?.data ?? [];
 
   const [showDeletedTeachers, setShowDeletedTeachers] = useState(false);
-  const teachersUrl = showDeletedTeachers ? '/api/admin/teachers?includeDeleted=true' : '/api/admin/teachers';
+  // Fetch a large page so client-side search/filter/sort/pagination operate on the full dataset.
+  const teachersUrl = showDeletedTeachers ? '/api/admin/teachers?includeDeleted=true&pageSize=100' : '/api/admin/teachers?pageSize=100';
   const { data: teachersRes, mutate: mutateTeachers } = useSWR<{ data: Teacher[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } }>(teachersUrl, fetcher, SWR_DEFAULTS);
   const teachers = teachersRes?.data ?? [];
 
-  const [certificates, setCertificates] = useState<AdminCertificate[]>(() => loadState()?.certificates ?? MOCK_CERTIFICATES);
-  const [notifications, setNotifications] = useState<AdminNotification[]>(() => loadState()?.notifications ?? MOCK_NOTIFICATIONS);
-  const [coupons, setCoupons] = useState<Coupon[]>(() => loadState()?.coupons ?? MOCK_COUPONS);
-  const [websiteContent, setWebsiteContent] = useState<WebsiteContent>(() => loadState()?.websiteContent ?? MOCK_WEBSITE_CONTENT);
-  const [settings, setSettings] = useState<AdminSettings>(() => loadState()?.settings ?? DEFAULT_ADMIN_SETTINGS);
-  const [activityLogs, setActivityLogs] = useState<AdminActivityLog[]>(() => {
-    const raw = loadState()?.activityLogs ?? MOCK_ACTIVITY_LOGS;
-    const seen = new Set<string>();
-    return raw.filter((log: AdminActivityLog) => {
-      if (seen.has(log.id)) return false;
-      seen.add(log.id);
-      return true;
-    });
-  });
   const [adminUser, setAdminUser] = useState<AdminUser | null>(() => loadState()?.adminUser ?? null);
   const [mounted, setMounted] = useState(false);
 
@@ -150,58 +101,28 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => { /* session cookie absent or invalid — middleware will redirect if needed */ });
-
-    // Fetch real activity logs from database
-    fetch('/api/admin/activity-logs')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.logs && Array.isArray(data.logs) && data.logs.length > 0) {
-          setActivityLogs(data.logs);
-        }
-      })
-      .catch(() => { /* fallback to mock/localStorage data */ });
   }, []);
 
-  // Persist to localStorage on state changes (read-only, no setState calls)
+  // Persist admin user to localStorage
   useEffect(() => {
-    saveState({
-      teachers, certificates,
-      notifications, coupons, websiteContent, settings, activityLogs, adminUser,
-    });
-  }, [teachers, certificates, notifications, coupons, websiteContent, settings, activityLogs, adminUser]);
-
-  const logCounterRef = useRef(0);
-  const logActivity = useCallback((title: string, description: string, icon: string) => {
-    logCounterRef.current += 1;
-    const newLog: AdminActivityLog = {
-      id: `act-${Date.now()}-${logCounterRef.current}-${crypto.randomUUID().slice(0, 8)}`,
-      title,
-      description,
-      timestamp: 'Just now',
-      icon,
-    };
-    setActivityLogs(prev => [newLog, ...prev]);
-  }, []);
+    saveState({ adminUser });
+  }, [adminUser]);
 
   const logoutAdmin = useCallback(() => {
-    logActivity('Admin Logged Out', 'Administrative session terminated securely.', 'Lock');
     setAdminUser(null);
     localStorage.removeItem(STORAGE_KEY);
-  }, [logActivity]);
+  }, []);
 
   const resetAdmin = useCallback(() => {
-    setCertificates(MOCK_CERTIFICATES);
-    setNotifications(MOCK_NOTIFICATIONS);
-    setCoupons(MOCK_COUPONS);
-    setWebsiteContent(MOCK_WEBSITE_CONTENT);
-    setSettings(DEFAULT_ADMIN_SETTINGS);
-    setActivityLogs(MOCK_ACTIVITY_LOGS);
     setAdminUser(null);
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   // Members — fetch-based
   const addMember = useCallback(async (data: Record<string, unknown>): Promise<{ temporaryPassword: string }> => {
+    if (!(await requireStepUpClient('/admin/members', 'create_member'))) {
+      throw new Error('STEP_UP_PENDING');
+    }
     const res = await fetch('/api/admin/members', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -209,6 +130,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to create member' }));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/members', 'create_member');
+        throw new Error('STEP_UP_PENDING');
+      }
       const message = err.error || 'Failed to create member';
       if (err.details && typeof err.details === 'object') {
         const fieldErrors = Object.entries(err.details)
@@ -229,6 +154,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [mutateMembers]);
 
   const updateMember = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+    if (!(await requireStepUpClient('/admin/members', 'member_update'))) {
+      // Redirecting to the step-up verification page; caller should abort quietly.
+      throw new Error('STEP_UP_PENDING');
+    }
     const res = await fetch(`/api/admin/members/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -236,6 +165,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to update member' }));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/members', 'member_update');
+        throw new Error('STEP_UP_PENDING');
+      }
       const message = err.error || 'Failed to update member';
       if (err.details && typeof err.details === 'object') {
         const fieldErrors = Object.entries(err.details)
@@ -250,15 +183,32 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [mutateMembers]);
 
   const deleteMember = useCallback(async (id: string) => {
-    if (!(await requireStepUpClient('/admin/members', 'delete_user'))) return;
-    const res = await fetch(`/api/admin/members/${id}/delete`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    if (!(await requireStepUpClient('/admin/members', 'delete_user'))) {
+      // Redirecting to step-up verification; caller should abort quietly.
+      throw new Error('STEP_UP_PENDING');
+    }
+    let res: Response;
+    try {
+      res = await fetch(`/api/admin/members/${id}/delete`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'TimeoutError') {
+        throw new Error('The server took too long to respond. Please try again.');
+      }
+      throw e;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to delete member' }));
       if (isStepUpRequiredResponse(res.status, err.error)) {
         redirectToStepUp('/admin/members', 'delete_user');
+        throw new Error('STEP_UP_PENDING');
+      }
+      // Already deleted (e.g. a retry after a timed-out first attempt) — treat as done.
+      if (res.status === 400 && typeof err.error === 'string' && err.error.toLowerCase().includes('already deleted')) {
+        await mutateMembers();
         return;
       }
       throw new Error(err.error || 'Failed to delete member');
@@ -267,12 +217,28 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [mutateMembers]);
 
   const restoreMember = useCallback(async (id: string) => {
-    const res = await fetch(`/api/admin/members/${id}/restore`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    if (!(await requireStepUpClient('/admin/members', 'member_restore'))) {
+      throw new Error('STEP_UP_PENDING');
+    }
+    let res: Response;
+    try {
+      res = await fetch(`/api/admin/members/${id}/restore`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'TimeoutError') {
+        throw new Error('The server took too long to respond. Please try again.');
+      }
+      throw e;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to restore member' }));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/members', 'member_restore');
+        throw new Error('STEP_UP_PENDING');
+      }
       throw new Error(err.error || 'Failed to restore member');
     }
     await mutateMembers();
@@ -325,40 +291,89 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   // Teachers — real DB via API
   const refreshTeachers = useCallback(async () => { await mutateTeachers(); }, [mutateTeachers]);
 
+  const teacherApiError = useCallback((err: any, fallback: string): Error => {
+    const msg = typeof err?.error === 'string' && err.error ? err.error : fallback;
+    const details = err?.details && typeof err.details === 'object'
+      ? Object.entries(err.details).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : String(v)}`).join('; ')
+      : null;
+    return new Error(details ? `${msg} (${details})` : msg);
+  }, []);
+
   const addTeacher = useCallback(async (data: Record<string, unknown>): Promise<Teacher> => {
+    if (!(await requireStepUpClient('/admin/teachers', 'create_teacher'))) {
+      throw new Error('STEP_UP_PENDING');
+    }
     const res = await fetch('/api/admin/teachers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to create teacher' }));
-      throw new Error(err.error || 'Failed to create teacher');
+      const err = await res.json().catch(() => ({}));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/teachers', 'create_teacher');
+        throw new Error('STEP_UP_PENDING');
+      }
+      throw teacherApiError(err, 'Failed to create teacher');
     }
     await mutateTeachers();
     return res.json();
-  }, [mutateTeachers]);
+  }, [mutateTeachers, teacherApiError]);
 
   const updateTeacher = useCallback(async (id: string, data: Record<string, unknown>) => {
-    const res = await fetch(`/api/admin/teachers/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
+    if (!(await requireStepUpClient('/admin/teachers', 'update_teacher'))) {
+      throw new Error('STEP_UP_PENDING');
+    }
+    let res: Response;
+    try {
+      res = await fetch(`/api/admin/teachers/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'TimeoutError') {
+        throw new Error('The server took too long to respond. Please try again.');
+      }
+      throw e;
+    }
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Failed to update teacher' }));
-      throw new Error(err.error || 'Failed to update teacher');
+      const err = await res.json().catch(() => ({}));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/teachers', 'update_teacher');
+        throw new Error('STEP_UP_PENDING');
+      }
+      throw teacherApiError(err, 'Failed to update teacher');
     }
     await mutateTeachers();
-  }, [mutateTeachers]);
+  }, [mutateTeachers, teacherApiError]);
 
   const deleteTeacher = useCallback(async (id: string) => {
-    if (!(await requireStepUpClient('/admin/teachers', 'delete_teacher'))) return;
-    const res = await fetch(`/api/admin/teachers/${id}/delete`, { method: 'PATCH' });
+    if (!(await requireStepUpClient('/admin/teachers', 'delete_teacher'))) {
+      throw new Error('STEP_UP_PENDING');
+    }
+    let res: Response;
+    try {
+      res = await fetch(`/api/admin/teachers/${id}/delete`, {
+        method: 'PATCH',
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'TimeoutError') {
+        throw new Error('The server took too long to respond. Please try again.');
+      }
+      throw e;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to delete teacher' }));
       if (isStepUpRequiredResponse(res.status, err.error)) {
         redirectToStepUp('/admin/teachers', 'delete_teacher');
+        throw new Error('STEP_UP_PENDING');
+      }
+      // Already deleted (e.g. a retry after a timed-out first attempt) — treat as done.
+      if (res.status === 400 && typeof err.error === 'string' && err.error.toLowerCase().includes('already deleted')) {
+        await mutateTeachers();
         return;
       }
       throw new Error(err.error || 'Failed to delete teacher');
@@ -367,120 +382,46 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [mutateTeachers]);
 
   const restoreTeacher = useCallback(async (id: string) => {
-    const res = await fetch(`/api/admin/teachers/${id}/restore`, { method: 'PATCH' });
+    if (!(await requireStepUpClient('/admin/teachers', 'restore_teacher'))) {
+      throw new Error('STEP_UP_PENDING');
+    }
+    let res: Response;
+    try {
+      res = await fetch(`/api/admin/teachers/${id}/restore`, {
+        method: 'PATCH',
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'TimeoutError') {
+        throw new Error('The server took too long to respond. Please try again.');
+      }
+      throw e;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to restore teacher' }));
+      if (isStepUpRequiredResponse(res.status, err.error)) {
+        redirectToStepUp('/admin/teachers', 'restore_teacher');
+        throw new Error('STEP_UP_PENDING');
+      }
+      // Already restored — treat as done.
+      if (res.status === 400 && typeof err.error === 'string' && err.error.toLowerCase().includes('not deleted')) {
+        await mutateTeachers();
+        return;
+      }
       throw new Error(err.error || 'Failed to restore teacher');
     }
     await mutateTeachers();
   }, [mutateTeachers]);
 
-  // Certificates
-  const addCertificate = useCallback((cert: Omit<AdminCertificate, 'id'>) => {
-    const newCert: AdminCertificate = { ...cert, id: `cert-${Date.now()}-${crypto.randomUUID().slice(0, 8)}` };
-    setCertificates(prev => [newCert, ...prev]);
-  }, []);
-
-  const generateCertificateForEnrollment = useCallback((enrId: string) => {
-    const certNo = `MH-SKILL-2026-${Math.floor(10000 + Math.random() * 90000)}`;
-    const newCert: AdminCertificate = {
-      id: `cert-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-      course_id: '',
-      member_id: enrId,
-      certificate_no: certNo,
-      issue_date: new Date().toISOString().split('T')[0],
-      status: 'generated',
-    };
-    setCertificates(certs => [newCert, ...certs]);
-    logActivity('Certificate Auto-Generated', `Created certification serial ${certNo} for enrollment ${enrId}.`, 'Award');
-  }, [logActivity]);
-
-  const approveCertificate = useCallback((id: string) => {
-    setCertificates(prev => prev.map(c => c.id === id ? { ...c, status: 'accepted' as const } : c));
-    logActivity('Certificate Approved', `Approved and released certificate ${id}.`, 'Award');
-  }, [logActivity]);
-
-  const rejectCertificate = useCallback(async (id: string) => {
-    if (!(await requireStepUpClient('/admin/certificates', 'delete_certificate'))) return;
-    setCertificates(prev => prev.filter(c => c.id !== id));
-    logActivity('Certificate Voided', `Voided certificate ID: ${id}.`, 'Bell');
-  }, [logActivity]);
-
-  // Notifications
-  const addNotification = useCallback(async (n: Omit<AdminNotification, 'id' | 'created_at'>) => {
-    if (!(await requireStepUpClient('/admin/notifications', 'send_notification_broadcast'))) return;
-    const newNotif: AdminNotification = {
-      ...n,
-      id: `notif-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-      created_at: new Date().toISOString().replace('T', ' ').slice(0, 16),
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-    logActivity('Campaign Broadcasted', `Broadcasted notification "${newNotif.title}" to target group: ${newNotif.target}.`, 'Bell');
-  }, [logActivity]);
-
-  // Coupons
-  const addCoupon = useCallback(async (coupon: Coupon) => {
-    if (!(await requireStepUpClient('/admin/coupons', 'manage_coupons'))) return;
-    setCoupons(prev => [coupon, ...prev]);
-    logActivity('Promo Coupon Added', `Added new promo rate structure: ${coupon.code}.`, 'Award');
-  }, [logActivity]);
-
-  const updateCoupon = useCallback(async (code: string, updated: Partial<Coupon>) => {
-    if (!(await requireStepUpClient('/admin/coupons', 'manage_coupons'))) return;
-    setCoupons(prev => prev.map(c => c.code === code ? { ...c, ...updated } as Coupon : c));
-    logActivity('Promo Coupon Updated', `Updated coupon values/limits for code ${code}.`, 'Award');
-  }, [logActivity]);
-
-  const deleteCoupon = useCallback(async (code: string) => {
-    if (!(await requireStepUpClient('/admin/coupons', 'manage_coupons'))) return;
-    setCoupons(prev => prev.filter(c => c.code !== code));
-    logActivity('Promo Coupon Deleted', `Archived promo code ${code} from active operations.`, 'Bell');
-  }, [logActivity]);
-
-  // Website Content
-  const updateWebsiteContent = useCallback(async (tab: keyof WebsiteContent, updatedItems: WebsiteContent[keyof WebsiteContent]) => {
-    if (!(await requireStepUpClient('/admin/website-content', 'manage_website_content'))) return;
-    setWebsiteContent(prev => ({ ...prev, [tab]: updatedItems }));
-    logActivity('Website Content Modified', `Edited and saved updates on public CMS portal: ${tab}.`, 'BookOpen');
-  }, [logActivity]);
-
-  // Settings
-  const updateSettings = useCallback(async (domain: keyof AdminSettings, subSettings: any) => {
-    if (!(await requireStepUpClient('/admin/settings', 'modify_system_settings'))) return;
-    setSettings(prev => ({
-      ...prev,
-      [domain]: { ...prev[domain], ...subSettings },
-    }));
-    logActivity('System Parameters Updated', `Updated parameters in settings under "${domain}".`, 'Users');
-  }, [logActivity]);
-
-  // Reset
-  const resetAllData = useCallback(() => {
-    setCertificates(MOCK_CERTIFICATES);
-    setNotifications(MOCK_NOTIFICATIONS);
-    setCoupons(MOCK_COUPONS);
-    setWebsiteContent(MOCK_WEBSITE_CONTENT);
-    setSettings(DEFAULT_ADMIN_SETTINGS);
-    setActivityLogs(MOCK_ACTIVITY_LOGS);
-    setAdminUser(null);
-    localStorage.removeItem(STORAGE_KEY);
-    logActivity('Data Reset', 'All admin data has been reset to defaults.', 'Users');
-  }, [logActivity]);
-
   return (
     <AdminContext.Provider value={{
-      members, teachers, certificates,
-      notifications, coupons, websiteContent, settings, activityLogs, adminUser, mounted,
+      members, teachers, adminUser, mounted,
       showDeleted, setShowDeleted,
       showDeletedTeachers, setShowDeletedTeachers,
       logoutAdmin, resetAdmin,
       addMember, refreshMembers, updateMember, deleteMember, restoreMember, changeMemberStatus,
       verifyDocument, rejectDocument,
       addTeacher, refreshTeachers, updateTeacher, deleteTeacher, restoreTeacher,
-      addCertificate, generateCertificateForEnrollment, approveCertificate, rejectCertificate,
-      addNotification,
-      addCoupon, updateCoupon, deleteCoupon,
-      updateWebsiteContent, updateSettings, logActivity, resetAllData,
     }}>
       {children}
     </AdminContext.Provider>

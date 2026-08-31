@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Award,
@@ -12,6 +12,7 @@ import {
   Loader2,
   ChevronRight,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 
 interface CourseCertCard {
@@ -45,18 +46,34 @@ export default function CertificatesPage() {
   const [courses, setCourses] = useState<CourseCertCard[]>([]);
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    fetch("/api/admin/certificates")
-      .then((r) => r.json())
+  const loadData = useCallback((signal?: AbortSignal) => {
+    fetch("/api/admin/certificates", { signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Failed to load (${r.status})`);
+        return r.json();
+      })
       .then((res) => {
         setCourses(res.data?.courses ?? []);
         setOverview(res.data?.overview ?? null);
       })
-      .catch(() => {})
+      .catch((err) => { setError(err.message || 'Failed to load certificate data'); })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadData(controller.signal);
+    return () => controller.abort();
+  }, [loadData]);
+
+  const retry = () => {
+    setLoading(true);
+    setError(null);
+    loadData();
+  };
 
   const filtered = courses.filter(
     (c) =>
@@ -97,6 +114,12 @@ export default function CertificatesPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
           <span className="ml-2 text-xs text-muted-foreground">Loading certificates...</span>
+        </div>
+      ) : error ? (
+        <div className="text-center py-12 bg-card border border-border rounded-xl">
+          <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-foreground">{error}</p>
+          <button onClick={retry} className="mt-3 px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg">Retry</button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">

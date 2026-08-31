@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAdmin } from '@/lib/admin-context';
 import { Teacher, TeacherDetail } from '@/lib/admin-types';
 import {
   GraduationCap, Search, Plus, Filter, Eye, Pencil, Trash2, X,
   ChevronLeft, ChevronRight, ArrowUpDown, Camera,
-  Users, Clock, Award, BookOpen, RefreshCw, AlertTriangle,
+  Users, Clock, Award, BookOpen, RefreshCw, AlertTriangle, Loader2,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import MetricCards from '@/components/MetricCards';
@@ -28,7 +28,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function AdminTeachersPage() {
-  const { teachers, showDeletedTeachers, setShowDeletedTeachers, addTeacher, updateTeacher, deleteTeacher, restoreTeacher } = useAdmin();
+  const { teachers, showDeletedTeachers, setShowDeletedTeachers, addTeacher, updateTeacher, deleteTeacher, restoreTeacher, refreshTeachers } = useAdmin();
   const { toast } = useToast();
   const [metricActive, setMetricActive] = useState('total');
   const [search, setSearch] = useState('');
@@ -80,6 +80,38 @@ export default function AdminTeachersPage() {
     volunteers: teachers.filter(t => t.teacherType === 'volunteer').length,
   };
 
+  const filteredTeachers = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    return teachers.filter(t => {
+      if (typeFilter !== 'All' && t.teacherType !== typeFilter) return false;
+      if (statusFilter !== 'All' && t.status !== statusFilter) return false;
+      if (!q) return true;
+      return [
+        t.fullName, t.email, t.mobile, t.designation,
+        t.district ?? '', t.village ?? '', t.taluka ?? '',
+        t.qualification ?? '', ...(t.specializations ?? []),
+      ].join(' ').toLowerCase().includes(q);
+    });
+  }, [teachers, debouncedSearch, typeFilter, statusFilter]);
+
+  const sortedTeachers = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...filteredTeachers].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av ?? '').localeCompare(String(bv ?? '')) * dir;
+    });
+  }, [filteredTeachers, sortKey, sortDir]);
+
+  const totalFiltered = sortedTeachers.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageTeachers = useMemo(
+    () => sortedTeachers.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [sortedTeachers, safePage, pageSize],
+  );
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
@@ -110,11 +142,22 @@ export default function AdminTeachersPage() {
     setFormLoading(true);
     setFormError(null);
     try {
+      // Strip empty strings — the API treats them as invalid values (e.g. pincode regex), not absent.
       const payload: Record<string, unknown> = {
-        ...form,
+        fullName: form.fullName.trim(),
+        email: form.email.trim(),
+        mobile: form.mobile.replace(/\D/g, ''),
+        designation: form.designation.trim(),
+        teacherType: form.teacherType,
+        status: form.status,
+        joinedDate: form.joinedDate,
         experienceYears: form.experienceYears ? Number(form.experienceYears) : undefined,
         specializations: form.specializations ? form.specializations.split(',').map(s => s.trim()).filter(Boolean) : [],
       };
+      for (const key of ['qualification', 'village', 'taluka', 'district', 'state', 'pincode', 'bio'] as const) {
+        const v = form[key]?.trim();
+        if (v) payload[key] = v;
+      }
       if (editTeacher) {
         await updateTeacher(editTeacher.id, payload);
         toast({ title: 'Teacher Updated', description: `${form.fullName}'s profile has been saved.`, variant: 'success' });
@@ -126,6 +169,7 @@ export default function AdminTeachersPage() {
       }
       setShowAddModal(false);
     } catch (err: any) {
+      if (err?.message === 'STEP_UP_PENDING') return;
       setFormError(err.message || 'Failed to save teacher');
     } finally {
       setFormLoading(false);
@@ -133,11 +177,19 @@ export default function AdminTeachersPage() {
   };
 
   const handleBulkAction = async (action: 'activate' | 'deactivate' | 'delete') => {
+    let failed = 0;
     for (const id of selected) {
       try {
         if (action === 'delete') await deleteTeacher(id);
         else await updateTeacher(id, { status: action === 'activate' ? 'active' : 'inactive' });
-      } catch { /* individual errors */ }
+      } catch (err: any) {
+        if (err?.message === 'STEP_UP_PENDING') return;
+        failed += 1;
+        console.error('Bulk action error for teacher:', id, err);
+      }
+    }
+    if (failed > 0) {
+      toast({ title: 'Some Updates Failed', description: `${failed} of ${selected.size} teachers could not be updated. Please try again.`, variant: 'error' });
     }
     setSelected(new Set());
   };
@@ -159,6 +211,7 @@ export default function AdminTeachersPage() {
       if (editTeacher?.id === teacherId) {
         setEditTeacher({ ...editTeacher, profilePhoto: data.profilePhoto });
       }
+      await refreshTeachers();
       toast({ title: 'Photo Updated', description: 'Profile photo has been uploaded.', variant: 'success' });
     } catch (e: any) {
       toast({ title: 'Upload Failed', description: e.message || 'Could not upload photo.', variant: 'error' });
@@ -178,7 +231,10 @@ export default function AdminTeachersPage() {
     try {
       const res = await fetch(`/api/admin/teachers/${t.id}`);
       if (res.ok) setDetailTeacher(await res.json());
-    } catch { /* ignore */ }
+    } catch (e: unknown) {
+      console.error('Failed to load teacher detail:', e);
+      toast({ title: 'Error', description: 'Could not load teacher details.', variant: 'error' });
+    }
   }, []);
 
   return (
@@ -261,8 +317,16 @@ export default function AdminTeachersPage() {
             <thead className="bg-background border-b border-border">
               <tr>
                 <th className="px-3 py-3 w-10">
-                  <input type="checkbox" checked={selected.size === teachers.length && teachers.length > 0}
-                    onChange={() => { if (selected.size === teachers.length) setSelected(new Set()); else setSelected(new Set(teachers.map(t => t.id))); }}
+                  <input type="checkbox"
+                    checked={pageTeachers.length > 0 && pageTeachers.every(t => selected.has(t.id))}
+                    onChange={() => {
+                      const allSelected = pageTeachers.every(t => selected.has(t.id));
+                      setSelected(prev => {
+                        const n = new Set(prev);
+                        pageTeachers.forEach(t => { if (allSelected) n.delete(t.id); else n.add(t.id); });
+                        return n;
+                      });
+                    }}
                     className="w-4 h-4 rounded border-border text-primary focus:ring-primary" />
                 </th>
                 {thSort('Name', 'fullName')}
@@ -276,10 +340,16 @@ export default function AdminTeachersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {teachers.length === 0 && <tr><td colSpan={9} className="py-12">
-                <EmptyState icon={GraduationCap} title="No instructors" description="Add an instructor to begin teaching courses." />
+              {pageTeachers.length === 0 && <tr><td colSpan={9} className="py-12">
+                {showDeletedTeachers ? (
+                  <EmptyState icon={Trash2} title="No deleted teachers" description="Deleted records will appear here." />
+                ) : teachers.length === 0 ? (
+                  <EmptyState icon={GraduationCap} title="No instructors" description="Add an instructor to begin teaching courses." />
+                ) : (
+                  <EmptyState icon={Search} title="No matching teachers" description="Try adjusting your search or filters." />
+                )}
               </td></tr>}
-              {teachers.map(t => (
+              {pageTeachers.map(t => (
                 <tr key={t.id} className={`hover:bg-primary-light/30 transition-colors ${selected.has(t.id) ? 'bg-primary-light/50' : ''} ${t.status === 'deleted' ? 'opacity-50' : ''}`}>
                   <td className="px-3 py-3">
                     <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleSelect(t.id)}
@@ -302,7 +372,7 @@ export default function AdminTeachersPage() {
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {t.status === 'deleted' ? (
-                        <button onClick={async () => { try { await restoreTeacher(t.id); toast({ title: 'Teacher Restored', description: `${t.fullName} has been restored.`, variant: 'success' }); } catch (e: any) { toast({ title: 'Restore Failed', description: e.message, variant: 'error' }); } }}
+                        <button onClick={async () => { try { await restoreTeacher(t.id); toast({ title: 'Teacher Restored', description: `${t.fullName} has been restored.`, variant: 'success' }); } catch (e: any) { if (e?.message === 'STEP_UP_PENDING') return; toast({ title: 'Restore Failed', description: e.message || 'Could not restore teacher.', variant: 'error' }); } }}
                           className="px-2 py-1 text-green-600 hover:bg-green-50 rounded-lg cursor-pointer transition-colors text-[10px] font-bold" title="Restore Teacher">
                           <RefreshCw className="w-3.5 h-3.5 inline mr-0.5" /> Restore
                         </button>
@@ -319,6 +389,23 @@ export default function AdminTeachersPage() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="hidden sm:inline">Rows per page</span>
+            <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="px-2 py-1 text-xs border border-border rounded-md bg-card focus:ring-2 focus:ring-primary outline-none">
+              {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <span>· Showing {totalFiltered === 0 ? 0 : (safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, totalFiltered)} of {totalFiltered}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage <= 1}
+              className="p-1.5 rounded-md border border-border hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Previous page"><ChevronLeft className="w-4 h-4" /></button>
+            <span className="text-xs font-semibold text-muted-foreground">Page {safePage} of {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+              className="p-1.5 rounded-md border border-border hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Next page"><ChevronRight className="w-4 h-4" /></button>
+          </div>
         </div>
       </div>
 
@@ -446,7 +533,9 @@ export default function AdminTeachersPage() {
             </div>
             <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4 flex items-center justify-end gap-3">
               <button onClick={() => setShowAddModal(false)} disabled={formLoading} className="px-4 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-accent disabled:opacity-50">Cancel</button>
-              <button onClick={handleSave} disabled={formLoading} className="px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg disabled:opacity-50">{formLoading ? 'Saving...' : editTeacher ? 'Update' : 'Create'}</button>
+              <button onClick={handleSave} disabled={formLoading} className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg disabled:opacity-50">
+                {formLoading ? (<><Loader2 className="w-3.5 h-3.5 animate-spin" />Saving...</>) : editTeacher ? 'Update' : 'Create'}
+              </button>
             </div>
           </div>
         </div>
@@ -556,7 +645,10 @@ export default function AdminTeachersPage() {
             await deleteTeacher(deleteTarget);
             toast({ title: 'Teacher Deleted', description: `${t?.fullName ?? 'Teacher'} has been deleted.`, variant: 'success' });
           } catch (e: any) {
+            if (e?.message === 'STEP_UP_PENDING') return;
             toast({ title: 'Delete Failed', description: e.message || 'Could not delete teacher.', variant: 'error' });
+          } finally {
+            setDeleteTarget(null);
           }
         }}
         title="Delete Teacher"

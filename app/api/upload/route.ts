@@ -5,6 +5,7 @@ import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { uploadFile, generateSignedUrl, deleteFile, getPublicUrl } from '@/lib/supabase-storage';
 import { validateFile } from '@/lib/file-validation';
 import { BUCKETS, SIGNED_URL_EXPIRY, type DocumentType } from '@/lib/upload-config';
+import { checkRateLimit } from '@/lib/rate-limit';
 import sharp from 'sharp';
 
 const ALLOWED_DOC_TYPES: DocumentType[] = ['aadhaar', 'pan', 'rationCard', 'profilePhoto'];
@@ -13,6 +14,14 @@ export async function POST(request: Request) {
   const auth = await requireAuth(new Headers(request.headers));
   if (!auth.success) {
     return authErrorResponse(auth)!;
+  }
+
+  const rateLimit = checkRateLimit(request, 'upload_post', 10, 15 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many uploads. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)) } },
+    );
   }
 
   const userId = auth.session.user.id;

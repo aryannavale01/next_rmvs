@@ -1,18 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/session';
 import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
+import { CATEGORY_DISPLAY } from '@/lib/course-categories';
 
 export const dynamic = 'force-dynamic';
-
-const CATEGORY_DISPLAY: Record<string, string> = {
-  tech: 'Technology',
-  health: 'Health',
-  leadership: 'Leadership',
-  environment: 'Environment',
-  agriculture: 'Agriculture',
-  skill_dev: 'Skill Dev',
-  basic_digital: 'Basic Digital',
-};
 
 const LEVEL_DISPLAY: Record<string, string> = {
   beginner: 'Beginner',

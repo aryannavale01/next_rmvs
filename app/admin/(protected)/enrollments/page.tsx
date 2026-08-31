@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   BookOpen,
@@ -42,18 +42,37 @@ export default function TrainingCardsPage() {
   const [courses, setCourses] = useState<CourseCard[]>([]);
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    fetch("/api/admin/enrollments/analytics")
-      .then((r) => r.json())
-      .then((res) => {
-        setCourses(res.data.courses ?? []);
-        setOverview(res.data.overview ?? null);
+  const loadData = useCallback((signal?: AbortSignal) => {
+    fetch("/api/admin/enrollments/analytics", { signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Failed to load (${r.status})`);
+        return r.json();
       })
-      .catch(() => {})
+      .then((data) => {
+        setCourses(data.data?.courses ?? []);
+        setOverview(data.data?.overview ?? null);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : 'Failed to load enrollment data');
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadData(controller.signal);
+    return () => controller.abort();
+  }, [loadData]);
+
+  const retry = () => {
+    setLoading(true);
+    setError(null);
+    void loadData();
+  };
 
   const filtered = courses.filter(
     (c) =>
@@ -92,6 +111,12 @@ export default function TrainingCardsPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
           <span className="ml-2 text-xs text-muted-foreground">Loading courses...</span>
+        </div>
+      ) : error ? (
+        <div className="text-center py-12 bg-card border border-border rounded-xl">
+          <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-foreground">{error}</p>
+          <button onClick={retry} className="mt-3 px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-lg">Retry</button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">

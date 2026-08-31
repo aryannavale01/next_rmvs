@@ -159,7 +159,10 @@ export default function CertificateWorkspacePage({ params }: { params: Promise<{
     if (!courseId) return;
     let cancelled = false;
     fetch(`/api/admin/certificates?courseId=${courseId}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Failed to load (${r.status})`);
+        return r.json();
+      })
       .then((json) => {
         if (cancelled) return;
         if (!json.data) throw new Error("Failed to load");
@@ -334,6 +337,7 @@ export default function CertificateWorkspacePage({ params }: { params: Promise<{
 
   const downloadCertificates = async (format: "pdf" | "zip") => {
     if (!data?.certificates.length) return;
+    if (!(await requireStepUpClient(`/admin/certificates/${courseId || ''}`, CERT_ACTION))) return;
     setBusy(`download-${format}`);
     try {
       const res = await fetch("/api/admin/certificates/download", {
@@ -343,6 +347,10 @@ export default function CertificateWorkspacePage({ params }: { params: Promise<{
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
+        if (isStepUpRequiredResponse(res.status, json?.error)) {
+          redirectToStepUp(`/admin/certificates/${courseId || ''}`, CERT_ACTION);
+          return;
+        }
         throw new Error(json?.error ?? "Download failed");
       }
       const blob = await res.blob();

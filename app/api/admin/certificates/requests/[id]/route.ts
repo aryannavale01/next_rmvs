@@ -7,6 +7,7 @@ import {
 } from "@/lib/certificates";
 import { buildVerificationUrl } from "@/lib/certificate-pdf";
 import { logActivity } from "@/lib/activity-log";
+import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         courseId: true,
         batch: true,
         profile: { select: { fullName: true } },
+        course: { select: { title: true } },
       },
     });
     if (!req) {
@@ -64,7 +66,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const year = new Date().getFullYear();
     const now = new Date();
 
-    const result = await prisma.$transaction(async (tx) => {      let certificate: { id: string; certificateNumber: string; profileId: string; status: string };
+    const result = await prisma.$transaction(async (tx) => {
+      let certificate: { id: string; certificateNumber: string; verificationCode: string | null; profileId: string; status: string };
 
       const enrollment = req.courseId
         ? await tx.courseEnrollment.findFirst({
@@ -84,7 +87,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (enrollment && enrollment.status !== "dropped") {
         const [created] = await generateCertificatesForEnrollments({
           tx,
-          enrollments: [enrollment],
+          enrollments: [
+            {
+              id: enrollment.id,
+              profileId: enrollment.profileId,
+              courseId: enrollment.courseId,
+              batchLabel: enrollment.batchLabel,
+              trainer: enrollment.trainer,
+              completionDate: enrollment.completionDate,
+              memberName: req.profile.fullName,
+              courseName: req.course?.title ?? "Course",
+            },
+          ],
           adminId: auth.session.user.id,
           baseUrl,
           year,
@@ -92,11 +106,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         certificate = created;
       } else {
         const certificateNumber = await nextCertificateNumber(tx, year);
+        const verificationCode = crypto.randomBytes(16).toString("base64url");
         certificate = await tx.certificate.create({
           data: {
             certificateNumber,
+            verificationCode,
             profileId: req.profileId,
             courseId: req.courseId,
+            memberName: req.profile.fullName,
+            courseName: req.course?.title ?? "Course",
             batch: req.batch ?? enrollment?.batchLabel ?? null,
             teacherName: enrollment?.trainer ?? null,
             completionDate: enrollment?.completionDate ?? null,
@@ -105,10 +123,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             publishedStatus: "pending",
             templateName: "default",
             language: "English",
-            verificationUrl: buildVerificationUrl(baseUrl, certificateNumber),
+            verificationUrl: buildVerificationUrl(baseUrl, verificationCode),
             generatedBy: auth.session.user.id,
           },
-          select: { id: true, certificateNumber: true, profileId: true, status: true },
+          select: { id: true, certificateNumber: true, verificationCode: true, profileId: true, status: true },
         });
       }
 
@@ -134,6 +152,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         certificate: {
           id: result.id,
           certificateNumber: result.certificateNumber,
+          verificationCode: result.verificationCode,
           status: result.status,
           memberName: req.profile.fullName,
         },

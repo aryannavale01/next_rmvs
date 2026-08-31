@@ -42,9 +42,16 @@ function LoginForm() {
 
       const userRole = (data?.user as Record<string, unknown>)?.role;
       if (userRole === "ADMIN") {
+        // The sign-in already succeeded server-side, but this portal is member-only.
+        // Sign the session back out so the admin is not left with an active session.
         setError("This portal is for members only. Admins use the admin login.");
+        try {
+          await authClient.signOut();
+        } catch { /* best-effort sign out */ }
         return;
       }
+
+      try { localStorage.setItem("cg_has_account", "1"); } catch {}
 
       // Full page navigation ensures cookies from the sign-in response
       // are included in the request headers for middleware verification

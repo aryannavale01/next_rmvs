@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { requireAuth, authErrorResponse } from '@/lib/session';
 import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,14 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(new Headers(req.headers));
   if (!auth.success) {
     return authErrorResponse(auth)!;
+  }
+
+  const rateLimit = checkRateLimit(req, 'notifications_read', 30, 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)) } },
+    );
   }
 
   try {

@@ -22,6 +22,7 @@ import {
   Command,
   ChevronRight,
   FileText,
+  Mail,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastProvider } from '@/components/ui/toast';
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { id: 'enrollments', label: 'Enrollments', icon: FileText, href: '/admin/enrollments' },
   { id: 'certificates', label: 'Certificates', icon: Award, href: '/admin/certificates' },
   { id: 'notifications', label: 'Notifications', icon: Bell, href: '/admin/notifications' },
+  { id: 'newsletters', label: 'Newsletters', icon: Mail, href: '/admin/newsletters' },
   { id: 'activity-logs', label: 'Activity Logs', icon: Lock, href: '/admin/activity-logs' },
   { id: 'coupons', label: 'Coupons', icon: Tag, href: '/admin/coupons' },
   { id: 'website-content', label: 'Website Content', icon: Globe, href: '/admin/website-content' },
@@ -49,6 +51,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/enrollments': 'Admissions & Stats',
   '/admin/certificates': 'Credentials & Seals',
   '/admin/notifications': 'SMS & Email Broadcast',
+  '/admin/newsletters': 'Newsletter Management',
   '/admin/activity-logs': 'Security Audit Logs',
   '/admin/coupons': 'Promo Coupons',
   '/admin/website-content': 'Landing CMS',
@@ -133,15 +136,17 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
   );
 }
 
-function SidebarContent({ pathname, adminUser, onLogout, onNav }: { pathname: string | null; adminUser: { username?: string; email?: string } | null; onLogout: () => void; onNav?: () => void }) {
+function SidebarContent({ pathname, adminUser, onLogout, onNav, siteName, logoText }: { pathname: string | null; adminUser: { username?: string; email?: string } | null; onLogout: () => void; onNav?: () => void; siteName?: string; logoText?: string }) {
+  const displayBrand = logoText || siteName || 'CompassionGlobal';
+  const initials = displayBrand.slice(0, 2).toUpperCase();
   return (
     <>
       <div className="p-5 border-b border-white/10 flex items-center gap-3">
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-bold text-white text-xs shadow-lg shrink-0">
-          CG
+          {initials}
         </div>
         <div className="min-w-0">
-          <h1 className="font-extrabold text-[11px] tracking-wider uppercase text-white">CompassionGlobal</h1>
+          <h1 className="font-extrabold text-[11px] tracking-wider uppercase text-white">{displayBrand}</h1>
           <span className="text-[9px] font-bold tracking-widest text-secondary-blue uppercase">ADMIN ERP</span>
         </div>
       </div>
@@ -186,10 +191,10 @@ function SidebarContent({ pathname, adminUser, onLogout, onNav }: { pathname: st
   );
 }
 
-function AdminShell({ children }: { children: React.ReactNode }) {
+function AdminShell({ children, siteName, logoText, brandColor }: { children: React.ReactNode; siteName?: string; logoText?: string; brandColor?: string }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { adminUser, logoutAdmin, resetAdmin, mounted, notifications } = useAdmin();
+  const { adminUser, logoutAdmin, resetAdmin, mounted } = useAdmin();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -208,8 +213,46 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="h-screen flex overflow-hidden bg-background">
+        {/* Sidebar skeleton */}
+        <aside className="hidden lg:flex flex-col w-64 bg-sidebar flex-shrink-0 border-r border-white/10">
+          <div className="p-5 border-b border-white/10 flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/15 rounded-lg animate-pulse" />
+            <div className="space-y-1.5">
+              <div className="h-3 w-28 bg-white/15 rounded animate-pulse" />
+              <div className="h-2 w-16 bg-white/10 rounded animate-pulse" />
+            </div>
+          </div>
+          <nav className="flex-1 p-3 space-y-0.5">
+            {Array.from({ length: 11 }, (_, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
+                <div className="w-4 h-4 bg-white/15 rounded animate-pulse" />
+                <div className="h-3 bg-white/15 rounded animate-pulse" style={{ width: `${50 + ((i * 13) % 30)}%` }} />
+              </div>
+            ))}
+          </nav>
+        </aside>
+        {/* Main area skeleton */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="bg-card h-14 border-b border-border px-4 md:px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 border border-border rounded-lg lg:hidden" />
+              <div className="h-5 w-40 bg-gray-100 rounded animate-pulse" />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-border rounded-lg w-32 h-8" />
+              <div className="w-9 h-9 bg-gray-100 rounded-lg animate-pulse" />
+              <div className="flex items-center gap-2.5 pl-3 border-l border-border">
+                <div className="w-8 h-8 bg-gray-100 rounded-full animate-pulse" />
+              </div>
+            </div>
+          </header>
+          <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-6 bg-background">
+            <div className="flex items-center justify-center h-full">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          </main>
+        </div>
       </div>
     );
   }
@@ -219,7 +262,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   const currentPage = PAGE_TITLES[pathname || ''] || 'Admin Panel';
-  const unreadCount = notifications.length || 0;
+  const unreadCount = 0;
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -235,7 +278,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       </a>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex flex-col w-64 bg-sidebar text-white flex-shrink-0 border-r border-white/10">
-        <SidebarContent pathname={pathname} adminUser={adminUser} onLogout={handleLogout} />
+        <SidebarContent pathname={pathname} adminUser={adminUser} onLogout={handleLogout} siteName={siteName} logoText={logoText} />
       </aside>
 
       {/* Mobile Drawer */}
@@ -338,11 +381,11 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({ children, siteName, logoText, brandColor }: { children: React.ReactNode; siteName?: string; logoText?: string; brandColor?: string }) {
   return (
     <ToastProvider>
       <AdminProvider>
-        <AdminShell>{children}</AdminShell>
+        <AdminShell siteName={siteName} logoText={logoText} brandColor={brandColor}>{children}</AdminShell>
       </AdminProvider>
     </ToastProvider>
   );

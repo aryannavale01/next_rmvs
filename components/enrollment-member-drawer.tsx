@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from "@/lib/admin-stepup";
+import { useToast } from "@/components/ui/toast";
 
 interface MemberDetail {
   id: string;
@@ -40,6 +41,9 @@ interface ApplicationDetail {
   rejectionReason: string | null;
   reviewedAt: string | null;
   notes: string | null;
+  education: string | null;
+  address: string | null;
+  motivation: string | null;
   documents: unknown;
   paymentStatus: string;
   amountPaid: string;
@@ -95,8 +99,9 @@ export default function EnrollmentMemberDrawer({ isOpen, onClose, applicationId,
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [data, setData] = useState<ApplicationDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [docActionLoading, setDocActionLoading] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const prevOpenRef = React.useRef(isOpen);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen && !prevOpenRef.current) {
@@ -107,19 +112,35 @@ export default function EnrollmentMemberDrawer({ isOpen, onClose, applicationId,
 
   useEffect(() => {
     if (!isOpen || !applicationId) return;
+    let cancelled = false;
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/admin/enrollments/${applicationId}`);
+        const res = await fetch(`/api/admin/enrollments/${applicationId}`, { signal: AbortSignal.timeout(20000) });
+        if (cancelled) return;
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json.error || `Failed to load (${res.status})`);
+        }
         const json = await res.json();
-        setData(json.data);
-      } catch {
+        if (!cancelled) setData(json.data);
+      } catch (err) {
+        if (cancelled) return;
         setData(null);
+        toast({
+          title: "Load Failed",
+          description: err instanceof DOMException && err.name === "TimeoutError"
+            ? "The server took too long to respond."
+            : "Could not load member details.",
+          variant: "error",
+        });
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     load();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, applicationId]);
 
   useEffect(() => {
@@ -131,33 +152,70 @@ export default function EnrollmentMemberDrawer({ isOpen, onClose, applicationId,
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
-  const handleDocumentAction = async (documentType: string, action: "verify" | "reject") => {
-    if (!applicationId) return;
-    if (!(await requireStepUpClient(stepUpReturnPath(), 'manage_enrollments'))) return;
-    setDocActionLoading(documentType);
+  const patchApplication = async (
+    body: Record<string, unknown>,
+    opts: { busyKey: string; successTitle: string; successDescription: string; applyLocal?: (prev: ApplicationDetail) => ApplicationDetail },
+  ): Promise<boolean> => {
+    if (!applicationId || actionLoading) return false;
+    if (!(await requireStepUpClient(stepUpReturnPath(), 'manage_enrollments'))) return false;
+    setActionLoading(opts.busyKey);
     try {
       const res = await fetch(`/api/admin/enrollments/${applicationId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentAction: { documentType, action } }),
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
       });
       if (res.ok) {
-        const json = await res.json();
-        setData((prev) => (prev ? {
-          ...prev,
-          documents: json.data.documents,
-          status: json.data.status ?? prev.status,
-        } : prev));
+        const json = await res.json().catch(() => ({}));
+        setData((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          if (json.data?.status) next.status = json.data.status;
+          if (json.data?.documents) next.documents = json.data.documents;
+          return opts.applyLocal ? opts.applyLocal(next) : next;
+        });
+        toast({ title: opts.successTitle, description: opts.successDescription, variant: "success" });
         onActionComplete?.();
-      } else {
-        const data = await res.json();
-        if (isStepUpRequiredResponse(res.status, data.error)) {
-          redirectToStepUp(stepUpReturnPath(), 'manage_enrollments');
-        }
+        return true;
       }
+      const errData = await res.json().catch(() => ({}));
+      if (isStepUpRequiredResponse(res.status, errData.error)) {
+        redirectToStepUp(stepUpReturnPath(), 'manage_enrollments');
+        return false;
+      }
+      toast({ title: "Action Failed", description: errData.error ?? `Request failed (${res.status}).`, variant: "error" });
+      return false;
+    } catch (err) {
+      toast({
+        title: "Action Failed",
+        description: err instanceof DOMException && err.name === "TimeoutError"
+          ? "The server took too long to respond. Please try again."
+          : "Network error. Please try again.",
+        variant: "error",
+      });
+      return false;
     } finally {
-      setDocActionLoading(null);
+      setActionLoading(null);
     }
+  };
+
+  const handleDocumentAction = async (documentType: string, action: "verify" | "reject") => {
+    await patchApplication(
+      { documentAction: { documentType, action } },
+      {
+        busyKey: documentType,
+        successTitle: action === "verify" ? "Document Verified" : "Document Rejected",
+        successDescription: `"${documentType}" has been marked as ${action === "verify" ? "verified" : "rejected"}.`,
+      },
+    );
+  };
+
+  const moveStatus = async (status: string, busyKey: string, title: string, description: string) => {
+    await patchApplication(
+      { status },
+      { busyKey, successTitle: title, successDescription: description },
+    );
   };
 
   if (!isOpen) return null;
@@ -222,26 +280,11 @@ export default function EnrollmentMemberDrawer({ isOpen, onClose, applicationId,
             <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mr-1">Actions:</span>
             {data.status === "pending" && (
               <button
-                onClick={async () => {
-                  if (!(await requireStepUpClient(stepUpReturnPath(), 'manage_enrollments'))) return;
-                  const res = await fetch(`/api/admin/enrollments/${applicationId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "under_review" }),
-                  });
-                  if (!res.ok) {
-                    const body = await res.json();
-                    if (isStepUpRequiredResponse(res.status, body.error)) {
-                      redirectToStepUp(stepUpReturnPath(), 'manage_enrollments');
-                    }
-                    return;
-                  }
-                  setData((prev) => prev ? { ...prev, status: "under_review" } : prev);
-                  onActionComplete?.();
-                }}
-                className="px-2 py-1 text-[9px] font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                onClick={() => moveStatus("under_review", "move_review", "Moved to Review", "Application moved to the review queue.")}
+                disabled={actionLoading !== null}
+                className="px-2 py-1 text-[9px] font-medium bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-40 transition-colors"
               >
-                Move to Review
+                {actionLoading === "move_review" ? "..." : "Move to Review"}
               </button>
             )}
             {data.status === "under_review" && (
@@ -254,54 +297,22 @@ export default function EnrollmentMemberDrawer({ isOpen, onClose, applicationId,
             )}
             {data.status === "documents_verified" && (
               <button
-                onClick={async () => {
-                  if (!seatInfo || seatInfo.isFull) return;
-                  if (!(await requireStepUpClient(stepUpReturnPath(), 'manage_enrollments'))) return;
-                  const res = await fetch(`/api/admin/enrollments/${applicationId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "seat_reserved" }),
-                  });
-                  if (!res.ok) {
-                    const body = await res.json();
-                    if (isStepUpRequiredResponse(res.status, body.error)) {
-                      redirectToStepUp(stepUpReturnPath(), 'manage_enrollments');
-                    }
-                    return;
-                  }
-                  setData((prev) => prev ? { ...prev, status: "seat_reserved" } : prev);
-                  onActionComplete?.();
-                }}
-                disabled={!!seatInfo?.isFull}
+                onClick={() => moveStatus("seat_reserved", "enroll", "Enrolled", "Application approved and enrollment created.")}
+                disabled={!!seatInfo?.isFull || actionLoading !== null}
+                title={seatInfo?.isFull ? "No seats available" : undefined}
                 className="px-2 py-1 text-[9px] font-medium bg-emerald-500 text-white rounded hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                Enroll
+                {actionLoading === "enroll" ? "..." : "Enroll"}
               </button>
             )}
             {data.status === "waitlisted" && (
               <button
-                onClick={async () => {
-                  if (!seatInfo || seatInfo.isFull) return;
-                  if (!(await requireStepUpClient(stepUpReturnPath(), 'manage_enrollments'))) return;
-                  const res = await fetch(`/api/admin/enrollments/${applicationId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "seat_reserved" }),
-                  });
-                  if (!res.ok) {
-                    const body = await res.json();
-                    if (isStepUpRequiredResponse(res.status, body.error)) {
-                      redirectToStepUp(stepUpReturnPath(), 'manage_enrollments');
-                    }
-                    return;
-                  }
-                  setData((prev) => prev ? { ...prev, status: "seat_reserved" } : prev);
-                  onActionComplete?.();
-                }}
-                disabled={!!seatInfo?.isFull}
+                onClick={() => moveStatus("seat_reserved", "promote", "Promoted to Enrollment", "Application approved and seat reserved.")}
+                disabled={!!seatInfo?.isFull || actionLoading !== null}
+                title={seatInfo?.isFull ? "No seats available" : undefined}
                 className="px-2 py-1 text-[9px] font-medium bg-emerald-500 text-white rounded hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                Promote
+                {actionLoading === "promote" ? "..." : "Promote"}
               </button>
             )}
             {data.status === "rejected" && (
@@ -335,6 +346,29 @@ export default function EnrollmentMemberDrawer({ isOpen, onClose, applicationId,
                     <InfoItem label="Gender" value={data.member.gender} />
                     <InfoItem label="DOB" value={data.member.dob} />
                   </div>
+                  {(data.education || data.address || data.motivation) && (
+                    <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Application Details</p>
+                      {data.education && (
+                        <div>
+                          <p className="text-[9px] text-muted-foreground">Education</p>
+                          <p className="text-xs font-medium text-foreground">{data.education}</p>
+                        </div>
+                      )}
+                      {data.address && (
+                        <div>
+                          <p className="text-[9px] text-muted-foreground">Address</p>
+                          <p className="text-xs font-medium text-foreground">{data.address}</p>
+                        </div>
+                      )}
+                      {data.motivation && (
+                        <div>
+                          <p className="text-[9px] text-muted-foreground">Motivation</p>
+                          <p className="text-xs font-medium text-foreground">{data.motivation}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="bg-muted/30 rounded-lg p-3">
                     <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Course</p>
                     <p className="text-xs font-semibold text-foreground">{data.course.title}</p>
@@ -372,7 +406,7 @@ export default function EnrollmentMemberDrawer({ isOpen, onClose, applicationId,
                   <DocumentList
                     documents={data.documents}
                     onAction={handleDocumentAction}
-                    loading={docActionLoading}
+                    loading={actionLoading}
                   />
                 </div>
               )}
@@ -431,13 +465,23 @@ function InfoItem({ label, value }: { label: string; value?: string | number | n
   );
 }
 
+function formatDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
 function TimelineEntry({ label, date }: { label: string; date: string }) {
   return (
     <div className="flex items-center gap-3">
       <div className="w-2 h-2 rounded-full bg-emerald-500" />
       <div>
         <p className="text-xs font-semibold text-foreground">{label}</p>
-        <p className="text-[10px] text-muted-foreground">{date}</p>
+        <p className="text-[10px] text-muted-foreground">{formatDate(date)}</p>
       </div>
     </div>
   );

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rupasri Mahila Vikas Sanstha - Certificate of Completion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Montserrat:wght@300;400;500;600;700&family=Alex+Brush&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Montserrat', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                        title: ['Cinzel', 'serif'],
+                        signature: ['Alex Brush', 'cursive']
+                    },
+                    colors: {
+                        brandPurple: '#512270',
+                        brandTeal: '#1C7E85',
+                        brandGold: '#D4AF37',
+                        parchment: '#FCFBF7'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0b0f19;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Montserrat', sans-serif;
+            overflow-x: hidden;
+        }
+
+        #certificate-wrapper {
+            container-type: inline-size;
+            width: 100%;
+            max-width: 1122px; /* A4 landscape base size */
+            padding: 2.5rem 1.5rem;
+            box-sizing: border-box;
+        }
+
+        .certificate-sheet {
+            width: 100%;
+            aspect-ratio: 297 / 210; /* Precise A4 aspect ratio */
+            position: relative;
+            background-color: #fdfcf9;
+            background-image: 
+                radial-gradient(#f4ebd3 1.5px, transparent 1.5px), 
+                radial-gradient(#f4ebd3 1.5px, #fdfcf9 1.5px);
+            background-size: 24px 24px;
+            background-position: 0 0, 12px 12px;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.55);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+        }
+
+        .guilloche-pattern {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M0 30 Q 15 0, 30 30 T 60 30' fill='none' stroke='%23eedfca' stroke-width='0.4'/%3E%3Cpath d='M0 30 Q 15 60, 30 30 T 60 30' fill='none' stroke='%23eedfca' stroke-width='0.4'/%3E%3C/svg%3E");
+            opacity: 0.55;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .border-outer {
+            position: absolute;
+            top: 2cqw;
+            left: 2cqw;
+            right: 2cqw;
+            bottom: 2cqw;
+            border: 0.35cqw double #512270;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .border-inner {
+            position: absolute;
+            top: 3cqw;
+            left: 3cqw;
+            right: 3cqw;
+            bottom: 3cqw;
+            border: 0.1cqw dashed rgba(212, 175, 55, 0.75);
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .corner-flourish {
+            position: absolute;
+            width: 8cqw;
+            height: 8cqw;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .corner-tl { top: 2.6cqw; left: 2.6cqw; border-top: 0.25cqw solid #D4AF37; border-left: 0.25cqw solid #D4AF37; }
+        .corner-tr { top: 2.6cqw; right: 2.6cqw; border-top: 0.25cqw solid #D4AF37; border-right: 0.25cqw solid #D4AF37; }
+        .corner-bl { bottom: 2.6cqw; left: 2.6cqw; border-bottom: 0.25cqw solid #D4AF37; border-left: 0.25cqw solid #D4AF37; }
+        .corner-br { bottom: 2.6cqw; right: 2.6cqw; border-bottom: 0.25cqw solid #D4AF37; border-right: 0.25cqw solid #D4AF37; }
+
+        [contenteditable="true"] {
+            outline: none;
+            transition: all 0.2s ease-in-out;
+            position: relative;
+        }
+        [contenteditable="true"]:hover {
+            background-color: rgba(28, 126, 133, 0.05);
+            border-bottom: 1px dashed #1C7E85;
+            cursor: text;
+        }
+        [contenteditable="true"]:focus {
+            background-color: rgba(81, 34, 112, 0.06);
+            border-bottom: 1.5px solid #512270;
+        }
+
+        @media print {
+            body {
+                background: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            #certificate-wrapper {
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+                width: 100vw !important;
+                height: 100vh !important;
+            }
+            .certificate-sheet {
+                box-shadow: none !important;
+                border: none !important;
+                background-color: #fdfcf9 !important;
+                width: 297mm !important;
+                height: 210mm !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                margin: 0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            @page {
+                size: A4 landscape;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print mb-4 flex flex-col items-center space-y-2 z-50">
+        <div class="flex space-x-3">
+            <button onclick="window.print()" class="bg-brandPurple hover:bg-opacity-90 text-white font-sans font-semibold px-6 py-2.5 rounded-full shadow-lg flex items-center space-x-2 transition-all">
+                <i class="fa-solid fa-print"></i>
+                <span>Print Certificate / Save PDF</span>
+            </button>
+        </div>
+        <div class="text-slate-400 text-xs text-center">
+            <i class="fa-solid fa-circle-info mr-1"></i> Click on any text directly on the certificate below to modify the parameters.
+        </div>
+    </div>
+
+    <div id="certificate-wrapper">
+        <div class="certificate-sheet p-[4.8cqw] flex flex-col relative">
+            
+            <!-- Aesthetic Security Layers -->
+            <div class="guilloche-pattern"></div>
+            <div class="border-outer"></div>
+            <div class="border-inner"></div>
+            <div class="corner-flourish corner-tl"></div>
+            <div class="corner-flourish corner-tr"></div>
+            <div class="corner-flourish corner-bl"></div>
+            <div class="corner-flourish corner-br"></div>
+
+            <div class="relative z-10 flex items-center w-full">
+                
+                <!-- Left Crest Image -->
+                <div class="flex items-center justify-start w-[18%]">
+                    <img src="certification_circular-removebg-preview.png" alt="Rupasri Crest" 
+                         class="h-[12cqw] w-auto object-contain drop-shadow-lg"
+                         onerror="this.style.display='none';">
+                </div>
+
+                <!-- Center Header: Reg, Address, NGO Name, Tagline -->
+                <div class="text-center flex-1 px-[1.5cqw] flex flex-col items-center justify-center">
+                    <p class="text-[0.85cqw] font-bold tracking-wider text-amber-800 uppercase font-sans">
+                        Govt. Reg. No.: Maha./1720/2014/Pune/F-44503/Pune
+                    </p>
+                    <p class="text-[0.9cqw] font-sans text-slate-500 font-semibold mt-[0.05cqw]">
+                        Kalyan Peth, Junnar, Tal. Junnar, Dist. Pune - 410502
+                    </p>
+
+                    <h2 class="text-[3.2cqw] font-bold font-title text-brandPurple tracking-wide leading-none mt-[0.4cqw]">
+                        RUPASRI MAHILA VIKAS SANSTHA
+                    </h2>
+
+                    <p class="text-[0.85cqw] font-bold tracking-widest text-brandTeal uppercase mt-[0.3cqw]">
+                        Empower • Educate • Elevate
+                    </p>
+                </div>
+
+                <!-- Right spacer for balance -->
+                <div class="w-[18%]"></div>
+
+            </div>
+
+            <!-- Decorative divider -->
+            <div class="relative z-10 flex items-center justify-center gap-[1cqw] mt-[0.4cqw] mb-[0.2cqw]">
+                <div class="h-[0.08cqw] w-[8cqw] bg-gradient-to-r from-transparent via-brandTeal/40 to-brandTeal/70"></div>
+                <div class="w-[0.5cqw] h-[0.5cqw] rotate-45 border border-brandGold/60"></div>
+                <div class="h-[0.08cqw] w-[8cqw] bg-gradient-to-r from-brandTeal/70 via-brandTeal/40 to-transparent"></div>
+            </div>
+
+            <!-- Certificate Title -->
+            <div class="relative z-10 text-center flex flex-col items-center mt-[0.3cqw]">
+                <h1 class="text-[2.2cqw] font-title font-extrabold tracking-[0.2em] text-brandPurple uppercase">
+                    CERTIFICATE OF COMPLETION
+                </h1>
+                <div class="w-[20cqw] h-[0.15cqw] bg-brandGold mt-[0.4cqw] relative">
+                    <div class="absolute -top-[0.25cqw] left-1/2 -translate-x-1/2 w-[0.7cqw] h-[0.7cqw] bg-[#fdfcf9] border border-brandGold rotate-45 flex items-center justify-center">
+                        <div class="w-[0.35cqw] h-[0.35cqw] bg-brandTeal rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content: centered text -->
+            <div class="relative z-10 w-full px-[1.5cqw] mt-[0.8cqw] flex-1">
+
+                <!-- Certificate text - centered -->
+                <div class="w-[88%] mx-auto text-center leading-relaxed">
+                    <p id="cert-text-intro" class="font-serif text-[1.65cqw] text-slate-700 leading-[2.6cqw]">
+                        This is to certify that 
+                        <span class="block my-[0.6cqw]">
+                            <span contenteditable="true" class="font-serif italic font-semibold text-[2.8cqw] text-brandPurple px-[2cqw] border-b-[0.12cqw] border-brandGold/75 pb-[0.3cqw] tracking-wide inline-block leading-none" title="Click to edit name">Applicant's Name</span>
+                        </span> 
+                        <span id="cert-completed">
+                            has successfully completed the training program in 
+                        </span>
+                        <span class="font-serif italic font-bold text-brandTeal">
+                            <span contenteditable="true" class="underline decoration-brandGold/40 decoration-[0.1cqw] underline-offset-[0.3cqw]" title="Click to customize course">Course Name</span>
+                        </span> 
+                        <span id="cert-duration">
+                            for a duration of 
+                        </span>
+                        <span class="font-bold text-brandPurple font-serif">
+                            <span contenteditable="true" class="px-[0.2cqw]" title="Click to customize duration">Duration</span>
+                        </span>.
+                    </p>
+                    
+                    <p class="font-serif text-[1.65cqw] text-slate-700 mt-[1cqw] leading-[2.4cqw]">
+                        <span>The training program was conducted from</span>
+                        <span class="font-semibold text-slate-900">
+                            <span contenteditable="true" class="px-[0.2cqw]" title="Click to customize start date">Start Date</span>
+                        </span> 
+                        <span>to</span>
+                        <span class="font-semibold text-slate-900">
+                            <span contenteditable="true" class="px-[0.2cqw]" title="Click to customize end date">End Date</span>
+                        </span>.
+                    </p>
+
+                    <p class="font-serif text-[1.65cqw] text-slate-700 mt-[1cqw] leading-[2.4cqw]">
+                        This certificate is awarded in recognition of their successful completion and dedication.
+                    </p>
+
+                    <p class="text-[1.25cqw] font-serif italic text-amber-800 font-bold uppercase tracking-[0.15em] mt-[1.4cqw]">
+                        Congratulations & Best Wishes from the Organization!
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="relative z-10 grid grid-cols-3 items-center border-t border-slate-200/80 pt-[1.8cqw] mt-[0.5cqw] px-[1.5cqw]">
+                
+                <!-- Left Column: Dynamic QR Code followed by Verification Credentials -->
+                <div class="flex flex-col space-y-[0.6cqw] text-left pb-[0.3cqw]">
+                    <!-- Live QR Code element placed securely above the Date of Issue -->
+                    <div class="flex flex-col space-y-1 mb-2">
+                        <div class="w-[5.5cqw] h-[5.5cqw] bg-white p-[0.3cqw] border border-slate-300 rounded shadow-sm">
+                            <img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=512270&data=RMVS-2026-T8924" 
+                                 alt="Verification QR Code" 
+                                 class="w-full h-full object-contain">
+                        </div>
+                        <span class="text-[0.8cqw] text-slate-400 font-sans italic">Verify authenticity</span>
+                    </div>
+
+                    <div class="text-[1.25cqw] text-slate-600 font-sans tracking-wide">
+                        <span class="font-semibold text-brandPurple">Date of Issue:</span> 
+                        <span contenteditable="true" class="font-medium text-slate-800" title="Click to edit date">Date of Issue</span>
+                    </div>
+                    <div class="text-[1.25cqw] text-slate-600 font-sans tracking-wide">
+                        <span class="font-semibold text-brandPurple">Certificate ID:</span> 
+                        <span id="cert-id" contenteditable="true" class="font-mono font-bold text-slate-800 bg-amber-50 px-[0.4cqw] rounded border border-amber-200/50" title="Click to edit ID">RMVS-2026-T8924</span>
+                    </div>
+                </div>
+
+                <!-- Center Column: Verification Stamp (bigger) -->
+                <div class="flex justify-center items-center relative">
+                    <img id="stamp-asset" src="certification_stamp-removebg-preview.png" alt="Certification Gold Stamp" 
+                         class="h-[12cqw] w-auto object-contain drop-shadow-lg"
+                         onerror="this.style.display='none'; document.getElementById('stamp-fallback').style.display='flex'">
+                    
+                    <!-- Symmetrical Fallback stamp design if image fails -->
+                    <div id="stamp-fallback" class="hidden w-[12cqw] h-[12cqw] rounded-full border-[0.4cqw] border-double border-amber-500 bg-amber-50/75 flex-col items-center justify-center text-center">
+                        <p class="text-[0.8cqw] font-bold text-amber-800 tracking-tight leading-none">OFFICIAL</p>
+                        <p class="text-[0.9cqw] font-bold text-brandPurple leading-none mt-[0.2cqw]">EST. 2014</p>
+                    </div>
+                </div>
+
+                <!-- Right Column: Handsigned President Signature -->
+                <div class="flex flex-col items-center text-center pb-[0.3cqw]">
+                    <div class="relative w-full h-[4.5cqw] flex items-center justify-center">
+                        <!-- Handwriting Signature script overlay -->
+                        <span id="interactive-signature" class="font-signature text-[3.2cqw] text-blue-900 absolute transform -rotate-2 tracking-widest select-none">
+                            Ashwini.G.Navale
+                        </span>
+
+                    </div>
+                    
+                    <!-- Line separator -->
+                    <div class="w-full h-[0.08cqw] bg-slate-300 mt-[0.3cqw]"></div>
+                    
+                    <!-- Dynamic Signatory text -->
+                    <h4 id="signatory-name" contenteditable="true" class="text-[1.2cqw] font-bold text-slate-800 tracking-wide font-sans mt-[0.6cqw]" title="Click to edit name">
+                        Ashwini.G.Navale
+                    </h4>
+                    <p class="text-[0.9cqw] text-slate-500 uppercase tracking-widest font-bold font-sans mt-[0.2cqw]">
+                        President, Rupasri Mahila Vikas Sanstha
+                    </p>
+                </div>
+
+            </div>
+
+            <!-- Elegant bottom color block border -->
+            <div class="absolute bottom-0 left-0 right-0 h-[0.7cqw] bg-gradient-to-r from-brandPurple via-brandGold to-brandTeal pointer-events-none opacity-90"></div>
+        </div>
+    </div>
+
+    <script>
+        // Real-time sync cursive signatures
+        document.getElementById('signatory-name').addEventListener('input', function(e) {
+            const currentText = e.target.innerText;
+            const simplifiedName = currentText.replace(/^(Smt\.|Mrs\.|Ms\.|Dr\.|Mr\.)\s*/i, '');
+            document.getElementById('interactive-signature').innerText = simplifiedName;
+        });
+
+        // Dynamic QR code from Certificate ID edits
+        const certIdElement = document.getElementById('cert-id');
+        const qrCodeImg = document.getElementById('qr-code-img');
+
+        function updateQRCode() {
+            const rawId = certIdElement.innerText.trim();
+            const safeData = encodeURIComponent('https://rupasrimahila.org/verify/' + rawId);
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=512270&data=${safeData}`;
+        }
+
+        certIdElement.addEventListener('input', updateQRCode);
+    </script>
+</body>
+</html>

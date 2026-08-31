@@ -75,7 +75,7 @@ export interface SyllabusLesson {
 export interface Coupon {
   id: string;
   code: string;
-  description: string;
+  description: string | null;
   discountType: 'percentage' | 'fixed';
   discountValue: number;
   expiresAt: string | null;

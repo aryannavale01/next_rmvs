@@ -1,3 +1,5 @@
+import { getOrgConfig } from "./org-config";
+
 export const SENSITIVE_ADMIN_ACTIONS = [
   'change_user_role',
   'delete_user',
@@ -13,4 +15,12 @@ export const SENSITIVE_ADMIN_ACTIONS = [
 
 export type SensitiveAdminAction = (typeof SENSITIVE_ADMIN_ACTIONS)[number];
 
-export const STEP_UP_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+export const STEP_UP_WINDOW_MS_DEFAULT = 15 * 60 * 1000; // 15 minutes
+
+export async function getStepUpWindowMs(): Promise<number> {
+  const config = await getOrgConfig();
+  return config.stepUpWindowMinutes * 60 * 1000;
+}
+
+// Sync fallback for edge contexts where async config isn't available
+export const STEP_UP_WINDOW_MS = STEP_UP_WINDOW_MS_DEFAULT;

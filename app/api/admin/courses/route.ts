@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
+import { requireAdmin, requireStepUp, stepUpErrorResponse } from '@/lib/session';
 import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
 import { mapCourseToAdminShape, buildPrismaCreateData, slugify } from '@/lib/course-mapping';
@@ -77,9 +77,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {

@@ -4,11 +4,6 @@ export function makeId(prefix: string): string {
   return `${prefix}-${Date.now()}`;
 }
 
-export function makeCertificateNo(courseId: string): string {
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `CERT-2026-${courseId.toUpperCase().replace('-', '')}-${rand}`;
-}
-
 export function getTodayIsoDate(): string {
   return new Date().toISOString().split('T')[0];
 }

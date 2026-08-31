@@ -8,6 +8,9 @@ import * as crypto from "node:crypto";
 const DIRECT_URL = process.env.DIRECT_URL!;
 if (!DIRECT_URL) throw new Error("DIRECT_URL is required");
 
+const MEMBER_PASSWORD: string = process.env.MEMBER_PASSWORD!;
+if (!MEMBER_PASSWORD) throw new Error("MEMBER_PASSWORD is required");
+
 const prisma = new PrismaClient({
   datasources: { db: { url: DIRECT_URL } },
 });
@@ -24,6 +27,10 @@ function daysAgo(n: number): Date {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d;
+}
+
+function generateVerificationCode(): string {
+  return crypto.randomBytes(16).toString("base64url");
 }
 
 async function ensureUser(
@@ -174,15 +181,21 @@ const REQUEST_SCENARIOS = [
 // Seeding
 // ---------------------------------------------------------------------------
 
-async function seedEnrollment(scenario: MemberScenario, profileId: string, course: { id: string; title: string; instructorName: string }) {
-  if (await hasEnrollment(profileId, course.id)) {
+async function seedEnrollment(scenario: MemberScenario, profileId: string, course: { id: string; title: string; instructorName: string }): Promise<string | null> {
+  const existing = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    "SELECT id FROM course_enrollments WHERE profile_id = $1 AND course_id = $2",
+    profileId,
+    course.id,
+  );
+  if (existing.length > 0) {
     console.log(`  SKIP (enrollment exists): ${scenario.key}`);
-    return;
+    return existing[0].id;
   }
 
   const completed = ["completed", "certified"].includes(scenario.enrollmentStatus);
   const certified = scenario.enrollmentStatus === "certified";
   const hasCert = scenario.cert !== null && scenario.cert.status !== "revoked";
+  const enrollmentId = uuid();
 
   await prisma.$executeRawUnsafe(
     `INSERT INTO course_enrollments (
@@ -191,7 +204,7 @@ async function seedEnrollment(scenario: MemberScenario, profileId: string, cours
       seat_number, created_at, updated_at
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::enrollment_status, $9, $10, $11, $12, $13, NOW(), NOW())
     ON CONFLICT (profile_id, course_id) DO NOTHING`,
-    uuid(),
+    enrollmentId,
     profileId,
     course.id,
     "Batch 2026-01",
@@ -206,9 +219,15 @@ async function seedEnrollment(scenario: MemberScenario, profileId: string, cours
     11,
   );
   console.log(`  CREATED enrollment: ${scenario.key} (${scenario.enrollmentStatus})`);
+  return enrollmentId;
 }
 
-async function seedCertificate(scenario: MemberScenario, profileId: string, course: { id: string; title: string; instructorName: string }) {
+async function seedCertificate(
+  scenario: MemberScenario,
+  profileId: string,
+  course: { id: string; title: string; instructorName: string },
+  enrollmentId: string | null,
+) {
   const cert = scenario.cert;
   if (!cert) return;
   if (await hasCertificate(profileId, course.id)) {
@@ -216,18 +235,23 @@ async function seedCertificate(scenario: MemberScenario, profileId: string, cour
     return;
   }
 
+  const verificationCode = generateVerificationCode();
+  const isRevoked = cert.status === "revoked";
+
   await prisma.$executeRawUnsafe(
     `INSERT INTO certificates (
-      id, certificate_number, profile_id, course_id, batch, teacher_name,
+      id, certificate_number, profile_id, course_id, enrollment_id, batch, teacher_name,
       issue_date, completion_date, generation_date,
-      status, published_status, template_name, language, verification_url,
-      generated_by, remarks, created_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::certificate_status, $11::published_status, $12, $13, $14, $15, $16, NOW())
+      status, published_status, template_name, language, verification_url, verification_code,
+      member_name, course_name,
+      generated_by, revoked_at, revoked_reason, remarks, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::certificate_status, $12::published_status, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW(), NOW())
     ON CONFLICT (certificate_number) DO NOTHING`,
     uuid(),
     cert.number,
     profileId,
     course.id,
+    enrollmentId,
     "Batch 2026-01",
     course.instructorName,
     daysAgo(3),
@@ -237,11 +261,16 @@ async function seedCertificate(scenario: MemberScenario, profileId: string, cour
     cert.published,
     "default",
     "English",
-    null,
-    null,
-    cert.status === "revoked" ? "Seeded revoked for testing re-eligibility" : null,
+    null,                   // verification_url (set at runtime)
+    verificationCode,       // verification_code (unique, random)
+    scenario.name,          // member_name (denormalized snapshot)
+    course.title,           // course_name (denormalized snapshot)
+    null,                   // generated_by
+    isRevoked ? daysAgo(1) : null,  // revoked_at
+    isRevoked ? "Seeded revoked for testing re-eligibility" : null,  // revoked_reason
+    isRevoked ? "Seeded revoked for testing re-eligibility" : null,  // remarks
   );
-  console.log(`  CREATED certificate: ${scenario.key} (${cert.status}/${cert.published})`);
+  console.log(`  CREATED certificate: ${scenario.key} (${cert.status}/${cert.published}) code=${verificationCode}`);
 }
 
 async function seedCertificateRequest(
@@ -360,11 +389,11 @@ async function main() {
     }
     courses.set(scenario.slug, course);
 
-    const profileId = await ensureUser(scenario.email, scenario.name, "Testuser@123", "member");
+    const profileId = await ensureUser(scenario.email, scenario.name, MEMBER_PASSWORD, "member");
     if (!profileId) continue;
 
-    await seedEnrollment(scenario, profileId, course);
-    await seedCertificate(scenario, profileId, course);
+    const enrollmentId = await seedEnrollment(scenario, profileId, course);
+    await seedCertificate(scenario, profileId, course, enrollmentId);
   }
 
   console.log("\n--- Certificate requests ---");
@@ -374,7 +403,7 @@ async function main() {
       console.log(`  SKIP: course ${req.slug} not found`);
       continue;
     }
-    const profileId = await ensureUser(req.email, req.name, "Testuser@123", "member");
+    const profileId = await ensureUser(req.email, req.name, MEMBER_PASSWORD, "member");
     if (!profileId) continue;
     await seedCertificateRequest(req.key, profileId, course, req.status, req.notes);
   }

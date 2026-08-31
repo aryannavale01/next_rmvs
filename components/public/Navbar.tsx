@@ -3,10 +3,15 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Globe, Search, Menu, X, Heart } from 'lucide-react';
+import { Globe, Search, Menu, X, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
+import { authClient } from '@/lib/auth-client';
+
+const HAS_ACCOUNT_KEY = 'cg_has_account';
 
 interface NavbarProps {
   openSearch: () => void;
+  siteName?: string;
+  logoText?: string;
 }
 
 const navItems = [
@@ -16,11 +21,15 @@ const navItems = [
   { label: 'Impact', href: '/impact' },
   { label: 'Resources', href: '/resources' },
   { label: 'Volunteer', href: '/volunteer' },
+  { label: 'Contact', href: '/contact' },
 ];
 
-export default function Navbar({ openSearch }: NavbarProps) {
+export default function Navbar({ openSearch, siteName = 'CompassionGlobal', logoText }: NavbarProps) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState<{ name: string } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [hasAccount, setHasAccount] = useState(false);
 
   const prevPathname = useRef(pathname);
   useEffect(() => {
@@ -29,6 +38,26 @@ export default function Navbar({ openSearch }: NavbarProps) {
       prevPathname.current = pathname;
     }
   }, [pathname]);
+
+  useEffect(() => {
+    const syncHasAccount = () => {
+      try {
+        setHasAccount(localStorage.getItem(HAS_ACCOUNT_KEY) === '1');
+      } catch {}
+    };
+
+    authClient.getSession().then((session) => {
+      syncHasAccount();
+      if (session?.data?.user) {
+        setUser({ name: session.data.user.name || session.data.user.email || 'Member' });
+        try { localStorage.setItem(HAS_ACCOUNT_KEY, '1'); } catch {}
+      }
+      setAuthChecked(true);
+    }).catch(() => {
+      syncHasAccount();
+      setAuthChecked(true);
+    });
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
@@ -47,7 +76,7 @@ export default function Navbar({ openSearch }: NavbarProps) {
             >
               <Globe className="h-7 w-7 text-brand-primary group-hover:rotate-12 transition-transform duration-300" />
               <span className="font-display font-bold text-2xl tracking-tight text-gray-900">
-                Compassion<span className="text-brand-primary">Global</span>
+                {logoText || siteName}
               </span>
             </Link>
           </div>
@@ -73,7 +102,7 @@ export default function Navbar({ openSearch }: NavbarProps) {
               ))}
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={openSearch}
                 className="p-2 text-gray-500 hover:text-brand-primary hover:bg-gray-50 rounded-full transition-all cursor-pointer"
@@ -83,14 +112,36 @@ export default function Navbar({ openSearch }: NavbarProps) {
                 <Search className="h-5 w-5" />
               </button>
 
-              <Link
-                href="/donate"
-                className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-brand-primary text-white font-medium text-[15px] hover:bg-brand-primary-hover shadow-sm transition-all hover:shadow-md cursor-pointer group"
-                id="nav-donate-btn"
-              >
-                <Heart className="mr-1.5 h-4 w-4 fill-white text-white group-hover:scale-110 transition-transform duration-200" />
-                Donate Now
-              </Link>
+              {authChecked && (
+                user ? (
+                  <Link
+                    href="/dashboard"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 shadow-sm transition-all cursor-pointer"
+                    id="nav-dashboard-btn"
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    Your Dashboard
+                  </Link>
+                ) : hasAccount ? (
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 shadow-sm transition-all cursor-pointer"
+                    id="nav-login-btn"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    Login
+                  </Link>
+                ) : (
+                  <Link
+                    href="/register"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 shadow-sm transition-all cursor-pointer"
+                    id="nav-signup-btn"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Sign up
+                  </Link>
+                )
+              )}
             </div>
           </div>
 
@@ -132,17 +183,46 @@ export default function Navbar({ openSearch }: NavbarProps) {
                 {item.label}
               </Link>
             ))}
-            <div className="pt-4 pb-2 border-t border-gray-100 px-4">
-              <Link
-                href="/donate"
-                onClick={() => setIsOpen(false)}
-                className="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl bg-brand-primary text-white font-medium text-base hover:bg-brand-primary-hover shadow-sm transition-all"
-                id="mobile-nav-donate-btn"
-              >
-                <Heart className="mr-2 h-5 w-5 fill-white text-white" />
-                Donate Now
-              </Link>
-            </div>
+
+            {authChecked && (
+              user ? (
+                <div className="pt-2 pb-2 border-t border-gray-100 px-4">
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setIsOpen(false)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gray-900 text-white font-medium text-base hover:bg-gray-800 shadow-sm transition-all"
+                    id="mobile-nav-dashboard-btn"
+                  >
+                    <LayoutDashboard className="h-5 w-5" />
+                    Your Dashboard
+                  </Link>
+                </div>
+              ) : hasAccount ? (
+                <div className="pt-2 pb-2 border-t border-gray-100 px-4">
+                  <Link
+                    href="/login"
+                    onClick={() => setIsOpen(false)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gray-900 text-white font-medium text-base hover:bg-gray-800 shadow-sm transition-all"
+                    id="mobile-nav-login-btn"
+                  >
+                    <LogIn className="h-5 w-5" />
+                    Login
+                  </Link>
+                </div>
+              ) : (
+                <div className="pt-2 pb-2 border-t border-gray-100 px-4">
+                  <Link
+                    href="/register"
+                    onClick={() => setIsOpen(false)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gray-900 text-white font-medium text-base hover:bg-gray-800 shadow-sm transition-all"
+                    id="mobile-nav-signup-btn"
+                  >
+                    <UserPlus className="h-5 w-5" />
+                    Sign up
+                  </Link>
+                </div>
+              )
+            )}
           </div>
         </div>
       )}

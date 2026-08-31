@@ -1,5 +1,13 @@
 'use client';
 
+/**
+ * @deprecated This module stores data in localStorage as a client-side mirror
+ * of server-side database data. This creates data duplication, sync issues,
+ * and data loss risk (clearing browser data loses everything). All components
+ * should use server API routes (e.g., /api/admin/*) for data operations.
+ * This file is retained for backward compatibility only.
+ */
+
 export interface Course {
   id: string;
   title: string;
@@ -13,7 +21,7 @@ export interface Course {
   seatsLeft: number;
   totalSeats: number;
   price: number; // 0 for free
-  syllabus: { title: string; duration: string; type: 'video' | 'quiz' | 'document' | 'practical'; isFreePreview?: boolean }[];
+    syllabus: { title: string; description?: string; duration: string; type: 'video' | 'quiz' | 'document' | 'practical'; isFreePreview?: boolean; content?: string; videoUrl?: string }[];
   instructor: { name: string; designation: string; rating: number; photo: string };
   description: string;
   longDescription: string;
@@ -41,8 +49,12 @@ export interface Certificate {
   courseTitle: string;
   certificateNo: string;
   completionDate: string;
-  status: 'pending' | 'accepted' | 'generated';
+  status: 'pending' | 'accepted' | 'generated' | 'revoked';
   photoUrlHQ?: string;
+  verificationCode?: string;
+  verificationUrl?: string;
+  memberName?: string;
+  pdfStoragePath?: string;
 }
 
 export interface AppNotification {

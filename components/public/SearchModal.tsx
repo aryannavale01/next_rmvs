@@ -1,9 +1,18 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Search, BookOpen, Globe, User, ArrowRight } from 'lucide-react';
-import { courses, strategicPrograms, leaders } from '@/lib/public-data';
+import { X, Search, BookOpen, Globe, User, ArrowRight, Loader2 } from 'lucide-react';
+
+interface SearchCourse { id: string; title: string; category: string; description: string; }
+interface SearchProgram { id: string; title: string; category: string; description: string; }
+interface SearchLeader { id: string; name: string; role: string; }
+
+interface SearchData {
+  courses: SearchCourse[];
+  programs: SearchProgram[];
+  leaders: SearchLeader[];
+}
 
 interface SearchModalProps {
   onClose: () => void;
@@ -12,25 +21,35 @@ interface SearchModalProps {
 export default function SearchModal({ onClose }: SearchModalProps) {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const [data, setData] = useState<SearchData>({ courses: [], programs: [], leaders: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/public/search-data')
+      .then(r => r.ok ? r.json() : { courses: [], programs: [], leaders: [] })
+      .then(d => setData(d))
+      .catch(() => setData({ courses: [], programs: [], leaders: [] }))
+      .finally(() => setLoading(false));
+  }, []);
 
   const results = useMemo(() => {
     if (!query.trim()) return { courses: [], programs: [], leaders: [] };
     const q = query.toLowerCase();
 
-    const matchedCourses = courses.filter(
+    const matchedCourses = data.courses.filter(
       c => c.title.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
     );
 
-    const matchedPrograms = strategicPrograms.filter(
+    const matchedPrograms = data.programs.filter(
       p => p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
     );
 
-    const matchedLeaders = leaders.filter(
+    const matchedLeaders = data.leaders.filter(
       l => l.name.toLowerCase().includes(q) || l.role.toLowerCase().includes(q)
     );
 
     return { courses: matchedCourses, programs: matchedPrograms, leaders: matchedLeaders };
-  }, [query]);
+  }, [query, data]);
 
   const totalMatches = results.courses.length + results.programs.length + results.leaders.length;
 
@@ -63,7 +82,12 @@ export default function SearchModal({ onClose }: SearchModalProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6" id="search-results-box">
-          {!query.trim() ? (
+          {loading ? (
+            <div className="text-center py-8 space-y-2 text-gray-400">
+              <Loader2 className="h-6 w-6 mx-auto animate-spin" />
+              <p className="text-xs">Loading search catalog...</p>
+            </div>
+          ) : !query.trim() ? (
             <div className="text-center py-8 space-y-2 text-gray-400">
               <BookOpen className="h-8 w-8 mx-auto stroke-1" />
               <p className="text-xs font-semibold uppercase tracking-wider">Search Catalog</p>

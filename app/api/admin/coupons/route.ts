@@ -34,6 +34,7 @@ export async function GET() {
   try {
     const coupons = await withRetry(() =>
       prisma.coupon.findMany({
+        where: { status: { not: 'deleted' } },
         orderBy: { createdAt: 'desc' },
       })
     );

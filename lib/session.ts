@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "./auth";
 import { prisma, withRetry, isTransientPrismaError } from "./prisma";
-import { STEP_UP_WINDOW_MS } from "./admin-security";
+import { STEP_UP_WINDOW_MS, getStepUpWindowMs } from "./admin-security";
 import type { BA_Role } from "@prisma/client";
 
 /**
@@ -111,6 +111,26 @@ export async function requireAdmin(headers?: Headers): Promise<AuthResult> {
 }
 
 /**
+ * Verify the request has a valid session with MEMBER role.
+ *
+ * Use this to gate member-only areas (e.g. the member dashboard) so an ADMIN
+ * session cannot access them.
+ */
+export async function requireMember(headers?: Headers): Promise<AuthResult> {
+  const result = await requireAuth(headers);
+
+  if (!result.success) {
+    return result;
+  }
+
+  if (result.session.user.role !== "MEMBER") {
+    return { success: false, error: "Forbidden" };
+  }
+
+  return result;
+}
+
+/**
  * Verify the request has a valid ADMIN session with recent step-up verification.
  *
  * Use this for sensitive admin actions (role changes, deletions, settings changes).
@@ -124,14 +144,17 @@ export async function requireStepUp(headers?: Headers): Promise<AuthResult> {
   }
 
   try {
-    const session = await prisma.session.findUnique({
-      where: { id: result.session.session.id },
-      select: { stepUpVerifiedAt: true },
-    });
+    const [session, stepUpWindowMs] = await Promise.all([
+      prisma.session.findUnique({
+        where: { id: result.session.session.id },
+        select: { stepUpVerifiedAt: true },
+      }),
+      getStepUpWindowMs(),
+    ]);
 
     if (
       !session?.stepUpVerifiedAt ||
-      Date.now() - session.stepUpVerifiedAt.getTime() > STEP_UP_WINDOW_MS
+      Date.now() - session.stepUpVerifiedAt.getTime() > stepUpWindowMs
     ) {
       return { success: false, error: "STEP_UP_REQUIRED" };
     }

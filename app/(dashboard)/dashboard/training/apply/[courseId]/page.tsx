@@ -223,6 +223,11 @@ export default function ApplyCoursePage() {
             ? { name: attachedFiles.pan.name, recordId: attachedFiles.pan.recordId }
             : undefined,
       },
+      {
+        education: formData.education || undefined,
+        address: formData.address || undefined,
+        motivation: formData.motivation || undefined,
+      },
     );
     setIsSubmitting(false);
     if (success) {

@@ -4,6 +4,7 @@ import { renderCertificatePdfBuffers } from "./certificate-html";
 
 export interface CertificatePdfData {
   certificateNumber: string;
+  verificationCode?: string;
   fullName: string;
   courseTitle: string;
   teacherName: string | null;
@@ -26,9 +27,9 @@ function formatDate(value: string | null | undefined): string {
   }
 }
 
-export function buildVerificationUrl(baseUrl: string, certificateNumber: string): string {
+export function buildVerificationUrl(baseUrl: string, verificationCode: string): string {
   const origin = baseUrl.replace(/\/+$/, "");
-  return `${origin}/verify/certificate/${encodeURIComponent(certificateNumber)}`;
+  return `${origin}/verify/${verificationCode}`;
 }
 
 // Landscape A4
@@ -268,6 +269,7 @@ const CertificatePage = ({ data }: { data: CertificatePdfData }) => {
               ) : null}
               <Text style={styles.qrText}>
                 Scan to verify this certificate online at {data.verificationUrl ?? "the official verification portal"}
+                {"\n"}Verification Code: {data.verificationCode ?? data.certificateNumber}
               </Text>
             </View>
             <View style={styles.signatureBlock}>

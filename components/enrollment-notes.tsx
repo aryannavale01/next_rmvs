@@ -3,6 +3,16 @@
 import React, { useState } from "react";
 import { MessageSquare, Plus, Send } from "lucide-react";
 
+function formatDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return iso;
+  }
+}
+
 interface Note {
   id: string;
   text: string;
@@ -66,7 +76,7 @@ export default function EnrollmentNotes({ applicationId, notes, onAddNote }: Enr
                 <span className="text-[9px] font-medium text-muted-foreground">
                   {note.authorId === "system" ? "System" : "Admin"}
                 </span>
-                <span className="text-[9px] text-muted-foreground">{note.createdAt}</span>
+                <span className="text-[9px] text-muted-foreground">{formatDate(note.createdAt)}</span>
               </div>
               <p className="text-xs text-foreground leading-relaxed">{note.text}</p>
             </div>

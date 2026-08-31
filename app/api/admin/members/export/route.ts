@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, authErrorResponse } from '@/lib/session';
+import { requireStepUp, stepUpErrorResponse } from '@/lib/session';
 import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return authErrorResponse(auth)!;
+    return stepUpErrorResponse(auth)!;
   }
 
   try {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     const ids: string[] | undefined = body.ids;
 
     // If ids provided, export only those; otherwise export all non-deleted members
-    const where: any = { role: 'member', status: { not: 'deleted' } };
+    const where: Prisma.ProfileWhereInput = { role: 'member', status: { not: 'deleted' } };
     if (ids && ids.length > 0) {
       where.id = { in: ids };
     }

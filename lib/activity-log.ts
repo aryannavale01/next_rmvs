@@ -9,7 +9,18 @@ export type ActivityEntity =
   | "coupon"
   | "notification"
   | "user"
-  | "system";
+  | "system"
+  | "program"
+  | "leader"
+  | "testimonial"
+  | "partner"
+  | "milestone"
+  | "gallery_item"
+  | "blog_post"
+  | "newsletter"
+  | "site_setting"
+  | "location"
+  | "org_document";
 
 export type ActivityAction =
   | "create"
@@ -33,10 +44,43 @@ export type ActivityAction =
   | "certificate_generate"
   | "certificate_approve"
   | "certificate_revoke"
+  | "certificate_request"
   | "certificate_request_approve"
-  | "certificate_request_reject";
+  | "certificate_request_reject"
+  | "program_create"
+  | "program_update"
+  | "program_delete"
+  | "leader_create"
+  | "leader_update"
+  | "leader_delete"
+  | "testimonial_create"
+  | "testimonial_update"
+  | "testimonial_delete"
+  | "partner_create"
+  | "partner_update"
+  | "partner_delete"
+  | "milestone_create"
+  | "milestone_update"
+  | "milestone_delete"
+  | "gallery_item_create"
+  | "gallery_item_update"
+  | "gallery_item_delete"
+  | "blog_post_create"
+  | "blog_post_update"
+  | "blog_post_delete"
+  | "newsletter_create"
+  | "newsletter_update"
+  | "newsletter_delete"
+  | "site_setting_upsert"
+  | "site_setting_delete"
+  | "location_create"
+  | "location_update"
+  | "location_delete"
+  | "org_document_upload"
+  | "org_document_update"
+  | "org_document_delete";
 
-const ENTITY_ICONS: Record<ActivityEntity, string> = {
+const ENTITY_ICONS: Record<string, string> = {
   member: "Users",
   course: "BookOpen",
   enrollment: "Calendar",
@@ -46,6 +90,17 @@ const ENTITY_ICONS: Record<ActivityEntity, string> = {
   notification: "Bell",
   user: "Lock",
   system: "Clock",
+  program: "Target",
+  leader: "Crown",
+  testimonial: "MessageSquare",
+  partner: "Handshake",
+  milestone: "Flag",
+  gallery_item: "Image",
+  blog_post: "FileText",
+  newsletter: "Mail",
+  site_setting: "Settings",
+  location: "MapPin",
+  org_document: "FileText",
 };
 
 export async function logActivity(params: {

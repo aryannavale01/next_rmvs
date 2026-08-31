@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/session';
+import { requireAdmin, requireStepUp, stepUpErrorResponse } from '@/lib/session';
 import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 import { createTeacherSchema } from '@/lib/validations/admin-teacher';
 import { logActivity } from '@/lib/activity-log';
 import { getPublicUrl } from '@/lib/supabase-storage';
 import { BUCKETS } from '@/lib/upload-config';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     const q = parsed.data;
 
-    const where: any = {};
+    const where: Prisma.TeacherWhereInput = {};
 
     if (q.status) {
       where.status = q.status;
@@ -132,9 +133,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return stepUpErrorResponse(auth)!;
   }
 
   try {

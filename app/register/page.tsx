@@ -1,15 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, CheckCircle, UserPlus } from "lucide-react";
 import { motion } from "motion/react";
 import { authClient } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { validatePassword } from "@/lib/password-validation";
+import { isSafeRedirect } from "@/lib/redirect";
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = isSafeRedirect(searchParams.get("redirectTo") || "", "/dashboard");
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -84,9 +95,11 @@ export default function RegisterPage() {
         return;
       }
 
+      try { localStorage.setItem("cg_has_account", "1"); } catch {}
+
       // Auto-sign-in after successful registration
       if (data) {
-        router.replace("/dashboard");
+        router.replace(redirectTo);
       } else {
         setSuccess(true);
       }
@@ -117,7 +130,7 @@ export default function RegisterPage() {
               Your account has been created successfully. You can now log in with your credentials.
             </p>
             <Link
-              href="/login"
+              href={`/login${redirectTo !== '/dashboard' ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ''}`}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary-hover transition-colors"
             >
               Proceed to Login

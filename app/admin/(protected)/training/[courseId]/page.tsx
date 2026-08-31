@@ -2,24 +2,27 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useAdmin } from '@/lib/admin-context';
 import type { AdminCourse } from '@/lib/admin-types';
 import {
   ChevronLeft, Pencil, Video, HelpCircle, ClipboardList, FileText, Loader2, ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
+import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from '@/lib/admin-stepup';
+import { useToast } from '@/components/ui/toast';
 
 export default function AdminCourseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const courseId = params.courseId as string;
-  const { teachers } = useAdmin();
 
+  const [teachers, setTeachers] = useState<{ id: string; fullName: string }[]>([]);
   const [course, setCourse] = useState<AdminCourse | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchCourse = useCallback(async () => {
-    setLoading(true);
+    await Promise.resolve().then(() => {
+      setLoading(true);
+    });
     try {
       const res = await fetch(`/api/admin/courses/${courseId}`);
       if (res.ok) {
@@ -35,20 +38,62 @@ export default function AdminCourseDetailPage() {
     }
   }, [courseId]);
 
-  useEffect(() => { fetchCourse(); }, [fetchCourse]);
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      fetchCourse();
+    });
+  }, [fetchCourse]);
+
+  useEffect(() => {
+    fetch('/api/admin/teachers/list')
+      .then(r => r.json())
+      .then(d => setTeachers(d.data || []))
+      .catch((err) => { console.error('Failed to load teachers:', err); });
+  }, []);
 
   const [detailTab, setDetailTab] = useState<'overview' | 'syllabus' | 'enrollments'>('overview');
+  const { toast } = useToast();
+  const [updating, setUpdating] = useState(false);
 
   const handleUpdate = useCallback(async (patch: Record<string, unknown>) => {
+    if (!(await requireStepUpClient('/admin/training', 'update_course'))) return;
+    setUpdating(true);
     try {
-      await fetch(`/api/admin/courses/${courseId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`/api/admin/courses/${courseId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+          signal: AbortSignal.timeout(15000),
+        });
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'TimeoutError') {
+          throw new Error('The server took too long to respond. Please try again.');
+        }
+        throw e;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (isStepUpRequiredResponse(res.status, err.error)) {
+          redirectToStepUp(`/admin/training/${courseId}`, 'update_course');
+          return;
+        }
+        throw new Error(err.error || 'Failed to update the training.');
+      }
+      const describe = () => {
+        if (patch.status !== undefined) return patch.status === 'Published' ? 'Training is now published.' : 'Training moved back to draft.';
+        if (patch.auto_approve !== undefined) return `Auto-approve is now ${patch.auto_approve ? 'on' : 'off'}.`;
+        return 'Changes saved.';
+      };
+      toast({ title: 'Training Updated', description: describe(), variant: 'success' });
       await fetchCourse();
-    } catch {}
-  }, [courseId, fetchCourse]);
+    } catch (err: any) {
+      toast({ title: 'Update Failed', description: err?.message || 'Could not update the training.', variant: 'error' });
+    } finally {
+      setUpdating(false);
+    }
+  }, [courseId, fetchCourse, toast]);
 
   if (loading) {
     return (
@@ -100,11 +145,13 @@ export default function AdminCourseDetailPage() {
           <button onClick={() => router.push(`/admin/training?editCourseId=${course.id}`)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-primary text-primary hover:bg-primary-light">
             <Pencil className="w-3 h-3" /> Edit
           </button>
-          <button onClick={() => handleUpdate({ status: course.status === 'Published' ? 'Draft' : 'Published' })} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${course.status === 'Published' ? 'border-warning/30 text-warning-text hover:bg-warning-bg' : 'border-success/30 text-success-text hover:bg-success-bg'}`}>
+          <button onClick={() => handleUpdate({ status: course.status === 'Published' ? 'Draft' : 'Published' })} disabled={updating}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border disabled:opacity-50 ${course.status === 'Published' ? 'border-warning/30 text-warning-text hover:bg-warning-bg' : 'border-success/30 text-success-text hover:bg-success-bg'}`}>
             {course.status === 'Published' ? 'Unpublish' : 'Publish'}
           </button>
-          <button onClick={() => handleUpdate({ auto_approve: !course.auto_approve })} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${course.auto_approve ? 'border-primary bg-primary-light text-primary' : 'border-border text-muted-foreground hover:bg-accent'}`}>
-            Auto-Approve: {course.auto_approve ? 'On' : 'Off'}
+          <button onClick={() => handleUpdate({ auto_approve: !course.auto_approve })} disabled={updating}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border disabled:opacity-50 ${course.auto_approve ? 'border-primary bg-primary-light text-primary' : 'border-border text-muted-foreground hover:bg-accent'}`}>
+            {updating ? 'Saving…' : `Auto-Approve: ${course.auto_approve ? 'On' : 'Off'}`}
           </button>
         </div>
       </div>

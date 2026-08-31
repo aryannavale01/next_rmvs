@@ -1,31 +1,32 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Loader2, Save, X, Plus, AlertTriangle } from "lucide-react";
+import { Loader2, Save, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from "@/lib/admin-stepup";
 
 interface CourseSettingsData {
-  id: string;
   title: string;
   category: string;
-  level: string;
+  categoryIsLegacy: boolean;
   duration: string;
-  description: string;
-  seatsTotal: number | null;
-  startDate: string | null;
-  endDate: string | null;
-  requiredDocuments: string[];
+  meta_description: string;
+  start_date: string;
+  end_date: string;
+  seats_total: string;
+  required_docs: string[];
   status: string;
-  visibility: string;
-  accessCodeRequired: boolean;
-  autoApprove: boolean;
+  access_code_required: boolean;
+  auto_approve: boolean;
 }
 
-const CATEGORIES = ["health", "tech", "leadership", "environment"];
-const LEVELS = ["beginner", "intermediate", "advanced"];
-const STATUSES = ["draft", "active", "archived"];
-const VISIBILITIES = ["homepage", "programs", "both"];
-const DOC_OPTIONS = ["aadhaar", "pan", "rationCard", "profilePhoto"];
+// Must match VALID_CATEGORIES / STATUS_MAP in /api/admin/courses/[courseId]
+const CATEGORIES = ["Agriculture", "Tech", "Healthcare", "Business"];
+const STATUSES = ["Draft", "Published"];
+const DOC_OPTIONS = ["Aadhaar", "PAN", "Ration Card", "Profile Photo"];
+
+const STEP_UP_ACTION = "update_course";
+const FETCH_TIMEOUT_MS = 15000;
 
 export default function CourseSettingsForm({ courseId }: { courseId: string }) {
   const [data, setData] = useState<CourseSettingsData | null>(null);
@@ -41,13 +42,29 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/admin/courses/${courseId}`);
+        const res = await fetch(`/api/admin/courses/${courseId}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
         if (!res.ok) {
           if (!cancelled) setError("Failed to load course settings");
           return;
         }
         const json = await res.json();
-        if (!cancelled) setData(json.course);
+        const c = json.course;
+        if (!c || cancelled) return;
+        const legacyCategory = !CATEGORIES.includes(c.category);
+        setData({
+          title: c.title ?? "",
+          category: c.category ?? "",
+          categoryIsLegacy: legacyCategory,
+          duration: c.duration ?? "",
+          meta_description: c.meta_description ?? "",
+          start_date: c.start_date ?? "",
+          end_date: c.end_date ?? "",
+          seats_total: c.seats_total != null ? String(c.seats_total) : "",
+          required_docs: Array.isArray(c.required_docs) ? c.required_docs : [],
+          status: c.status === "Published" ? "Published" : "Draft",
+          access_code_required: Boolean(c.access_code_required),
+          auto_approve: Boolean(c.auto_approve),
+        });
       } catch {
         if (!cancelled) setError("Network error loading course settings");
       } finally {
@@ -64,52 +81,81 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
 
   const toggleDoc = (doc: string) => {
     if (!data) return;
-    const current = data.requiredDocuments;
-    const next = current.includes(doc) ? current.filter((d) => d !== doc) : [...current, doc];
-    updateField("requiredDocuments", next);
+    const next = data.required_docs.includes(doc)
+      ? data.required_docs.filter((d) => d !== doc)
+      : [...data.required_docs, doc];
+    updateField("required_docs", next);
   };
 
   const handleSave = async () => {
-    if (!data) return;
+    if (!data || saving) return;
+    if (!(await requireStepUpClient(`/admin/enrollments/${courseId}`, STEP_UP_ACTION))) return;
     setSaving(true);
     setError(null);
     try {
+      // Category is only sent when it holds a server-recognized value; legacy
+      // enum categories are omitted until the admin explicitly picks one.
+      const categoryToSend = CATEGORIES.includes(data.category) ? data.category : undefined;
+      const seats = data.seats_total.trim();
       const payload: Record<string, unknown> = {
         title: data.title,
-        category: data.category,
-        level: data.level,
         duration: data.duration,
-        description: data.description,
-        seatsTotal: data.seatsTotal,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        requiredDocuments: data.requiredDocuments,
+        meta_description: data.meta_description,
+        start_date: data.start_date || "",
+        end_date: data.end_date || "",
+        required_docs: data.required_docs,
         status: data.status,
-        visibility: data.visibility,
-        accessCodeRequired: data.accessCodeRequired,
-        autoApprove: data.autoApprove,
+        access_code_required: data.access_code_required,
+        auto_approve: data.auto_approve,
       };
+      if (categoryToSend !== undefined) payload.category = categoryToSend;
+      if (seats !== "") payload.seats_total = parseInt(seats, 10);
 
       const res = await fetch(`/api/admin/courses/${courseId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
-      const json = await res.json();
-
       if (!res.ok) {
-        setError(json.error ?? "Failed to save");
-        toast({ title: "Save Failed", description: json.error ?? "Unknown error", variant: "error" });
+        const json = await res.json().catch(() => ({}));
+        if (isStepUpRequiredResponse(res.status, json.error)) {
+          redirectToStepUp(`/admin/enrollments/${courseId}`, STEP_UP_ACTION);
+          return;
+        }
+        const message = json.error ?? "Failed to save settings";
+        setError(message);
+        toast({ title: "Save Failed", description: message, variant: "error" });
         return;
       }
 
+      const json = await res.json().catch(() => ({}));
       toast({ title: "Settings Saved", description: "Course settings updated successfully.", variant: "success" });
-      setData(json.course);
+      if (json.course) {
+        const c = json.course;
+        setData((prev) => prev ? ({
+          ...prev,
+          title: c.title ?? prev.title,
+          category: c.category ?? prev.category,
+          categoryIsLegacy: !CATEGORIES.includes(c.category ?? ""),
+          duration: c.duration ?? prev.duration,
+          meta_description: c.meta_description ?? "",
+          start_date: c.start_date ?? "",
+          end_date: c.end_date ?? "",
+          seats_total: c.seats_total != null ? String(c.seats_total) : prev.seats_total,
+          status: c.status === "Published" ? "Published" : "Draft",
+          access_code_required: Boolean(c.access_code_required),
+          auto_approve: Boolean(c.auto_approve),
+        }) : prev);
+      }
       setError(null);
-    } catch {
-      setError("Network error");
-      toast({ title: "Save Failed", description: "Network error", variant: "error" });
+    } catch (err) {
+      const message = err instanceof DOMException && err.name === "TimeoutError"
+        ? "The server took too long to respond. Please try again."
+        : "Network error";
+      setError(message);
+      toast({ title: "Save Failed", description: message, variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -165,24 +211,15 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
               onChange={(e) => updateField("category", e.target.value)}
               className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
+              {!CATEGORIES.includes(data.category) && (
+                <option value={data.category}>{data.category} (legacy — please change)</option>
+              )}
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Level</label>
-            <select
-              value={data.level}
-              onChange={(e) => updateField("level", e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {LEVELS.map((l) => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
-          </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
             <label className="text-[10px] font-medium text-muted-foreground block mb-1">Duration</label>
             <input
               type="text"
@@ -195,8 +232,8 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
             <label className="text-[10px] font-medium text-muted-foreground block mb-1">Description</label>
             <textarea
               rows={3}
-              value={data.description}
-              onChange={(e) => updateField("description", e.target.value)}
+              value={data.meta_description}
+              onChange={(e) => updateField("meta_description", e.target.value)}
               className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
             />
           </div>
@@ -211,8 +248,8 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
             <label className="text-[10px] font-medium text-muted-foreground block mb-1">Start Date</label>
             <input
               type="date"
-              value={data.startDate?.split("T")[0] ?? ""}
-              onChange={(e) => updateField("startDate", e.target.value ? e.target.value : null)}
+              value={data.start_date?.split("T")[0] ?? ""}
+              onChange={(e) => updateField("start_date", e.target.value)}
               className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -220,8 +257,8 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
             <label className="text-[10px] font-medium text-muted-foreground block mb-1">End Date</label>
             <input
               type="date"
-              value={data.endDate?.split("T")[0] ?? ""}
-              onChange={(e) => updateField("endDate", e.target.value ? e.target.value : null)}
+              value={data.end_date?.split("T")[0] ?? ""}
+              onChange={(e) => updateField("end_date", e.target.value)}
               className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -236,8 +273,8 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
           <input
             type="number"
             min={0}
-            value={data.seatsTotal ?? ""}
-            onChange={(e) => updateField("seatsTotal", e.target.value ? parseInt(e.target.value, 10) : null)}
+            value={data.seats_total}
+            onChange={(e) => updateField("seats_total", e.target.value)}
             className="w-full max-w-[200px] px-3 py-2 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
           <p className="text-[9px] text-muted-foreground mt-1">
@@ -251,7 +288,7 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
         <h3 className="text-sm font-semibold text-foreground">Required Documents</h3>
         <div className="flex flex-wrap gap-2">
           {DOC_OPTIONS.map((doc) => {
-            const isSelected = data.requiredDocuments.includes(doc);
+            const isSelected = data.required_docs.includes(doc);
             return (
               <button
                 key={doc}
@@ -262,7 +299,7 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
                     : "bg-muted text-muted-foreground border-border hover:border-primary/30"
                 }`}
               >
-                {doc.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (s) => s.toUpperCase())}
+                {doc}
               </button>
             );
           })}
@@ -272,12 +309,12 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
         </p>
       </div>
 
-      {/* 5. Status & Visibility */}
+      {/* 5. Status */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <h3 className="text-sm font-semibold text-foreground">Status &amp; Visibility</h3>
+        <h3 className="text-sm font-semibold text-foreground">Status</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Status</label>
+            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Publish Status</label>
             <select
               value={data.status}
               onChange={(e) => updateField("status", e.target.value)}
@@ -285,18 +322,6 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground block mb-1">Visibility</label>
-            <select
-              value={data.visibility}
-              onChange={(e) => updateField("visibility", e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {VISIBILITIES.map((v) => (
-                <option key={v} value={v}>{v}</option>
               ))}
             </select>
           </div>
@@ -310,8 +335,8 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
-              checked={data.accessCodeRequired}
-              onChange={(e) => updateField("accessCodeRequired", e.target.checked)}
+              checked={data.access_code_required}
+              onChange={(e) => updateField("access_code_required", e.target.checked)}
               className="rounded border-border"
             />
             <div>
@@ -322,8 +347,8 @@ export default function CourseSettingsForm({ courseId }: { courseId: string }) {
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
-              checked={data.autoApprove}
-              onChange={(e) => updateField("autoApprove", e.target.checked)}
+              checked={data.auto_approve}
+              onChange={(e) => updateField("auto_approve", e.target.checked)}
               className="rounded border-border"
             />
             <div>

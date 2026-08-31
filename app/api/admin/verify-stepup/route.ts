@@ -3,7 +3,7 @@ import { requireAdmin, authErrorResponse } from '@/lib/session';
 import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { verifyPassword } from '@better-auth/utils/password';
 import { logAuthEvent, AuditActions } from '@/lib/audit-log';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   const rateLimit = checkRateLimit(request, 'step-up', 5, 15 * 60 * 1000);
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       await logAuthEvent({
         userId: auth.session.user.id,
         action: AuditActions.STEP_UP_FAILED,
-        ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        ip: getClientIP(request),
       });
       return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
     }
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     await logAuthEvent({
       userId: auth.session.user.id,
       action: AuditActions.STEP_UP_VERIFIED,
-      ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+      ip: getClientIP(request),
     });
 
     return NextResponse.json({ success: true });

@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { motion } from 'motion/react';
+import { isSafeRedirect } from '@/lib/redirect';
 
 export default function StepUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get('returnTo') || '/admin';
+  const returnTo = isSafeRedirect(searchParams.get('returnTo') || '', '/admin');
 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

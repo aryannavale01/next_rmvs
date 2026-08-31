@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, stepUpErrorResponse } from '@/lib/session';
+import { requireAdmin, requireStepUp, stepUpErrorResponse } from '@/lib/session';
 import { prisma, withRetry, dbErrorResponse } from '@/lib/prisma';
 import { updateMemberSchema } from '@/lib/validations/admin-member';
 import { logActivity } from '@/lib/activity-log';
@@ -172,7 +172,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
     return stepUpErrorResponse(auth)!;
   }

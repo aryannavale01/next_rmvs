@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import MetricCards from '@/components/MetricCards';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useToast } from '@/components/ui/toast';
 import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from '@/lib/admin-stepup';
 
 const COUPON_ACTION = 'manage_coupons';
@@ -22,6 +23,7 @@ export default function AdminCouponsPage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -53,7 +55,7 @@ export default function AdminCouponsPage() {
     let list = [...coupons];
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(c => c.code.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
+      list = list.filter(c => (c.code || '').toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q));
     }
     return list;
   }, [coupons, search]);
@@ -70,7 +72,7 @@ export default function AdminCouponsPage() {
   const openEdit = (c: Coupon) => {
     setForm({
       code: c.code,
-      description: c.description,
+      description: c.description ?? '',
       discountType: c.discountType,
       discountValue: c.discountValue,
       expiresAt: c.expiresAt ? c.expiresAt.split('T')[0] : '',
@@ -137,6 +139,11 @@ export default function AdminCouponsPage() {
       const refreshed = await fetch('/api/admin/coupons').then(r => r.json());
       setCoupons(Array.isArray(refreshed) ? refreshed : []);
       setShowModal(false);
+      toast({
+        title: editCoupon ? 'Coupon updated' : 'Coupon created',
+        description: `${form.code.trim().toUpperCase()} is now ${form.isActive ? 'active' : 'inactive'}.`,
+        variant: 'success',
+      });
     } catch {
       setError('Failed to save coupon');
     }
@@ -159,6 +166,8 @@ export default function AdminCouponsPage() {
       const data = await res.json();
       if (data.deactivated) {
         setError('Coupon has redemptions — deactivated instead of deleted.');
+      } else {
+        toast({ title: 'Coupon deleted', variant: 'success' });
       }
       const refreshed = await fetch('/api/admin/coupons').then(r => r.json());
       setCoupons(Array.isArray(refreshed) ? refreshed : []);
@@ -171,6 +180,7 @@ export default function AdminCouponsPage() {
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
+    toast({ title: 'Code copied', description: `${code} is on your clipboard.`, variant: 'success' });
     setTimeout(() => setCopiedCode(null), 1500);
   };
 
@@ -193,6 +203,11 @@ export default function AdminCouponsPage() {
       }
       const refreshed = await fetch('/api/admin/coupons').then(r => r.json());
       setCoupons(Array.isArray(refreshed) ? refreshed : []);
+      toast({
+        title: `Coupon ${!c.isActive ? 'activated' : 'deactivated'}`,
+        description: `${c.code} is now ${!c.isActive ? 'active' : 'inactive'}.`,
+        variant: 'success',
+      });
     } catch {
       setError('Failed to toggle status');
     }

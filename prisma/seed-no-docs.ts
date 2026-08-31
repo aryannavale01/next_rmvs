@@ -5,6 +5,9 @@ import * as crypto from "node:crypto";
 const DIRECT_URL = process.env.DIRECT_URL!;
 if (!DIRECT_URL) throw new Error("DIRECT_URL is required");
 
+const MEMBER_PASSWORD: string = process.env.MEMBER_PASSWORD!;
+if (!MEMBER_PASSWORD) throw new Error("MEMBER_PASSWORD is required");
+
 const prisma = new PrismaClient({
   datasources: { db: { url: DIRECT_URL } },
 });
@@ -61,7 +64,7 @@ async function main() {
       // Create User + Account + Profile
       pid = crypto.randomBytes(16).toString("hex");
       const now = new Date();
-      const password = "Testuser@123";
+      const password = MEMBER_PASSWORD;
 
       await prisma.$executeRawUnsafe(
         'INSERT INTO "User" (id, email, "emailVerified", name, role, "mustChangePassword", "lastLoginAt", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5::"Role", $6, $7, $8, $9)',

@@ -3,16 +3,51 @@
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { Globe, Mail, Share2, Send, CheckCircle } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
-export default function Footer() {
+interface FooterConfig {
+  siteName: string;
+  logoText: string;
+  contactEmail: string;
+  contactPhone: string;
+  contactAddress: string;
+  officeHours: string;
+  socialFacebook: string;
+  socialInstagram: string;
+  socialYoutube: string;
+  legalRegistrationStatement?: string;
+}
+
+export default function Footer({ config }: { config?: FooterConfig }) {
+  const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const orgName = config?.siteName || 'CompassionGlobal';
+  const logoText = config?.logoText || orgName;
+  const contactEmail = config?.contactEmail || 'info@compassionglobal.org';
+  const contactAddress = config?.contactAddress || '';
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (email.trim()) {
+      setSubscribing(true);
+      try {
+        const res = await fetch('/api/public/newsletter-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, source: 'footer' }),
+        });
+        if (!res.ok) throw new Error('Failed');
+      } catch {
+        toast({ title: 'Subscription Failed', description: 'Unable to subscribe right now. Please try again later.', variant: 'error' });
+        setSubscribing(false);
+        return;
+      }
       setSubscribed(true);
       setEmail('');
+      setSubscribing(false);
       setTimeout(() => setSubscribed(false), 4000);
     }
   };
@@ -29,7 +64,7 @@ export default function Footer() {
             >
               <Globe className="h-6 w-6 text-brand-primary group-hover:rotate-12 transition-transform duration-300" />
               <span className="font-display font-bold text-xl tracking-tight text-gray-950">
-                Compassion<span className="text-brand-primary">Global</span>
+                {logoText}
               </span>
             </Link>
             <p className="text-sm text-gray-500 leading-relaxed max-w-sm">
@@ -39,7 +74,7 @@ export default function Footer() {
               <a href="https://compassionglobal.org" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-50 hover:bg-emerald-50 text-gray-400 hover:text-brand-primary rounded-full transition-colors cursor-pointer" aria-label="Website" id="footer-social-web">
                 <Globe className="h-4 w-4" />
               </a>
-              <a href="mailto:info@compassionglobal.org" className="p-2 bg-gray-50 hover:bg-emerald-50 text-gray-400 hover:text-brand-primary rounded-full transition-colors cursor-pointer" aria-label="Email" id="footer-social-mail">
+              <a href={`mailto:${contactEmail}`} className="p-2 bg-gray-50 hover:bg-emerald-50 text-gray-400 hover:text-brand-primary rounded-full transition-colors cursor-pointer" aria-label="Email" id="footer-social-mail">
                 <Mail className="h-4 w-4" />
               </a>
               <button onClick={() => { navigator.clipboard?.writeText(window.location.href); }} className="p-2 bg-gray-50 hover:bg-emerald-50 text-gray-400 hover:text-brand-primary rounded-full transition-colors cursor-pointer" aria-label="Share" id="footer-social-share">
@@ -82,22 +117,22 @@ export default function Footer() {
             </h3>
             <ul className="space-y-3">
               <li>
-                <Link href="/volunteer" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-contact">
+                <Link href="/contact" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-contact">
                   Contact Support
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-privacy">
+                <Link href="/privacy" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-privacy">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-offices">
+                <Link href="/offices" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-offices">
                   Global Offices
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-terms">
+                <Link href="/terms" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-terms">
                   Terms of Service
                 </Link>
               </li>
@@ -133,7 +168,7 @@ export default function Footer() {
                   aria-label="Submit email"
                   id="footer-newsletter-submit"
                 >
-                  <Send className="h-4 w-4" />
+                  {subscribing ? <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>
               </form>
             )}
@@ -142,7 +177,8 @@ export default function Footer() {
 
         <div className="mt-16 pt-8 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0" id="footer-bottom-bar">
           <p className="text-xs text-gray-400 text-center sm:text-left">
-            &copy; 2026 CompassionGlobal NGO. Dedicated to sustainable change. Registered 501(c)(3) organization.
+            &copy; {new Date().getFullYear()} {orgName} NGO. Dedicated to sustainable change.
+            {config?.legalRegistrationStatement ? ` ${config.legalRegistrationStatement}` : ''}
           </p>
           <div className="flex space-x-6 text-xs text-gray-400">
             <span>Language: English (US)</span>

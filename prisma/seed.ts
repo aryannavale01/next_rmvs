@@ -146,6 +146,8 @@ const COURSES = [
     seatsTotal: 30,
     instructorName: "Dr. Priya Sharma",
     instructorRole: "Senior Health Consultant",
+    instructorImage: "https://images.unsplash.com/photo-1594744803329-e58b31de215f?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=600&q=80",
     benefits: ["Free certification", "Job placement assistance", "Stipend provided"],
     eligibility: ["18+ years", "10th pass minimum", "Community resident"],
     requiredDocuments: ["Aadhaar Card", "10th Marksheet", "Photo"],
@@ -169,6 +171,8 @@ const COURSES = [
     seatsTotal: 50,
     instructorName: "Anita Desai",
     instructorRole: "Digital Skills Trainer",
+    instructorImage: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=600&q=80",
     benefits: ["Free smartphone access", "Certificate", "Ongoing support group"],
     eligibility: ["16+ years", "No prior tech experience needed"],
     requiredDocuments: ["Aadhaar Card", "Photo"],
@@ -192,6 +196,8 @@ const COURSES = [
     seatsTotal: 25,
     instructorName: "Sunita Kulkarni",
     instructorRole: "Leadership Coach",
+    instructorImage: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?auto=format&fit=crop&w=600&q=80",
     benefits: ["Mentorship program", "Networking opportunities", "Certificate"],
     eligibility: ["21+ years", "Active community member", "Basic literacy"],
     requiredDocuments: ["Aadhaar Card", "Photo", "Recommendation letter"],
@@ -215,6 +221,8 @@ const COURSES = [
     seatsTotal: 20,
     instructorName: "Prof. Ramesh Patil",
     instructorRole: "Environmental Scientist",
+    instructorImage: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=600&q=80",
     benefits: ["Field visits", "Equipment provided", "Certificate", "Project funding"],
     eligibility: ["18+ years", "Science background preferred", "Community worker"],
     requiredDocuments: ["Aadhaar Card", "12th Marksheet", "Photo"],
@@ -238,6 +246,8 @@ const COURSES = [
     seatsTotal: 25,
     instructorName: "Dr. Meera Iyer",
     instructorRole: "Yoga Therapist & Ayurveda Practitioner",
+    instructorImage: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=600&q=80",
     benefits: ["Yoga certification", "Wellness toolkit", "Certificate", "Monthly wellness kit"],
     eligibility: ["18+ years", "Basic fitness level", "Medical fitness certificate"],
     requiredDocuments: ["Aadhaar Card", "Photo", "Medical Fitness Certificate"],
@@ -262,10 +272,11 @@ async function seedCourses() {
           start_date = $9::date, end_date = $10::date,
           seats_total = $11,
           instructor_name = $12, instructor_role = $13,
-          benefits = $14, eligibility = $15, required_documents = $16,
-          visibility = $17::course_visibility, status = $18::course_status,
+          instructor_image = $14, image = $15,
+          benefits = $16, eligibility = $17, required_documents = $18,
+          visibility = $19::course_visibility, status = $20::course_status,
           updated_at = NOW()
-        WHERE slug = $19`,
+        WHERE slug = $21`,
         c.title,
         c.category,
         c.level,
@@ -279,6 +290,8 @@ async function seedCourses() {
         c.seatsTotal,
         c.instructorName,
         c.instructorRole,
+        c.instructorImage,
+        c.image,
         c.benefits,
         c.eligibility,
         c.requiredDocuments,
@@ -295,16 +308,16 @@ async function seedCourses() {
         id, title, slug, category, level, description, duration,
         price, mode, location, start_date, end_date,
         seats_total,
-        instructor_name, instructor_role,
+        instructor_name, instructor_role, instructor_image, image,
         benefits, eligibility, required_documents,
         visibility, status, created_at, updated_at
       ) VALUES (
         $1, $2, $3, $4::course_category, $5::course_level, $6, $7,
         $8, $9::training_mode, $10, $11::date, $12::date,
         $13,
-        $14, $15,
-        $16, $17, $18,
-        $19::course_visibility, $20::course_status, NOW(), NOW()
+        $14, $15, $16, $17,
+        $18, $19, $20,
+        $21::course_visibility, $22::course_status, NOW(), NOW()
       )`,
       c.id,
       c.title,
@@ -321,6 +334,8 @@ async function seedCourses() {
       c.seatsTotal,
       c.instructorName,
       c.instructorRole,
+      c.instructorImage,
+      c.image,
       c.benefits,
       c.eligibility,
       c.requiredDocuments,
@@ -951,8 +966,12 @@ async function main() {
   if (!superadminPassword) {
     throw new Error("SUPERADMIN_PASSWORD environment variable is required");
   }
+  const memberPassword = process.env.MEMBER_PASSWORD;
+  if (!memberPassword) {
+    throw new Error("MEMBER_PASSWORD environment variable is required");
+  }
   const adminId = await ensureUser("admin@compassionglobal.org", "Super Admin", superadminPassword, "admin");
-  const memberId = await ensureUser("test.member@example.com", "Rajesh Kumar", "Testuser@123", "member");
+  const memberId = await ensureUser("test.member@example.com", "Rajesh Kumar", memberPassword, "member");
 
   if (!memberId) {
     console.log("\n  Test member already exists — enriching profile and seeding dashboard data...");

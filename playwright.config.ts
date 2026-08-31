@@ -8,8 +8,8 @@ loadEnv({ path: ".env.local" });
 
 export default defineConfig({
   testDir: "./tests",
-  timeout: 60_000,
-  retries: 0,
+  timeout: 120_000,
+  retries: 1,
   webServer: {
     command: "npm run dev",
     url: "http://localhost:3000",

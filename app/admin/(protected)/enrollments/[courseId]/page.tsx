@@ -189,8 +189,10 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
         const data = await res.json();
         setApplications(data.data ?? []);
         setPagination(data.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 0 });
-      } catch {
+      } catch (err) {
+        console.error('Failed to load applications:', err);
         setApplications([]);
+        toast({ title: 'Error', description: 'Could not load applications.', variant: 'error' });
       } finally {
         setLoading(false);
       }
@@ -203,7 +205,8 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
     const load = async () => {
       await fetchApplications(1, statusFilter || undefined, search || undefined);
       try {
-        const res = await fetch(`/api/admin/enrollments/analytics?courseId=${courseId}`);
+        const res = await fetch(`/api/admin/enrollments/analytics?courseId=${courseId}`, { signal: AbortSignal.timeout(20000) });
+        if (!res.ok) throw new Error(`Analytics failed (${res.status})`);
         const data = await res.json();
         const d = data.data;
         if (d?.course) {
@@ -221,24 +224,27 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
           setAnalyticsData(d);
         }
         setHealth(d?.health ?? null);
-      } catch {}
+      } catch (err) { console.error('Failed to load course analytics:', err); toast({ title: 'Error', description: 'Could not load course analytics.', variant: 'error' }); }
     };
     load();
   }, [courseId]);
 
   const fetchEnrollments = useCallback(
-    async (page = 1, searchQuery?: string) => {
+    async (page = 1, searchQuery?: string, statusOverride?: string) => {
       setEnrolledLoading(true);
       const query = new URLSearchParams({ courseId, page: page.toString(), limit: "20" });
       if (searchQuery) query.set("search", searchQuery);
-      if (enrolledStatusFilter) query.set("status", enrolledStatusFilter);
+      const status = statusOverride !== undefined ? statusOverride : enrolledStatusFilter;
+      if (status) query.set("status", status);
       try {
         const res = await fetch(`/api/admin/enrollments/enrolled?${query}`);
         const data = await res.json();
         setEnrolledList(data.data ?? []);
         setEnrolledPagination(data.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 0 });
-      } catch {
+      } catch (err) {
+        console.error('Failed to fetch enrolled students:', err);
         setEnrolledList([]);
+        toast({ title: 'Error', description: 'Could not load enrolled students.', variant: 'error' });
       } finally {
         setEnrolledLoading(false);
       }
@@ -256,7 +262,15 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       const load = async () => { await fetchApplications(1, "waitlisted", search || undefined, "waitlistedAt", "asc"); };
       load();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId, activeTab]);
+
+  const handleTabChange = (tab: Tab) => {
+    if (tab === activeTab) return;
+    setSelectedIds(new Set());
+    setEditingEnrollment(null);
+    setActiveTab(tab);
+  };
 
   const handlePageChange = (newPage: number) => {
     fetchApplications(newPage, statusFilter || undefined, search || undefined);
@@ -316,6 +330,10 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
             ? { enrollmentIds: Array.from(selectedIds) }
             : { applicationIds: Array.from(selectedIds) }),
         }),
+        signal: AbortSignal.timeout(15000),
+      }).catch((err) => {
+        if (err instanceof DOMException && err.name === "TimeoutError") throw new Error("The server took too long to respond. Please try again.");
+        throw err;
       });
       if (!res.ok) {
         const data = await res.json();
@@ -329,12 +347,14 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       setBulkPreviewOpen(false);
       setSelectedIds(new Set());
       if (isEnrollmentAction) {
-        fetchEnrollments();
+        fetchEnrollments(enrolledPagination.page, enrolledSearch || undefined);
       } else if (bulkAction === "promote" || bulkAction === "move_to_review" || bulkAction === "remove") {
         fetchApplications(1, "waitlisted", search || undefined, "waitlistedAt", "asc");
       } else {
         fetchApplications(pagination.page, statusFilter || undefined, search || undefined);
       }
+    } catch (err) {
+      toast({ title: "Bulk Action Failed", description: err instanceof Error && err.name !== "AbortError" ? err.message : "Network error.", variant: "error" });
     } finally {
       setIsProcessing(false);
     }
@@ -348,6 +368,7 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       const res = await fetch(`/api/admin/enrollments/${confirmReject}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({ status: "rejected", rejectionReason: rejectReason || undefined }),
       });
       if (res.ok) {
@@ -378,6 +399,7 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       const res = await fetch(`/api/admin/enrollments/enrolled/${confirmDrop}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({ status: "dropped" }),
       });
       if (res.ok) {
@@ -407,6 +429,7 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       const res = await fetch(`/api/admin/enrollments/enrolled/${confirmComplete}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({ status: "completed" }),
       });
       if (res.ok) {
@@ -436,11 +459,16 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       const res = await fetch(`/api/admin/enrollments/${confirmPromote}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({ status: "seat_reserved" }),
       });
       if (res.ok) {
         toast({ title: "Promoted to Enrollment", description: "Application approved and enrollment created.", variant: "success" });
-        fetchApplications(pagination.page, statusFilter || undefined, search || undefined);
+        if (activeTab === "waitlist") {
+          fetchApplications(1, "waitlisted", search || undefined, "waitlistedAt", "asc");
+        } else {
+          fetchApplications(pagination.page, statusFilter || undefined, search || undefined);
+        }
       } else {
         const data = await res.json();
         if (isStepUpRequiredResponse(res.status, data.error)) {
@@ -465,11 +493,12 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       const res = await fetch(`/api/admin/enrollments/${confirmRemove}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({ status: "deleted" }),
       });
       if (res.ok) {
         toast({ title: "Removed from Waitlist", description: "Application has been removed.", variant: "success" });
-        fetchApplications(1, "waitlisted", search || undefined);
+        fetchApplications(1, "waitlisted", search || undefined, "waitlistedAt", "asc");
       } else {
         const data = await res.json();
         if (isStepUpRequiredResponse(res.status, data.error)) {
@@ -494,11 +523,12 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       const res = await fetch(`/api/admin/enrollments/${confirmMoveReview}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({ status: "under_review" }),
       });
       if (res.ok) {
         toast({ title: "Moved to Under Review", description: "Application moved back to review queue.", variant: "success" });
-        fetchApplications(1, "waitlisted", search || undefined);
+        fetchApplications(1, "waitlisted", search || undefined, "waitlistedAt", "asc");
       } else {
         const data = await res.json();
         if (isStepUpRequiredResponse(res.status, data.error)) {
@@ -516,6 +546,13 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
   };
 
   const handleSaveEnrollmentEdit = async (enrollmentId: string) => {
+    const target = enrolledList.find((e) => e.id === enrollmentId);
+    const batchChanged = editBatch !== (target?.batchLabel ?? "");
+    const seatChanged = editSeat !== (target?.seatNumber?.toString() ?? "");
+    if (!batchChanged && !seatChanged) {
+      setEditingEnrollment(null);
+      return;
+    }
     if (!(await requireStepUpClient(`/admin/enrollments/${courseId || ''}`, ENROLLMENT_ACTION))) return;
     setIsProcessing(true);
     try {
@@ -525,6 +562,7 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
       const res = await fetch(`/api/admin/enrollments/enrolled/${enrollmentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify(body),
       });
       if (res.ok) {
@@ -617,22 +655,6 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
     await exportEnrollmentsDocx(rows, meta);
   };
 
-  const handleAddNote = async (text: string) => {
-    if (!drawerAppId) return;
-    if (!(await requireStepUpClient(`/admin/enrollments/${courseId || ''}`, ENROLLMENT_ACTION))) return;
-    const res = await fetch(`/api/admin/enrollments/${drawerAppId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reviewNotes: text }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      if (isStepUpRequiredResponse(res.status, data.error)) {
-        redirectToStepUp(`/admin/enrollments/${courseId || ''}`, ENROLLMENT_ACTION);
-      }
-    }
-  };
-
   return (
     <div className="space-y-4 font-sans">
       {/* Header */}
@@ -657,7 +679,7 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
           return (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => handleTabChange(tab.key)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-[11px] font-medium whitespace-nowrap border-b-2 transition-colors ${
                 activeTab === tab.key
                   ? "border-primary text-primary"
@@ -907,7 +929,7 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
                   key={s}
                   onClick={() => {
                     setEnrolledStatusFilter(s);
-                    fetchEnrollments(1, enrolledSearch || undefined);
+                    fetchEnrollments(1, enrolledSearch || undefined, s);
                   }}
                   className={`px-2.5 py-1 text-[10px] font-medium rounded-full border transition-colors ${
                     enrolledStatusFilter === s
@@ -1161,7 +1183,7 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
 
           <div className="bg-card border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground">
-              {applications.length} waitlisted application{applications.length !== 1 ? "s" : ""} — ordered by waitlist position (earliest first)
+              {pagination.total} waitlisted application{pagination.total !== 1 ? "s" : ""} — ordered by waitlist position (earliest first)
             </p>
           </div>
 
@@ -1449,8 +1471,8 @@ export default function TrainingWorkspacePage({ params }: { params: Promise<{ co
         initialTab={drawerInitialTab}
         seatInfo={courseInfo?.seatInfo ? { available: courseInfo.seatInfo.available, isFull: courseInfo.seatInfo.available === 0 } : undefined}
         onActionComplete={() => {
-          if (activeTab === "applications") fetchApplications();
-          else if (activeTab === "enrollments") fetchEnrollments();
+          if (activeTab === "applications") fetchApplications(pagination.page, statusFilter || undefined, search || undefined);
+          else if (activeTab === "enrollments") fetchEnrollments(enrolledPagination.page, enrolledSearch || undefined);
           else if (activeTab === "waitlist") fetchApplications(1, "waitlisted", search || undefined, "waitlistedAt", "asc");
         }}
       />

@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
-import { requireAdmin, authErrorResponse } from "@/lib/session";
+import { requireStepUp, stepUpErrorResponse } from "@/lib/session";
 import { prisma, withRetry, dbErrorResponse } from "@/lib/prisma";
 import { buildCertificatePdfBlob, buildCertificatePdfBuffers, type CertificatePdfData } from "@/lib/certificate-pdf";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireStepUp();
   if (!auth.success) {
-    return authErrorResponse(auth)!;
+    return stepUpErrorResponse(auth)!;
+  }
+
+  const rateLimit = checkRateLimit(request, 'admin_download_certs', 10, 15 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
   }
 
   try {

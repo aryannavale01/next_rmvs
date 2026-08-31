@@ -49,7 +49,7 @@ export interface Enrollment {
   id: string;
   memberId: string;
   courseId: string;
-  status: 'Completed' | 'Enrolled' | 'Dropped';
+  status: string;
   enrolledDate: string;
 }
 

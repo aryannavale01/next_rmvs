@@ -1,8 +1,9 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { twoFactor } from "better-auth/plugins";
-import { validatePassword } from "./password-validation";
+import { validatePasswordWithConfig } from "./password-validation";
 import { prisma } from "./prisma";
+import { getClientIP } from "./rate-limit";
 
 // --- Startup validation: fail loudly if required env vars are missing/weak ---
 function requireEnv(name: string): string {
@@ -24,7 +25,16 @@ if (authSecret.length < 32) {
   );
 }
 
-const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:3462";
+const baseURL = isProd
+  ? requireEnv("BETTER_AUTH_URL")
+  : (process.env.BETTER_AUTH_URL || "http://localhost:3462");
+
+if (isProd && baseURL.includes("localhost")) {
+  throw new Error(
+    `[Auth] BETTER_AUTH_URL must not contain localhost in production (got: ${baseURL}). ` +
+    `Set BETTER_AUTH_URL to the public production URL before starting.`
+  );
+}
 
 const trustedOrigins = process.env.TRUSTED_ORIGINS
   ? process.env.TRUSTED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
@@ -62,12 +72,14 @@ export const auth = betterAuth({
         return;
       }
       try {
+        const { getOrgConfig } = await import("./org-config");
+        const config = await getOrgConfig();
         const { Resend } = await import("resend");
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
-          from: "noreply@compassionglobal.org",
+          from: `${config.senderName} <${config.senderFromAddress}>`,
           to: user.email,
-          subject: "Reset Your Password — CompassionGlobal",
+          subject: `Reset Your Password — ${config.siteName}`,
           html: `<p>Click the link below to reset your password. This link expires in 1 hour.</p>
                  <p><a href="${url}">Reset Password</a></p>
                  <p>If you didn't request this, ignore this email.</p>`,
@@ -83,13 +95,15 @@ export const auth = betterAuth({
         return;
       }
       try {
+        const { getOrgConfig } = await import("./org-config");
+        const config = await getOrgConfig();
         const { Resend } = await import("resend");
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
-          from: "noreply@compassionglobal.org",
+          from: `${config.senderName} <${config.senderFromAddress}>`,
           to: user.email,
-          subject: "Verify Your Email — CompassionGlobal",
-          html: `<p>Welcome to CompassionGlobal! Please verify your email address by clicking the link below.</p>
+          subject: `Verify Your Email — ${config.siteName}`,
+          html: `<p>Welcome to ${config.siteName}! Please verify your email address by clicking the link below.</p>
                  <p><a href="${url}">Verify Email</a></p>
                  <p>This link expires in 24 hours. If you didn't create an account, ignore this email.</p>`,
         });
@@ -153,7 +167,7 @@ export const auth = betterAuth({
         before: async (user) => {
           const password = (user as Record<string, unknown>).password as string | undefined;
           if (password) {
-            const result = validatePassword(password);
+            const result = await validatePasswordWithConfig(password);
             if (!result.valid) {
               throw new Error(result.errors.join("; "));
             }
@@ -193,9 +207,7 @@ export const auth = betterAuth({
                 data: {
                   userId,
                   action: "admin_login_success",
-                  ip: ctx?.request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim()
-                    || ctx?.request?.headers?.get("x-real-ip")
-                    || null,
+                  ip: ctx?.request ? getClientIP(ctx.request as Request) : null,
                 },
               });
             }
@@ -210,7 +222,7 @@ export const auth = betterAuth({
         before: async (data) => {
           const newPassword = (data as Record<string, unknown>).password as string | undefined;
           if (newPassword) {
-            const result = validatePassword(newPassword);
+            const result = await validatePasswordWithConfig(newPassword);
             if (!result.valid) {
               throw new Error(result.errors.join("; "));
             }
