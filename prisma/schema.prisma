@@ -31,7 +31,7 @@ enum BA_Role {
 /// Better Auth — Authentication identity
 model user {
   id           String   @id
-  email        String
+  email        String   @unique
   emailVerified Boolean @default(false) @map("emailVerified")
   name         String?
   image        String?
