@@ -30,9 +30,16 @@ vi.mock('@/lib/prisma', () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    rateLimitEntry: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
+    },
   },
   withRetry: <T>(fn: () => Promise<T>): Promise<T> => fn(),
   dbErrorResponse: () => null,
+  isTransientPrismaError: () => false,
 }));
 
 vi.mock('@/lib/supabase-storage', () => ({
