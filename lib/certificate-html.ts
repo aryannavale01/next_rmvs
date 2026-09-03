@@ -4,6 +4,7 @@ import path from "node:path";
 import puppeteer, { type Browser, type PDFOptions } from "puppeteer-core";
 import QRCode from "qrcode";
 import type { CertificatePdfData } from "./certificate-pdf";
+import { escapeHtml } from "./html-escape";
 
 // ---------------------------------------------------------------------------
 // Asset resolution
@@ -69,15 +70,6 @@ async function inlineImage(html: string, file: string): Promise<string> {
   } catch {
     return html;
   }
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function formatDate(value: string | null | undefined): string {

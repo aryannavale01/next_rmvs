@@ -4,6 +4,7 @@ import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 import { upsertSiteSettingSchema } from '@/lib/validations/admin-site-setting';
 import { logActivity } from '@/lib/activity-log';
 import { invalidateOrgConfig } from '@/lib/org-config';
+import { isValidBrandColor } from '@/lib/brand-color';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
@@ -82,6 +83,13 @@ export async function POST(request: NextRequest) {
     }
 
     const { key, ...data } = parsed.data;
+
+    if (key === 'appearance.brandColor' && !isValidBrandColor(data.value)) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: { value: ['Brand color must be a valid hex color like #2563EB'] } },
+        { status: 400 },
+      );
+    }
 
     const setting = await withRetry(() =>
       prisma.siteSetting.upsert({

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import AdminLayoutWrapper from '@/components/admin-layout-wrapper';
 import DbUnavailableInterstitial from '@/components/db-unavailable-interstitial';
 import { getOrgConfig } from '@/lib/org-config';
+import { safeBrandColor } from '@/lib/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,7 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: `:root { --brand-primary: ${config.brandColor}; --brand-primary-hover: ${config.brandColor}dd; }` }} />
+      <style dangerouslySetInnerHTML={{ __html: `:root { --brand-primary: ${safeBrandColor(config.brandColor)}; --brand-primary-hover: ${safeBrandColor(config.brandColor)}dd; }` }} />
       <AdminLayoutWrapper siteName={config.siteName} logoText={config.logoText} brandColor={config.brandColor}>{children}</AdminLayoutWrapper>
     </>
   );

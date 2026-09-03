@@ -7,6 +7,7 @@ import {
 import { useToast } from '@/components/ui/toast';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { requireStepUpClient, isStepUpRequiredResponse, redirectToStepUp } from '@/lib/admin-stepup';
+import { sanitizeHtmlContent } from '@/lib/sanitize-html';
 
 const NEWSLETTER_ACTION = 'manage_newsletters';
 const RETURN_PATH = '/admin/newsletters';
@@ -285,7 +286,7 @@ export default function NewslettersClient({
             </div>
             <div
               className="p-6 prose prose-sm max-w-none text-gray-700"
-              dangerouslySetInnerHTML={{ __html: preview.body || '<p class="text-gray-400">No content</p>' }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtmlContent(preview.body || '') || '<p class="text-gray-400">No content</p>' }}
             />
             {preview.sentAt && (
               <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 text-xs text-gray-500">

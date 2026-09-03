@@ -1,5 +1,6 @@
 import PublicLayoutWrapper from '@/components/public-layout-wrapper';
 import { getOrgConfig } from '@/lib/org-config';
+import { safeBrandColor } from '@/lib/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,11 +34,12 @@ export default async function PublicLayout({ children }: { children: React.React
     );
   }
 
-  const brandHover = darkenHex(config.brandColor, 0.15);
+  const brandColor = safeBrandColor(config.brandColor);
+  const brandHover = darkenHex(brandColor, 0.15);
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: `:root { --brand-primary: ${config.brandColor}; --brand-primary-hover: ${brandHover}; --color-brand-primary: ${config.brandColor}; --color-brand-primary-hover: ${brandHover}; }` }} />
+      <style dangerouslySetInnerHTML={{ __html: `:root { --brand-primary: ${brandColor}; --brand-primary-hover: ${brandHover}; --color-brand-primary: ${brandColor}; --color-brand-primary-hover: ${brandHover}; }` }} />
       <PublicLayoutWrapper config={config}>{children}</PublicLayoutWrapper>
     </>
   );

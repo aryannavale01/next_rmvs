@@ -5,6 +5,7 @@ import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
 import { invalidateOrgConfig } from '@/lib/org-config';
 import { isAllowedSettingKey, getSettingCategory } from '@/lib/site-setting-keys';
+import { isValidBrandColor } from '@/lib/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,16 @@ const settingEntrySchema = z
     category: z.string().max(50),
   })
   .refine((s) => isAllowedSettingKey(s.key), { message: 'Unknown setting key' })
-  .refine((s) => getSettingCategory(s.key) === s.category, { message: 'Category does not match key' });
+  .refine((s) => getSettingCategory(s.key) === s.category, { message: 'Category does not match key' })
+  .superRefine((s, ctx) => {
+    if (s.key === 'appearance.brandColor' && !isValidBrandColor(s.value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['value'],
+        message: 'Brand color must be a valid hex color like #2563EB',
+      });
+    }
+  });
 
 const bulkSchema = z.object({
   settings: z.array(settingEntrySchema).max(200),

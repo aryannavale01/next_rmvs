@@ -9,6 +9,8 @@
  */
 
 import { getOrgConfig } from "./org-config";
+import { sanitizeHtmlContent } from "./sanitize-html";
+import { escapeHtml } from "./html-escape";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000";
 
@@ -140,14 +142,14 @@ export async function sendDonationPledgeEmail({
     subject: `Donation Pledge Received — ${config.siteName}`,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
-        <h1 style="color: #059669; font-size: 24px; margin-bottom: 8px;">Thank you, ${donorName}!</h1>
+        <h1 style="color: #059669; font-size: 24px; margin-bottom: 8px;">Thank you, ${escapeHtml(donorName || "")}!</h1>
         <p style="color: #374151; font-size: 16px; line-height: 1.6;">We have received your donation pledge. Our team will contact you shortly to complete the payment.</p>
 
         <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin: 24px 0;">
           <table style="width: 100%; font-size: 14px;">
-            <tr><td style="color: #6b7280; padding: 4px 0;">Pledge ID</td><td style="font-weight: bold; text-align: right;">${pledgeId}</td></tr>
-            <tr><td style="color: #6b7280; padding: 4px 0;">Amount</td><td style="font-weight: bold; text-align: right;">${currency} ${amount.toFixed(2)}</td></tr>
-            <tr><td style="color: #6b7280; padding: 4px 0;">Frequency</td><td style="font-weight: bold; text-align: right;">${frequency}</td></tr>
+            <tr><td style="color: #6b7280; padding: 4px 0;">Pledge ID</td><td style="font-weight: bold; text-align: right;">${escapeHtml(pledgeId)}</td></tr>
+            <tr><td style="color: #6b7280; padding: 4px 0;">Amount</td><td style="font-weight: bold; text-align: right;">${escapeHtml(currency)} ${amount.toFixed(2)}</td></tr>
+            <tr><td style="color: #6b7280; padding: 4px 0;">Frequency</td><td style="font-weight: bold; text-align: right;">${escapeHtml(frequency)}</td></tr>
           </table>
         </div>
 
@@ -179,11 +181,11 @@ export async function sendContactConfirmationEmail({
     subject: `Message Received — ${config.siteName}`,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
-        <h1 style="color: #059669; font-size: 24px; margin-bottom: 8px;">We got your message, ${submitterName}!</h1>
+        <h1 style="color: #059669; font-size: 24px; margin-bottom: 8px;">We got your message, ${escapeHtml(submitterName || "")}!</h1>
         <p style="color: #374151; font-size: 16px; line-height: 1.6;">Thank you for reaching out. We typically respond within 24 hours.</p>
 
         <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin: 24px 0;">
-          <p style="color: #6b7280; font-size: 14px; margin: 0;"><strong>Subject:</strong> ${subject || 'General Inquiry'}</p>
+          <p style="color: #6b7280; font-size: 14px; margin: 0;"><strong>Subject:</strong> ${escapeHtml(subject || 'General Inquiry')}</p>
           <p style="color: #6b7280; font-size: 14px; margin: 8px 0 0 0;">Your message has been forwarded to our team. We will get back to you as soon as possible.</p>
         </div>
 
@@ -245,11 +247,12 @@ export async function buildNewsletterBroadcastHtml({
   unsubscribeUrl: string;
 }): Promise<string> {
   const config = await getOrgConfig();
+  const safeBody = sanitizeHtmlContent(body);
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
-      <h1 style="color: #059669; font-size: 24px; margin-bottom: 16px;">${title}</h1>
+      <h1 style="color: #059669; font-size: 24px; margin-bottom: 16px;">${escapeHtml(title || "")}</h1>
       <div style="color: #374151; font-size: 16px; line-height: 1.8;">
-        ${body}
+        ${safeBody}
       </div>
 
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
@@ -282,7 +285,7 @@ export async function sendEnrollmentConfirmationEmail({
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
         <h1 style="color: #059669; font-size: 24px; margin-bottom: 8px;">Enrollment Request Received</h1>
-        <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${applicantName}, thank you for your interest in <strong>${courseTitle}</strong>.</p>
+        <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${escapeHtml(applicantName || "")}, thank you for your interest in <strong>${escapeHtml(courseTitle || "")}</strong>.</p>
 
         <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin: 24px 0;">
           <p style="color: #374151; font-size: 14px; margin: 0; line-height: 1.5;">

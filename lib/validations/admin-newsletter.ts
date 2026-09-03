@@ -1,8 +1,12 @@
 import { z } from 'zod';
+import { sanitizeHtmlContent } from '@/lib/sanitize-html';
+
+const sanitizeBody = (v: string | null | undefined) =>
+  v == null ? v : sanitizeHtmlContent(v);
 
 export const createNewsletterSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  body: z.string().optional().nullable(),
+  body: z.string().optional().nullable().transform((v) => sanitizeBody(v)),
   date: z.coerce.date().optional().nullable(),
   readTime: z.string().optional().nullable(),
   image: z.string().url('Image must be a valid URL').optional().nullable(),
@@ -11,7 +15,7 @@ export const createNewsletterSchema = z.object({
 
 export const updateNewsletterSchema = z.object({
   title: z.string().min(1).optional(),
-  body: z.string().optional().nullable(),
+  body: z.string().optional().nullable().transform((v) => sanitizeBody(v)),
   date: z.coerce.date().optional().nullable(),
   readTime: z.string().optional().nullable(),
   image: z.string().url('Image must be a valid URL').optional().nullable(),

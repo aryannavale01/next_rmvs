@@ -4,6 +4,7 @@ import { prisma, withRetry, isTransientPrismaError } from '@/lib/prisma';
 import { updateSiteSettingSchema } from '@/lib/validations/admin-site-setting';
 import { logActivity } from '@/lib/activity-log';
 import { invalidateOrgConfig } from '@/lib/org-config';
+import { isValidBrandColor } from '@/lib/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,17 @@ export async function PATCH(
     const existing = await withRetry(() => prisma.siteSetting.findUnique({ where: { id } }));
     if (!existing) {
       return NextResponse.json({ error: 'Site setting not found' }, { status: 404 });
+    }
+
+    if (
+      existing.key === 'appearance.brandColor' &&
+      parsed.data.value !== undefined &&
+      !isValidBrandColor(parsed.data.value)
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: { value: ['Brand color must be a valid hex color like #2563EB'] } },
+        { status: 400 },
+      );
     }
 
     const updated = await withRetry(() => prisma.siteSetting.update({ where: { id }, data: parsed.data }));
