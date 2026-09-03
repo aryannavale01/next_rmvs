@@ -110,7 +110,7 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
               id="tab-btn-training"
             >
               <BookOpen className="h-4 w-4" />
-              Training &amp; Academy
+              Skill Training Batches
             </button>
             <button
               onClick={() => { setActiveTab('field'); setSearchQuery(''); }}
@@ -122,7 +122,7 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
               id="tab-btn-field"
             >
               <Globe className="h-4 w-4" />
-              Strategic Field Operations
+              Community Programmes
             </button>
           </div>
         </div>
@@ -138,13 +138,13 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
                 <div className="lg:col-span-8 space-y-4">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-brand-primary border border-emerald-100 font-display font-semibold text-xs uppercase tracking-wider">
-                    Knowledge for Impact
+                    Skill Development
                   </div>
                   <h1 className="font-display font-bold text-4xl sm:text-5xl text-gray-900 tracking-tight leading-tight">
-                    Empowering Change-Makers
+                    Certified Skill Training for Women
                   </h1>
                   <p className="text-gray-500 text-sm sm:text-base leading-relaxed max-w-2xl">
-                    Access certified professional training designed to equip you with the strategic skills needed to tackle global challenges in public health, AI technology, and humanitarian leadership.
+                    Access government-recognised training in beauty &amp; wellness, tailoring, digital literacy, and entrepreneurship — delivered through PMKVY, DDU-GKY, and Maharashtra State Skill Development Society partnerships.
                   </p>
                 </div>
 
@@ -155,7 +155,7 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search catalog..."
+                      placeholder="Search training programmes..."
                       className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-2xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary shadow-sm transition-all"
                       id="course-search-input"
                     />
@@ -200,7 +200,7 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
               {filteredCourses.length === 0 ? (
                 <div className="text-center py-16 space-y-4" id="no-courses-found">
                   <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto" />
-                  <h3 className="font-display font-semibold text-lg text-gray-900">No training programs match your search</h3>
+                  <h3 className="font-display font-semibold text-lg text-gray-900">No training programmes match your search</h3>
                   <p className="text-sm text-gray-400">Try checking your spelling, selecting a different category, or resetting filters.</p>
                   <button
                     onClick={() => { setActiveCourseCategory('All'); setSearchQuery(''); }}
@@ -316,9 +316,9 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
           <section className="bg-gradient-to-b from-white to-gray-50/70 py-24 border-t border-gray-100" id="section-why-train">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center max-w-2xl mx-auto space-y-4 mb-16">
-                <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900 tracking-tight">Why Train with CompassionGlobal?</h2>
+                <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900 tracking-tight">Why Train with Rupashree Mahila Vikas Sanstha?</h2>
                 <p className="text-sm sm:text-base text-gray-500 leading-relaxed">
-                  We combine rigorous scholarly structure with real-world, field-first experience to design an educational ecosystem that triggers authentic humanitarian impact.
+                  We combine hands-on, field-first training with real government certification pathways — helping women in rural and tribal Maharashtra build lasting, income-generating skills.
                 </p>
               </div>
 
@@ -327,9 +327,9 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                   <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-brand-primary mx-auto sm:mx-0">
                     <CheckCircle className="h-6 w-6" />
                   </div>
-                  <h3 className="font-display font-bold text-lg text-gray-900">Recognized Certifications</h3>
+                  <h3 className="font-display font-bold text-lg text-gray-900">Government-Recognised Certification</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">
-                    Our modular programs are internationally accredited and recognized by elite humanitarian organizations and global NGOs.
+                    Our batches run under PMKVY, DDU-GKY, and the Maharashtra State Skill Development Society — certificates recognised for employment and self-employment.
                   </p>
                 </div>
 
@@ -337,9 +337,9 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                   <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-brand-primary mx-auto sm:mx-0">
                     <Lightbulb className="h-6 w-6" />
                   </div>
-                  <h3 className="font-display font-bold text-lg text-gray-900">Expert Mentors</h3>
+                  <h3 className="font-display font-bold text-lg text-gray-900">Local, Experienced Trainers</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">
-                    Learn directly from active field experts who have decades of leadership experience managing large-scale global initiatives.
+                    Learn from trainers with direct field experience running skill batches across Junnar Taluka since 2014.
                   </p>
                 </div>
 
@@ -347,9 +347,9 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                   <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-brand-primary mx-auto sm:mx-0">
                     <Globe className="h-6 w-6" />
                   </div>
-                  <h3 className="font-display font-bold text-lg text-gray-900">Global Alumni Network</h3>
+                  <h3 className="font-display font-bold text-lg text-gray-900">A Growing Local Network</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">
-                    Join a highly active professional guild of thousands of change-makers sharing operational insights across 120 nations.
+                    Join 1,520+ women and girls across Pune district who have completed training through RMVS-linked government schemes.
                   </p>
                 </div>
               </div>
@@ -365,7 +365,7 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                 <div className="max-w-2xl mx-auto space-y-4 relative z-10">
                   <h2 className="font-display font-bold text-3xl sm:text-4xl">Ready to start your journey?</h2>
                   <p className="text-sm text-gray-400 leading-relaxed">
-                    Get monthly updates on fully-funded scholarship opportunities, new courses, and professional field placements directly in your inbox.
+                    Get updates on new training batches, scholarship-linked government schemes, and upcoming camps in your gram panchayat.
                   </p>
                 </div>
 
@@ -373,7 +373,7 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                   {subscribeSuccess ? (
                     <div className="bg-white/10 backdrop-blur-sm border border-white/20 p-4 rounded-xl flex items-center justify-center gap-2 text-brand-mint" id="course-subs-success">
                       <CheckCircle2 className="h-5 w-5 shrink-0" />
-                      <span className="text-sm font-semibold">Subscribed successfully! Watch your inbox.</span>
+                      <span className="text-sm font-semibold">Subscribed! Watch your inbox for updates.</span>
                     </div>
                   ) : (
                     <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3">
@@ -413,10 +413,10 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                   Our Commitment
                 </div>
                 <h1 className="font-display font-bold text-4xl sm:text-5xl text-gray-900 tracking-tight leading-tight">
-                  Strategic Programs for Global Change
+                  Community Programmes for Lasting Change
                 </h1>
                 <p className="text-gray-500 text-sm sm:text-base leading-relaxed">
-                  We focus on sustainable, long-term solutions that empower local communities. From rural education to emergency climate relief, our work is driven by community needs and global expertise.
+                  Beyond skill training, we run tree-plantation drives, voter-awareness campaigns, health outreach, and support for tribal girls&apos; hostels across Junnar Taluka.
                 </p>
               </div>
 
@@ -560,9 +560,9 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                 <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/10 to-transparent pointer-events-none" />
 
                 <div className="max-w-2xl mx-auto space-y-4">
-                  <h2 className="font-display font-bold text-3xl sm:text-4xl">Amplifying Impact Through Collaboration</h2>
+                  <h2 className="font-display font-bold text-3xl sm:text-4xl">Partner With Us for Greater Impact</h2>
                   <p className="text-sm text-gray-400 leading-relaxed">
-                    Corporate partners, family trusts, and philanthropic institutions play a critical role in scaling our field operations safely. Let&apos;s build a more compassionate world together.
+                    Government departments, CSR partners, and local institutions can work with RMVS to scale skill training and livelihood support across Junnar Taluka. Let&apos;s build a more compassionate world together.
                   </p>
                 </div>
 
@@ -577,7 +577,7 @@ export default function ProgramsClient({ courses, strategicPrograms, featuredPro
                     href="mailto:partnerships@compassionglobal.org"
                     className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs rounded-xl transition-all cursor-pointer uppercase tracking-wider inline-flex items-center"
                   >
-                    Contact Partnerships
+                    Contact Us
                   </a>
                 </div>
               </div>

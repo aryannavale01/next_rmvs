@@ -74,19 +74,19 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
             <ScrollAnimate variant="fadeInLeft" className="lg:col-span-7 space-y-8">
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100/80 text-brand-primary border border-emerald-200/50" id="badge-purpose">
                 <Sparkles className="h-3.5 w-3.5" />
-                <span className="text-xs font-display font-semibold tracking-wider uppercase">Our Purpose</span>
+                <span className="text-xs font-display font-semibold tracking-wider uppercase">Since 2014</span>
               </div>
               
               <h1 className="font-display font-bold text-4xl sm:text-5xl lg:text-6xl text-gray-900 tracking-tight leading-[1.08]" id="hero-heading">
                 {settings.home_hero_heading ? settings.home_hero_heading.split('\n').map((line, i) => (
                   <span key={i}>{line}{i === 0 && <br className="hidden sm:inline" />}</span>
                 )) : (
-                  <>Empowering local <br className="hidden sm:inline" />communities for <br /><span className="text-brand-primary relative inline-block">global change.</span></>
+                  <>Women&apos;s Development Is Our Only Mission</>
                 )}
               </h1>
               
               <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-xl" id="hero-description">
-                {settings.home_hero_description || 'At CompassionGlobal, we believe that sustainable impact begins with deep listening and professional execution. Our mission is to dismantle systemic barriers through education, healthcare, and economic initiative.'}
+                {settings.home_hero_description || 'Founded in 2014 in Kaldare village, Junnar Taluka, Rupashree Mahila Vikas Sanstha has trained 1,520+ women and girls across Pune district through government-linked skill development, digital literacy, and self-employment programmes — helping them become financially, socially, and mentally self-reliant.'}
               </p>
               
               {/* Mission & Vision Cards */}
@@ -94,14 +94,14 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
                   <h3 className="font-display font-bold text-base text-gray-900 mb-2">Our Mission</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">
-                    {settings.home_mission_text || 'To deliver high-impact, transparent solutions that foster self-reliance in underserved regions.'}
+                    {settings.home_mission_text || 'To economically empower women and support the sustainable development of women farmers across rural and tribal Maharashtra.'}
                   </p>
                 </div>
                 
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
                   <h3 className="font-display font-bold text-base text-gray-900 mb-2">Our Vision</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">
-                    {settings.home_vision_text || 'A world where every individual has the professional support and resources to thrive with dignity.'}
+                    {settings.home_vision_text || 'A society where every woman — empowered physically, socially, and mentally — can stand on her own feet with dignity and self-reliance.'}
                   </p>
                 </div>
               </div>
@@ -118,14 +118,14 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                   <div className="aspect-[4/3] bg-gray-200 rounded-lg overflow-hidden relative">
                     <img
                       src={settings.home_hero_image || "https://images.unsplash.com/photo-1531538606174-0f90ff5dce83?auto=format&fit=crop&w=800&q=80"}
-                      alt="CompassionGlobal Team Fieldwork"
+                      alt="Rupashree Mahila Vikas Sanstha skill training session for women in Junnar"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
                   </div>
                   <div className="mt-4 text-center">
                     <span className="font-mono text-[9px] tracking-widest text-gray-400 uppercase">
-                      CompassionGlobal Field Assessment
+                      Skill development training session, Junnar Taluka
                     </span>
                   </div>
                 </div>
@@ -145,13 +145,13 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
             <ScrollAnimate variant="fadeInLeft" className="lg:col-span-6 space-y-6">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/50 text-brand-primary border border-emerald-200/30">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-semibold uppercase tracking-wider">Join Our Global Movement</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">Join Our Mission</span>
               </div>
               <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900 tracking-tight leading-tight">
-                Empowering Humanity Through <span className="text-brand-primary">Compassion.</span>
+                Empowering Rural Women, <span className="text-brand-primary">One Skill at a Time</span>
               </h2>
               <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
-                We are dedicated to fostering sustainable change through professional excellence and radical transparency. Join us in building a future where every community thrives.
+                From beauty & wellness training to digital literacy, we run government-linked skill programmes that create real, lasting livelihoods for rural and tribal women in Junnar Taluka, Pune.
               </p>
               <div className="flex flex-wrap gap-4 pt-2">
                 <button 
@@ -170,7 +170,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                   className="px-6 py-3 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-medium rounded-full shadow-sm transition-all cursor-pointer"
                   id="movement-mission"
                 >
-                  Our Mission
+                  Our Story
                 </button>
               </div>
             </ScrollAnimate>
@@ -183,7 +183,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                     <Users className="h-5 w-5" />
                   </div>
                   <div className="font-display font-bold text-3xl text-gray-900">{settings.home_stat_volunteers}</div>
-                  <div className="text-sm font-semibold text-gray-800 mt-1">Active Volunteers</div>
+                  <div className="text-sm font-semibold text-gray-800 mt-1">Women &amp; Girls Trained</div>
                 </StaggerItem>
               )}
  
@@ -193,7 +193,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                     <CheckSquare className="h-5 w-5" />
                   </div>
                   <div className="font-display font-bold text-3xl text-gray-900">{settings.home_stat_families_helped}</div>
-                  <div className="text-sm font-semibold text-gray-800 mt-1">Families Helped</div>
+                  <div className="text-sm font-semibold text-gray-800 mt-1">Government Schemes Partnered</div>
                 </StaggerItem>
               )}
  
@@ -206,7 +206,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                     <div>
                       <div className="flex items-baseline gap-2">
                         <span className="font-display font-bold text-3xl text-gray-900">{settings.home_stat_programs}</span>
-                        <span className="text-sm font-semibold text-gray-800">Programs Running</span>
+                        <span className="text-sm font-semibold text-gray-800">Years of Grassroots Work</span>
                       </div>
                     </div>
                   </div>
@@ -226,21 +226,21 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
               {settings.home_stat_families_supported && (
                 <StaggerItem className="space-y-1">
                   <div className="font-display font-bold text-3xl text-brand-primary">{settings.home_stat_families_supported}</div>
-                  <div className="text-xs font-mono tracking-widest text-gray-400 uppercase">Families Supported</div>
+                  <div className="text-xs font-mono tracking-widest text-gray-400 uppercase">PMKVY Beauty &amp; Wellness Trainees</div>
                   <div className="w-12 h-0.5 bg-emerald-100 mx-auto mt-2" />
                 </StaggerItem>
               )}
               {settings.home_stat_students && (
                 <StaggerItem className="space-y-1">
                   <div className="font-display font-bold text-3xl text-brand-primary">{settings.home_stat_students}</div>
-                  <div className="text-xs font-mono tracking-widest text-gray-400 uppercase">Students Educated</div>
+                  <div className="text-xs font-mono tracking-widest text-gray-400 uppercase">Gram Panchayat Livelihood Trainees</div>
                   <div className="w-12 h-0.5 bg-emerald-100 mx-auto mt-2" />
                 </StaggerItem>
               )}
               {settings.home_stat_trees && (
                 <StaggerItem className="space-y-1">
                   <div className="font-display font-bold text-3xl text-brand-primary">{settings.home_stat_trees}</div>
-                  <div className="text-xs font-mono tracking-widest text-gray-400 uppercase">Trees Planted</div>
+                  <div className="text-xs font-mono tracking-widest text-gray-400 uppercase">Saplings Planted, Green Mission Drive</div>
                   <div className="w-12 h-0.5 bg-emerald-100 mx-auto mt-2" />
                 </StaggerItem>
               )}
@@ -253,8 +253,8 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
       <section className="py-24 bg-[#FAFAF9]" id="section-timeline">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <ScrollAnimate variant="fadeInUp" className="text-center space-y-3 mb-16">
-            <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900">A Legacy of Transparency</h2>
-            <p className="text-sm text-gray-500 max-w-md mx-auto">Key milestones on our journey to 20 countries.</p>
+            <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900">Our Journey Since 2014</h2>
+            <p className="text-sm text-gray-500 max-w-md mx-auto">From one beauty-parlour training initiative to a multi-scheme women&apos;s empowerment organisation.</p>
           </ScrollAnimate>
  
           {/* Timeline diagram */}
@@ -308,15 +308,15 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <ScrollAnimate variant="fadeInUp" className="flex flex-col sm:flex-row sm:items-end justify-between mb-12">
             <div className="space-y-2">
-              <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900 tracking-tight">Our Core Programs</h2>
-              <p className="text-sm text-gray-500 max-w-xl">Targeted initiatives designed for measurable, long-term impact on global communities.</p>
+              <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900 tracking-tight">Our Core Programmes</h2>
+              <p className="text-sm text-gray-500 max-w-xl">Government-linked skill development and livelihood training designed for lasting impact in rural Maharashtra.</p>
             </div>
             <button 
               onClick={() => router.push('/programs')}
               className="inline-flex items-center text-sm font-semibold text-brand-primary hover:text-brand-primary-hover gap-1 mt-4 sm:mt-0 cursor-pointer group"
               id="btn-all-programs"
             >
-              View All Programs 
+              View All Programmes 
               <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </button>
           </ScrollAnimate>
@@ -427,7 +427,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/15 rounded-full translate-x-12 -translate-y-12 pointer-events-none" />
               
               <div className="space-y-4 relative z-10">
-                <h3 className="font-display font-bold text-2xl text-gray-900 tracking-tight">{settings.home_newsletter_heading || 'Stay Informed.'}</h3>
+                <h3 className="font-display font-bold text-2xl text-gray-900 tracking-tight">{settings.home_newsletter_heading || 'Stay Informed'}</h3>
                 {settings.home_newsletter_description && (
                   <p className="text-sm text-emerald-950 leading-relaxed">
                     {settings.home_newsletter_description}
@@ -439,7 +439,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                 {newsletterSubscribed ? (
                   <div className="bg-white/95 p-4 rounded-2xl flex items-center gap-2 border border-white text-brand-primary shadow-sm" id="newsletter-success">
                     <CheckCircle2 className="h-5 w-5 shrink-0" />
-                    <span className="text-xs font-bold">Successfully subscribed! Welcome aboard.</span>
+                    <span className="text-xs font-bold">Thank you! You&apos;re subscribed.</span>
                   </div>
                 ) : (
                   <form onSubmit={handleNewsletterSubscribe} className="space-y-3">
@@ -455,7 +455,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                       type="submit"
                       className="w-full px-4 py-3 bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-sm rounded-xl shadow-md transition-colors cursor-pointer"
                     >
-                      Subscribe Now
+                      Subscribe
                     </button>
                   </form>
                 )}
@@ -476,8 +476,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
             {/* Left Content */}
             <ScrollAnimate variant="fadeInLeft" className="lg:col-span-6 space-y-8">
               <h2 className="font-display font-bold text-4xl sm:text-5xl text-white tracking-tight leading-none" id="transparency-heading">
-                Radical Transparency.<br />
-                Measurable Impact.
+                Registered, Recognised, Accountable
               </h2>
               {settings.home_transparency_statement && (
                 <p className="text-gray-400 text-sm sm:text-base leading-relaxed max-w-xl">
@@ -497,7 +496,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                   {settings.home_lives_impacted && (
                     <div className="space-y-1">
                       <div className="font-display font-bold text-4xl sm:text-5xl text-brand-mint">{settings.home_lives_impacted}</div>
-                      <div className="text-[10px] font-mono tracking-wider text-gray-400 uppercase">Lives Impacted</div>
+                      <div className="text-[10px] font-mono tracking-wider text-gray-400 uppercase">Women Trained Since 2014</div>
                     </div>
                   )}
                 </div>
@@ -510,12 +509,12 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                   className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-brand-primary text-white font-semibold text-sm hover:bg-brand-primary-hover transition-colors shadow-lg shadow-emerald-950/40 cursor-pointer group"
                   id="btn-report"
                 >
-                  Read Our Impact Report
+                   View Our Registrations
                   <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                 </button>
               )}
             </ScrollAnimate>
- 
+
             {/* Right Transparent Grid */}
             <ScrollAnimate variant="stagger" className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-4" id="transparency-grid">
               
@@ -523,9 +522,9 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-brand-mint">
                   <Shield className="h-5 w-5" />
                 </div>
-                <h3 className="font-display font-bold text-base text-white">Verified Audits</h3>
+                <h3 className="font-display font-bold text-base text-white">ISO 9001:2015 Certified</h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Annual third-party audits ensure absolute financial integrity across all regional branches.
+                  Our internal processes are certified under ISO 9001:2015 Quality Management Systems, supporting consistent, accountable programme delivery.
                 </p>
               </StaggerItem>
  
@@ -533,9 +532,9 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-brand-mint">
                   <BarChart3 className="h-5 w-5" />
                 </div>
-                <h3 className="font-display font-bold text-base text-white">Data Driven</h3>
+                <h3 className="font-display font-bold text-base text-white">Verified Beneficiaries</h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Real-time KPI monitoring is enforced for every single project inside our global portfolio.
+                  Every training programme is tracked against government scheme records — 1,520+ women trained through 8 documented schemes since 2014.
                 </p>
               </StaggerItem>
  
@@ -543,9 +542,9 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-brand-mint">
                   <Globe className="h-5 w-5" />
                 </div>
-                <h3 className="font-display font-bold text-base text-white">Global Scale</h3>
+                <h3 className="font-display font-bold text-base text-white">Local Roots</h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Currently operating in over 20 countries with highly specialized, certified local teams.
+                  Based in Kaldare village, Junnar Taluka, we work directly across Pune district&apos;s rural and tribal gram panchayats.
                 </p>
               </StaggerItem>
  
@@ -555,7 +554,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                 </div>
                 <h3 className="font-display font-bold text-base text-white">Shared Values</h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Partnering exclusively with grassroots organizations that meet our strict, clean ethics bar.
+                  We partner exclusively with recognised government bodies — including PMKVY, DDU-GKY, NITI Aayog, and the Maharashtra State Skill Development Society.
                 </p>
               </StaggerItem>
  
@@ -569,9 +568,9 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
       <section className="py-24 bg-white" id="section-leaders">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <ScrollAnimate variant="fadeInUp" className="text-center space-y-3 mb-16">
-            <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900 tracking-tight">Our Leadership</h2>
+            <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900 tracking-tight">Our Governing Committee</h2>
             <p className="text-sm text-gray-500 max-w-lg mx-auto">
-              A global collective of strategists, humanitarians, and innovators dedicated to excellence.
+              The seven-member committee guiding RMVS&apos;s work across Junnar Taluka.
             </p>
           </ScrollAnimate>
  
@@ -602,7 +601,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                     <span className="text-white text-xs font-semibold flex items-center gap-1">
-                      View Bio &amp; Profile <ArrowUpRight className="h-3.5 w-3.5" />
+                      View Profile <ArrowUpRight className="h-3.5 w-3.5" />
                     </span>
                   </div>
                 </div>
@@ -663,7 +662,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
       <section className="bg-white py-16 border-t border-gray-100" id="section-partners">
         <ScrollAnimate variant="fadeInUp" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <span className="font-mono text-xs font-bold tracking-widest text-gray-400 uppercase">Trusted By Global Institutions</span>
+            <span className="font-mono text-xs font-bold tracking-widest text-gray-400 uppercase">Our Government &amp; Scheme Partners</span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-12 md:gap-20 opacity-50 hover:opacity-75 transition-opacity" id="partners-list">
             {partners.map((partner) => {
@@ -720,7 +719,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
               </div>
 
               <div className="space-y-3">
-                <h4 className="text-xs font-mono font-bold tracking-wider uppercase text-gray-400">Professional Profile</h4>
+                <h4 className="text-xs font-mono font-bold tracking-wider uppercase text-gray-400">Committee Profile</h4>
                 {selectedLeader.bio && (
                   <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-2xl">
                     {selectedLeader.bio}
@@ -733,13 +732,13 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                   onClick={() => setSelectedLeader(null)}
                   className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
                 >
-                  Close Profile
+                  Close
                 </button>
                 <a 
                   href={`mailto:${selectedLeader.name.toLowerCase().replace(/[^a-z]/g, '')}@compassionglobal.org`}
                   className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-xs rounded-xl transition-colors inline-flex items-center gap-1"
                 >
-                  Contact Office
+                  Contact Us
                 </a>
               </div>
             </div>
@@ -793,7 +792,7 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
                   onClick={() => setShowStory(false)}
                   className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
                 >
-                  Awesome, Close Story
+                  Close
                 </button>
               </div>
             </div>

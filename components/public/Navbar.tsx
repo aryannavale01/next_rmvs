@@ -17,14 +17,14 @@ interface NavbarProps {
 const navItems = [
   { label: 'Our Mission', href: '/' },
   { label: 'About Us', href: '/about' },
-  { label: 'Programs', href: '/programs' },
+  { label: 'Programmes', href: '/programs' },
   { label: 'Impact', href: '/impact' },
   { label: 'Resources', href: '/resources' },
   { label: 'Volunteer', href: '/volunteer' },
   { label: 'Contact', href: '/contact' },
 ];
 
-export default function Navbar({ openSearch, siteName = 'CompassionGlobal', logoText }: NavbarProps) {
+export default function Navbar({ openSearch, siteName = 'Rupashree Mahila Vikas Sanstha', logoText }: NavbarProps) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<{ name: string } | null>(null);
@@ -106,7 +106,7 @@ export default function Navbar({ openSearch, siteName = 'CompassionGlobal', logo
               <button
                 onClick={openSearch}
                 className="p-2 text-gray-500 hover:text-brand-primary hover:bg-gray-50 rounded-full transition-all cursor-pointer"
-                aria-label="Search Catalog"
+                aria-label="Search training programmes"
                 id="nav-search-btn"
               >
                 <Search className="h-5 w-5" />
@@ -138,7 +138,7 @@ export default function Navbar({ openSearch, siteName = 'CompassionGlobal', logo
                     id="nav-signup-btn"
                   >
                     <UserPlus className="h-4 w-4" />
-                    Sign up
+                    Register
                   </Link>
                 )
               )}
@@ -218,7 +218,7 @@ export default function Navbar({ openSearch, siteName = 'CompassionGlobal', logo
                     id="mobile-nav-signup-btn"
                   >
                     <UserPlus className="h-5 w-5" />
-                    Sign up
+                    Register
                   </Link>
                 </div>
               )

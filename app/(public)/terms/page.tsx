@@ -2,8 +2,8 @@ import { FileText } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Terms of Service — Compassion Global',
-  description: 'Terms of service for Compassion Global NGO ERP system.',
+  title: 'Terms of Service — Rupashree Mahila Vikas Sanstha (RMVS)',
+  description: 'Terms of service for Rupashree Mahila Vikas Sanstha (RMVS) NGO ERP system.',
 };
 
 export default function TermsOfServicePage() {
@@ -22,7 +22,7 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-lg font-bold text-foreground">1. Acceptance of Terms</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              By accessing or using the Compassion Global platform, you agree to be bound by these Terms of Service. If you do not agree, do not use the platform. These terms apply to all users including members, volunteers, administrators, and visitors.
+              By accessing or using the Rupashree Mahila Vikas Sanstha (RMVS) platform, you agree to be bound by these Terms of Service. If you do not agree, do not use the platform. These terms apply to all users including members, volunteers, administrators, and visitors.
             </p>
           </section>
 
@@ -43,21 +43,21 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-lg font-bold text-foreground">4. Intellectual Property</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              All content, design, code, and materials on the platform are owned by or licensed to Compassion Global. You may not copy, modify, distribute, or create derivative works without prior written consent. Training materials accessed through the platform are for personal educational use only.
+              All content, design, code, and materials on the platform are owned by or licensed to Rupashree Mahila Vikas Sanstha (RMVS). You may not copy, modify, distribute, or create derivative works without prior written consent. Training materials accessed through the platform are for personal educational use only.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-foreground">5. Certificates and Credentials</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Certificates issued through the platform represent completion of training programs administered by Compassion Global. Certificates may be revoked if obtained through fraudulent means or if the underlying training requirements are found to have been unfulfilled. Certificate verification is available to authorized parties.
+              Certificates issued through the platform represent completion of training programs administered by Rupashree Mahila Vikas Sanstha (RMVS). Certificates may be revoked if obtained through fraudulent means or if the underlying training requirements are found to have been unfulfilled. Certificate verification is available to authorized parties.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-foreground">6. Limitation of Liability</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              The platform is provided &ldquo;as is&rdquo; without warranties of any kind. Compassion Global shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform. Our total liability shall not exceed the amount you paid for platform access, if any.
+              The platform is provided &ldquo;as is&rdquo; without warranties of any kind. Rupashree Mahila Vikas Sanstha (RMVS) shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform. Our total liability shall not exceed the amount you paid for platform access, if any.
             </p>
           </section>
 

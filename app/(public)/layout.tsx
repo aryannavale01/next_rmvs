@@ -25,9 +25,9 @@ export default async function PublicLayout({ children }: { children: React.React
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-3">System Maintenance</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">Site Under Maintenance</h1>
           <p className="text-gray-600 mb-2">{config.maintenanceMessage}</p>
-          <p className="text-sm text-gray-400">We apologize for the inconvenience. Please check back later.</p>
+          <p className="text-sm text-gray-400">We&apos;re updating our website. Please reach us directly at ashwininavale83@gmail.com in the meantime.</p>
         </div>
       </div>
     );

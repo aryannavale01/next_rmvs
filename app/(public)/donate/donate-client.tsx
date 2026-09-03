@@ -158,13 +158,13 @@ export default function DonateClient({ taxNote }: { taxNote?: string }) {
           <div className="max-w-4xl mx-auto px-4 sm:px-6">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-brand-primary border border-emerald-100">
               <Heart className="h-4 w-4 fill-brand-primary text-brand-primary" />
-              <span className="text-xs font-semibold uppercase tracking-wider">Support Strategic Change</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">Support Our Work</span>
             </div>
             <h1 className="font-display font-bold text-4xl sm:text-5xl text-gray-900 tracking-tight leading-tight">
-              Fuel Sustainable Impact
+              Help Rural Women Build Self-Reliance
             </h1>
             <p className="text-gray-500 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto">
-              Your generous gift funds verified, transparent programs — delivering clinical nursing care, local micro-financing, and climate-resilient reforestation.
+              Your contribution helps fund training batches, certification fees, and materials for women and girls across Junnar Taluka&apos;s villages and tribal hamlets.
             </p>
           </div>
         </section>
@@ -401,7 +401,7 @@ export default function DonateClient({ taxNote }: { taxNote?: string }) {
               </div>
 
               <p className="text-xs text-gray-400 text-center leading-relaxed">
-                A confirmation email has been sent to your address. Thank you for empowering global communities.
+                A confirmation email has been sent to your address. Thank you for supporting women&apos;s empowerment in Junnar Taluka.
               </p>
 
               <button

@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'About Us',
-    description: 'Learn about CompassionGlobal\'s mission, our leadership team, compliance documents, milestones, and the communities we serve across India.',
+    title: 'About Us | Rupashree Mahila Vikas Sanstha (RMVS), Junnar',
+    description: 'Learn about RMVS\'s founding story, our governing committee, government registrations, and 1,520+ women trained across Junnar Taluka since 2014.',
     path: '/about',
   });
 }

@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'Volunteer',
-    description: 'Join CompassionGlobal as a volunteer. Choose a location and help us empower communities through skill development and education.',
+    title: 'Volunteer | Rupashree Mahila Vikas Sanstha',
+    description: 'Volunteer with Rupashree Mahila Vikas Sanstha in Junnar Taluka, Pune. Help us deliver skill training, community outreach, and livelihood support for rural women.',
     path: '/volunteer',
   });
 }

@@ -24,9 +24,9 @@ export default function Footer({ config }: { config?: FooterConfig }) {
   const [subscribed, setSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
 
-  const orgName = config?.siteName || 'CompassionGlobal';
+  const orgName = config?.siteName || 'Rupashree Mahila Vikas Sanstha';
   const logoText = config?.logoText || orgName;
-  const contactEmail = config?.contactEmail || 'info@compassionglobal.org';
+  const contactEmail = config?.contactEmail || 'ashwininavale83@gmail.com';
   const contactAddress = config?.contactAddress || '';
 
   const handleSubmit = async (e: FormEvent) => {
@@ -68,7 +68,7 @@ export default function Footer({ config }: { config?: FooterConfig }) {
               </span>
             </Link>
             <p className="text-sm text-gray-500 leading-relaxed max-w-sm">
-              Empowering local communities through sustainable education, healthcare, and infrastructure initiatives since 1994. Dedicated to absolute financial transparency.
+              Empowering rural and tribal women across Junnar Taluka, Pune district, through government-linked skill training, digital literacy, and livelihood programmes since 2014.
             </p>
             <div className="flex space-x-3">
               <a href="https://compassionglobal.org" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-50 hover:bg-emerald-50 text-gray-400 hover:text-brand-primary rounded-full transition-colors cursor-pointer" aria-label="Website" id="footer-social-web">
@@ -85,7 +85,7 @@ export default function Footer({ config }: { config?: FooterConfig }) {
 
           <div>
             <h3 className="font-display font-semibold text-xs tracking-wider text-gray-900 uppercase mb-4">
-              Organization
+              Organisation
             </h3>
             <ul className="space-y-3">
               <li>
@@ -95,17 +95,17 @@ export default function Footer({ config }: { config?: FooterConfig }) {
               </li>
               <li>
                 <Link href="/impact" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-transparency">
-                  Financial Transparency
+                  Registrations & Certifications
                 </Link>
               </li>
               <li>
                 <Link href="/volunteer" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-careers">
-                  Careers & Volunteering
+                  Volunteer With Us
                 </Link>
               </li>
               <li>
                 <Link href="/programs" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-programs">
-                  Programs Overview
+                  Our Programmes
                 </Link>
               </li>
             </ul>
@@ -118,7 +118,7 @@ export default function Footer({ config }: { config?: FooterConfig }) {
             <ul className="space-y-3">
               <li>
                 <Link href="/contact" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-contact">
-                  Contact Support
+                  Contact Us
                 </Link>
               </li>
               <li>
@@ -128,7 +128,7 @@ export default function Footer({ config }: { config?: FooterConfig }) {
               </li>
               <li>
                 <Link href="/offices" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-offices">
-                  Global Offices
+                  Our Office
                 </Link>
               </li>
               <li>
@@ -141,15 +141,15 @@ export default function Footer({ config }: { config?: FooterConfig }) {
 
           <div className="space-y-4">
             <h3 className="font-display font-semibold text-xs tracking-wider text-gray-900 uppercase">
-              Stay Connected
+              Stay Updated
             </h3>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Join our monthly newsletter to receive real-time impact updates from our global team.
+              Get updates on new training batches, government scheme camps, and community programmes in Junnar Taluka.
             </p>
             {subscribed ? (
               <div className="flex items-center space-x-2 text-brand-primary bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 animate-in fade-in duration-200" id="footer-success-alert">
                 <CheckCircle className="h-5 w-5 shrink-0" />
-                <span className="text-xs font-medium text-brand-primary-hover">Thank you! Subscribed successfully.</span>
+                <span className="text-xs font-medium text-brand-primary-hover">Thank you! You&apos;re subscribed.</span>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="relative mt-2" id="footer-newsletter-form">
@@ -177,12 +177,12 @@ export default function Footer({ config }: { config?: FooterConfig }) {
 
         <div className="mt-16 pt-8 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0" id="footer-bottom-bar">
           <p className="text-xs text-gray-400 text-center sm:text-left">
-            &copy; {new Date().getFullYear()} {orgName} NGO. Dedicated to sustainable change.
+            &copy; {new Date().getFullYear()} {orgName}. A registered public charitable trust working for women&apos;s empowerment in Maharashtra.
             {config?.legalRegistrationStatement ? ` ${config.legalRegistrationStatement}` : ''}
           </p>
           <div className="flex space-x-6 text-xs text-gray-400">
             <span>Language: English (US)</span>
-            <span>Region: Global</span>
+            <span>Region: Maharashtra, India</span>
           </div>
         </div>
       </div>

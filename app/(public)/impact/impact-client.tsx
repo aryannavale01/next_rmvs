@@ -69,7 +69,7 @@ export default function ImpactClient({ galleryItems, partners }: ImpactClientPro
             Impact Gallery
           </h1>
           <p className="text-gray-500 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto">
-            Witness the tangible, sustainable change we create across the globe through the lens of our active volunteers, clinical staff, and regional communities.
+            See our skill training batches, government scheme camps, tree-plantation drives, and community outreach across Junnar Taluka — captured directly from the field.
           </p>
         </div>
       </section>
@@ -159,7 +159,7 @@ export default function ImpactClient({ galleryItems, partners }: ImpactClientPro
 
       <section className="bg-white py-16" id="section-trust">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-10">
-          <span className="font-mono text-xs font-bold tracking-widest text-gray-400 uppercase">Trusted By Global Institutions</span>
+          <span className="font-mono text-xs font-bold tracking-widest text-gray-400 uppercase">Our Government &amp; Scheme Partners</span>
           <div className="flex flex-wrap items-center justify-center gap-12 md:gap-20 opacity-40 hover:opacity-60 transition-all">
             {partners.map((p) => (
               <span key={p.name} className="font-display font-bold text-sm tracking-widest text-gray-500 uppercase">
@@ -207,14 +207,14 @@ export default function ImpactClient({ galleryItems, partners }: ImpactClientPro
                       {selectedItem.category}
                     </span>
                     <span className="text-[10px] font-mono font-bold text-gray-600 bg-gray-50 px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1">
-                      <ImageIcon className="h-3 w-3" /> Image
+                      <ImageIcon className="h-3 w-3" /> Photo
                     </span>
                   </div>
                   <h3 className="font-display font-bold text-xl text-gray-900 leading-snug">
                     {selectedItem.title}
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
-                    {selectedItem.description} This photo was logged and categorized securely by CompassionGlobal field volunteers during active assessment operations. Every step is logged in our databases for absolute transparent reporting.
+                    {selectedItem.description} Photo documented by the RMVS team during an on-ground training or outreach activity.
                   </p>
                 </div>
 
@@ -225,7 +225,7 @@ export default function ImpactClient({ galleryItems, partners }: ImpactClientPro
                       <span className="font-bold text-gray-800">{selectedItem.location || 'Not specified'}</span>
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-gray-400 flex items-center gap-1"><Calendar className="h-3 w-3" /> Logged Date</span>
+                      <span className="text-gray-400 flex items-center gap-1"><Calendar className="h-3 w-3" /> Date</span>
                       <span className="font-bold text-gray-800">{selectedItem.loggedDate || 'Not specified'}</span>
                     </div>
                   </div>

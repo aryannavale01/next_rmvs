@@ -77,11 +77,11 @@ export default function VolunteerClient({ offices, heroImage }: VolunteerClientP
                 <span className="text-xs font-semibold uppercase tracking-wider">Join our ranks</span>
               </div>
               <h1 className="font-display font-bold text-4xl sm:text-5xl text-gray-900 tracking-tight leading-none">
-                Mobilize with <br />
-                <span className="text-brand-primary">CompassionGlobal</span>
+                Volunteer With <br />
+                <span className="text-brand-primary">Rupashree Mahila Vikas Sanstha</span>
               </h1>
               <p className="text-sm sm:text-base text-gray-500 leading-relaxed max-w-lg">
-                Join 12,000+ active volunteers worldwide dismantling systemic barriers. Whether your talent is public health, digital mentoring, organic agriculture, or logistics, we have a place for you.
+                Whether your skill is beauty &amp; wellness training, digital literacy, agriculture, or event support — help us bring skill development to more women across Junnar Taluka.
               </p>
 
               <div className="grid grid-cols-2 gap-4 pt-2">
@@ -104,7 +104,7 @@ export default function VolunteerClient({ offices, heroImage }: VolunteerClientP
               <div className="aspect-[16/10] bg-gray-100 rounded-[2rem] overflow-hidden shadow-md border border-gray-100">
                 <img
                   src={heroImage || "https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=1200&q=80"}
-                  alt="Volunteers planting in garden"
+                  alt="Volunteers supporting a community training session in Junnar Taluka"
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />
@@ -120,8 +120,8 @@ export default function VolunteerClient({ offices, heroImage }: VolunteerClientP
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <div className="bg-gray-50/50 rounded-3xl border border-gray-100 p-8 sm:p-12 shadow-sm space-y-8">
             <div className="text-center space-y-2">
-              <h2 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 tracking-tight">Volunteer Mobilization Form</h2>
-              <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Phase 1 Application</p>
+              <h2 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 tracking-tight">Volunteer Application Form</h2>
+              <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Tell us how you&apos;d like to help</p>
             </div>
 
             {success ? (
@@ -217,7 +217,7 @@ export default function VolunteerClient({ offices, heroImage }: VolunteerClientP
                     className="mt-1 h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary/20 cursor-pointer"
                   />
                   <label htmlFor="volunteer-agree" className="text-xs text-gray-500 leading-normal cursor-pointer select-none">
-                    I agree to the <Link href="/volunteer/code-of-conduct" className="font-semibold text-brand-primary hover:underline">Volunteer Code of Conduct</Link>, safety guidelines, and consent to reference and background verification.
+                    I agree to the <Link href="/volunteer/code-of-conduct" className="font-semibold text-brand-primary hover:underline">Volunteer Code of Conduct</Link> and consent to a background/reference check.
                   </label>
                 </div>
 
@@ -227,7 +227,7 @@ export default function VolunteerClient({ offices, heroImage }: VolunteerClientP
                   className="w-full py-3.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
                   id="btn-volunteer-submit"
                 >
-                  {submitting ? 'Submitting...' : 'Submit Application Packet'}
+                  {submitting ? 'Submitting...' : 'Submit Application'}
                 </button>
               </form>
             )}
@@ -239,8 +239,8 @@ export default function VolunteerClient({ offices, heroImage }: VolunteerClientP
       <section className="py-24 bg-white" id="section-offices">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-xl mx-auto space-y-3 mb-16">
-            <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">Our Regional Offices</h2>
-            <p className="text-sm text-gray-500">Connect directly with our local specialized administrative hubs.</p>
+            <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">Our Office</h2>
+            <p className="text-sm text-gray-500">Connect with our team in Junnar Taluka.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8" id="offices-grid">
@@ -272,7 +272,7 @@ export default function VolunteerClient({ offices, heroImage }: VolunteerClientP
             ))}
             {offices.length === 0 && (
               <div className="col-span-2 text-center py-12 text-gray-400 text-sm">
-                No regional offices configured yet. Contact us at contact@compassionglobal.org.
+                Office details coming soon — contact us at ashwininavale83@gmail.com.
               </div>
             )}
           </div>

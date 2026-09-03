@@ -2,8 +2,8 @@ import { Shield } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Privacy Policy — Compassion Global',
-  description: 'Privacy policy for Compassion Global NGO ERP system.',
+  title: 'Privacy Policy — Rupashree Mahila Vikas Sanstha (RMVS)',
+  description: 'Privacy policy for Rupashree Mahila Vikas Sanstha (RMVS) NGO ERP system.',
 };
 
 export default function PrivacyPolicyPage() {
@@ -22,7 +22,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-bold text-foreground">1. Information We Collect</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Compassion Global collects information you provide directly, including your name, email address, phone number, and organizational affiliation when you register for an account, enroll in training programs, apply as a volunteer, or contact us. We also collect usage data such as pages visited, actions taken within the platform, and device/browser information for security and analytics purposes.
+              Rupashree Mahila Vikas Sanstha (RMVS) collects information you provide directly, including your name, email address, phone number, and organizational affiliation when you register for an account, enroll in training programs, apply as a volunteer, or contact us. We also collect usage data such as pages visited, actions taken within the platform, and device/browser information for security and analytics purposes.
             </p>
           </section>
 
@@ -36,7 +36,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-bold text-foreground">3. Data Sharing</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Your data may be shared with trusted service providers who assist in platform operations (hosting, email delivery, analytics), and with authorized administrators and staff of Compassion Global who require access to fulfill their roles. All third-party providers are contractually bound to protect your data. We may disclose information when required by law or to protect the safety of our community.
+              Your data may be shared with trusted service providers who assist in platform operations (hosting, email delivery, analytics), and with authorized administrators and staff of Rupashree Mahila Vikas Sanstha (RMVS) who require access to fulfill their roles. All third-party providers are contractually bound to protect your data. We may disclose information when required by law or to protect the safety of our community.
             </p>
           </section>
 

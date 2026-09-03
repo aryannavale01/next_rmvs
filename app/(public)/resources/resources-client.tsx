@@ -75,7 +75,7 @@ export default function ResourcesClient({
               Resources &amp; Newsletters
             </h1>
             <p className="text-gray-500 text-sm sm:text-base leading-relaxed">
-              Explore our latest articles, quarterly journals, and official newsletters detailing our global work and operational transparency.
+              Read press coverage, programme updates, and community stories from our work across Junnar Taluka.
             </p>
           </div>
         </div>
@@ -96,7 +96,7 @@ export default function ResourcesClient({
                 className="w-full h-full object-cover"
               />
               <span className="absolute top-6 left-6 bg-black text-white font-mono font-bold text-[10px] tracking-widest uppercase px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow">
-                <Sparkles className="h-3.5 w-3.5 text-brand-mint animate-pulse" /> FEATURED STORY
+                <Sparkles className="h-3.5 w-3.5 text-brand-mint animate-pulse" /> Featured Story
               </span>
             </div>
 
@@ -114,7 +114,7 @@ export default function ResourcesClient({
                 </h2>
 
                 <p className="text-sm text-gray-500 leading-relaxed">
-                  {blogPosts[0].description || 'Read our latest article covering impactful stories and operational updates from our global programs.'}
+                  {blogPosts[0].description || 'Read our latest update on training batches and community outreach.'}
                 </p>
               </div>
 
@@ -127,7 +127,7 @@ export default function ResourcesClient({
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-gray-900 leading-none">{blogPosts[0].author}</h4>
-                      <span className="text-[10px] text-gray-400 font-semibold">{blogPosts[0].category || 'Contributor'}</span>
+                      <span className="text-[10px] text-gray-400 font-semibold">{blogPosts[0].category || 'RMVS Team'}</span>
                     </div>
                   </div>
                 )}
@@ -153,7 +153,7 @@ export default function ResourcesClient({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-12 space-y-2">
             <h2 className="font-display font-bold text-2xl sm:text-3xl text-gray-900">Newsletter Archive</h2>
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Operational Publications &amp; Journals</p>
+            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Programme Updates &amp; Press Coverage</p>
           </div>
 
           {/* Grid of 6 Newsletters */}
@@ -219,15 +219,15 @@ export default function ResourcesClient({
           <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-100 text-brand-primary rounded-2xl">
             <Send className="h-6 w-6" />
           </div>
-          <h2 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 tracking-tight">Direct Transparency In Your Inbox</h2>
+          <h2 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 tracking-tight">Stay Connected With Our Work</h2>
           <p className="text-sm text-gray-500 leading-relaxed max-w-lg mx-auto">
-            Subscribe today to receive real-time updates directly from our regional offices. Zero spam. 100% impact metrics.
+            Subscribe for updates on new training batches, government scheme camps, and community programmes.
           </p>
 
           <div className="max-w-md mx-auto" id="bottom-newsletter-subs">
             {subscribed ? (
               <div className="p-4 bg-emerald-50 border border-emerald-100 text-brand-primary font-bold text-xs rounded-2xl animate-in zoom-in-95 flex items-center justify-center gap-2">
-                <CheckCircle className="h-4 w-4" /> Subscribed successfully! Welcome to the CompassionGlobal monthly digest.
+                <CheckCircle className="h-4 w-4" /> Subscribed! Welcome to the RMVS community update list.
               </div>
             ) : (
               <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3">
@@ -243,7 +243,7 @@ export default function ResourcesClient({
                   type="submit"
                   className="px-6 py-3 bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs rounded-xl transition-colors cursor-pointer uppercase tracking-wider shrink-0"
                 >
-                  Join Us
+                  Subscribe
                 </button>
               </form>
             )}
@@ -272,7 +272,7 @@ export default function ResourcesClient({
                 className="w-full h-full object-cover"
               />
               <span className="absolute bottom-4 left-4 bg-emerald-700 text-white font-mono font-bold text-[9px] tracking-widest px-2.5 py-1.5 rounded-md uppercase">
-                Featured Strategic Story
+                Featured Story
               </span>
             </div>
 
@@ -334,7 +334,7 @@ export default function ResourcesClient({
                   <FileText className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="font-display font-bold text-lg text-gray-900">CompassionGlobal Newsletter</h3>
+                  <h3 className="font-display font-bold text-lg text-gray-900">RMVS Update</h3>
                   <p className="text-xs text-gray-400 font-mono">{selectedNewsletter.date} Publication</p>
                 </div>
               </div>

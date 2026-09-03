@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'Home',
-    description: 'CompassionGlobal empowers local communities through skill development training, education programs, and sustainable development initiatives across India.',
+    title: 'Rupashree Mahila Vikas Sanstha | Women Empowerment NGO in Junnar, Pune',
+    description: 'Rupashree Mahila Vikas Sanstha (RMVS) is a Pune-registered public trust empowering rural and tribal women in Junnar Taluka through PMKVY-linked skill training, digital literacy, and women farmer livelihood programmes since 2014.',
     path: '/',
   });
 }

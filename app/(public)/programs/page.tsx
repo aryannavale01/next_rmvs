@@ -7,8 +7,8 @@ import { CATEGORY_DISPLAY } from '@/lib/course-categories';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'Programs & Courses',
-    description: 'Explore skill development courses in Technology, Health, Agriculture, and more. Join training programs designed to empower communities.',
+    title: 'Training Programmes & Courses | Rupashree Mahila Vikas Sanstha',
+    description: 'Explore government-linked skill development courses in beauty & wellness, tailoring, digital literacy, and farmer livelihood training for women in Junnar Taluka, Pune.',
     path: '/programs',
   });
 }

@@ -2,8 +2,8 @@ import { ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Volunteer Code of Conduct — Compassion Global',
-  description: 'Code of conduct and behavioral expectations for volunteers at Compassion Global.',
+  title: 'Volunteer Code of Conduct — Rupashree Mahila Vikas Sanstha (RMVS)',
+  description: 'Code of conduct and behavioral expectations for volunteers at Rupashree Mahila Vikas Sanstha (RMVS).',
 };
 
 export default function CodeOfConductPage() {
@@ -22,7 +22,7 @@ export default function CodeOfConductPage() {
           <section>
             <h2 className="text-lg font-bold text-foreground">1. Our Commitment</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Compassion Global is dedicated to creating a safe, respectful, and inclusive environment for all volunteers, staff, beneficiaries, and partners. Every volunteer represents our organization and is expected to uphold the highest standards of integrity and compassion.
+              Rupashree Mahila Vikas Sanstha (RMVS) is dedicated to creating a safe, respectful, and inclusive environment for all volunteers, staff, beneficiaries, and partners. Every volunteer represents our organization and is expected to uphold the highest standards of integrity and compassion.
             </p>
           </section>
 
@@ -57,7 +57,7 @@ export default function CodeOfConductPage() {
           <section>
             <h2 className="text-lg font-bold text-foreground">6. Conflict of Interest</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Volunteers must avoid situations where personal interests conflict with their responsibilities to Compassion Global. Any potential conflicts of interest must be disclosed to your supervisor immediately. Volunteers may not use their position for personal gain or to benefit family members or friends.
+              Volunteers must avoid situations where personal interests conflict with their responsibilities to Rupashree Mahila Vikas Sanstha (RMVS). Any potential conflicts of interest must be disclosed to your supervisor immediately. Volunteers may not use their position for personal gain or to benefit family members or friends.
             </p>
           </section>
 
@@ -85,7 +85,7 @@ export default function CodeOfConductPage() {
           <section>
             <h2 className="text-lg font-bold text-foreground">10. Acknowledgment</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              By volunteering with Compassion Global, you acknowledge that you have read, understood, and agree to abide by this Code of Conduct. You understand that this code may be updated periodically and that you are responsible for staying informed of any changes.
+              By volunteering with Rupashree Mahila Vikas Sanstha (RMVS), you acknowledge that you have read, understood, and agree to abide by this Code of Conduct. You understand that this code may be updated periodically and that you are responsible for staying informed of any changes.
             </p>
           </section>
         </div>

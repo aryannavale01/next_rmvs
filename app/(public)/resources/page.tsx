@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'Resources',
-    description: 'Read the latest blog posts, newsletters, and updates from CompassionGlobal. Stay informed about our programs and community impact.',
+    title: 'Resources & News | Rupashree Mahila Vikas Sanstha',
+    description: 'Read updates, press coverage, and newsletters from Rupashree Mahila Vikas Sanstha\'s work empowering women across Junnar Taluka, Pune.',
     path: '/resources',
   });
 }

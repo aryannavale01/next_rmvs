@@ -89,17 +89,17 @@ export default function AboutClient({
         <ScrollAnimate variant="fadeInUp" delay={0.1} className="max-w-4xl mx-auto px-4 sm:px-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/60 text-brand-primary border border-emerald-200/40 mb-4 animate-in fade-in zoom-in duration-500">
             <Sparkles className="h-4 w-4 text-brand-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Who We Are</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Our Story</span>
           </div>
           
           <h1 className="font-display font-bold text-4xl sm:text-5xl lg:text-6xl text-gray-900 tracking-tight leading-tight">
-            We Build Paths to <br />
-            <span className="text-brand-primary">Dignity and Self-Reliance</span>
+            From One Beauty Parlour to a <br />
+            <span className="text-brand-primary">Movement for Women&apos;s Self-Reliance</span>
           </h1>
           
           <p className="mt-6 text-gray-600 text-sm sm:text-base md:text-lg leading-relaxed max-w-2xl mx-auto">
             {settings.legal_registration_statement && <>{settings.legal_registration_statement} </>}
-            We combine deep local partnerships with rigorous, technology-driven operations to fund and deploy sustainable solutions worldwide.
+            Rupashree Mahila Vikas Sanstha began with one woman&apos;s small business in Junnar and grew into a registered public trust delivering government-linked skill training to over 1,500 women across Pune district.
           </p>
 
           {(settings.about_stat_countries || settings.about_stat_aid || settings.about_stat_lives || settings.about_stat_audits) && (
@@ -107,25 +107,25 @@ export default function AboutClient({
               {settings.about_stat_countries && (
                 <div className="text-center space-y-1">
                   <span className="block font-display font-bold text-3xl sm:text-4xl text-gray-900">{settings.about_stat_countries}</span>
-                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Countries Active</span>
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Founded</span>
                 </div>
               )}
               {settings.about_stat_aid && (
                 <div className="text-center space-y-1 border-l border-gray-100">
                   <span className="block font-display font-bold text-3xl sm:text-4xl text-brand-primary">{settings.about_stat_aid}</span>
-                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Direct Aid Routing</span>
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Registrations Held</span>
                 </div>
               )}
               {settings.about_stat_lives && (
                 <div className="text-center space-y-1 border-l border-gray-100">
                   <span className="block font-display font-bold text-3xl sm:text-4xl text-gray-900">{settings.about_stat_lives}</span>
-                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Lives Empowered</span>
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Women Trained</span>
                 </div>
               )}
               {settings.about_stat_audits && (
                 <div className="text-center space-y-1 border-l border-gray-100">
                   <span className="block font-display font-bold text-3xl sm:text-4xl text-brand-primary">{settings.about_stat_audits}</span>
-                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Audits Cleared</span>
+                  <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">ISO Certified</span>
                 </div>
               )}
             </div>
@@ -137,9 +137,9 @@ export default function AboutClient({
       <section className="bg-white py-16 sm:py-24 border-t border-gray-100" id="about-values">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <ScrollAnimate variant="fadeInUp" className="text-center space-y-3 max-w-xl mx-auto mb-16">
-            <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">{settings.about_values_heading || 'Our Foundational Values'}</h2>
+            <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">{settings.about_values_heading || 'Our Objectives'}</h2>
             <p className="text-sm sm:text-base text-gray-500 leading-relaxed">
-              {settings.about_values_description || 'We hold ourselves to strict structural mandates to guarantee that every single dollar contributed yields lasting, certified local growth.'}
+              {settings.about_values_description || 'Every programme we run serves one of five founding objectives: vocational training, all-age skill development, community camps and workshops, government scheme outreach, and rural health awareness.'}
             </p>
           </ScrollAnimate>
 
@@ -189,7 +189,7 @@ export default function AboutClient({
                 Our Journey Since Inception
               </h2>
               <p className="text-sm text-gray-500 leading-relaxed">
-                Click on any milestone year to reveal key field logs, specific operations established, and direct community indicators achieved during that growth chapter.
+                Explore key milestones — from Ashwini Navale&apos;s first beauty parlour in 2011 to founding Rupashree Shetkari Utpadak Company for women farmers in 2021.
               </p>
  
               {selectedMilestone && (
@@ -208,7 +208,7 @@ export default function AboutClient({
                 </p>
  
                 <div className="border-l-2 border-brand-primary pl-4 py-1 text-xs text-gray-500 italic">
-                  &quot;Deploying structured frameworks allowed us to verify our early field-testing with direct compliance, proving to our early donor networks that absolute transparency is possible.&quot;
+                  &quot;Since founding RMVS, I&apos;ve watched women move from dependency to confidence — earning their own income and standing on their own feet. There&apos;s more work ahead, and many new initiatives still to launch for the women of our region.&quot; — Ashwini Navale, Founder &amp; Chairperson
                 </div>
               </div>
               )}
@@ -270,9 +270,9 @@ export default function AboutClient({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <ScrollAnimate variant="fadeInUp" className="text-center space-y-4 max-w-xl mx-auto mb-12">
-            <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">Our Leadership Team</h2>
+            <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">Our Governing Committee</h2>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Meet our team of logistics managers, certified field medical advisors, and conservation specialists operating with full accountability.
+              Seven women leading skill development, outreach, and governance for RMVS across Junnar Taluka.
             </p>
  
             <div className="flex flex-wrap gap-2 justify-center pt-4" id="leader-department-filters">
@@ -338,7 +338,7 @@ export default function AboutClient({
                     className="w-full py-2.5 bg-gray-50 hover:bg-emerald-50 text-gray-600 hover:text-brand-primary font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
                     id={`leader-btn-bio-${leader.id}`}
                   >
-                    View Biography
+                    View Profile
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -359,13 +359,13 @@ export default function AboutClient({
               <div className="space-y-6">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/50 text-brand-primary border border-emerald-200/20">
                   <Globe className="h-4 w-4" />
-                  <span className="text-xs font-semibold uppercase tracking-wider font-mono">Global Footprint</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider font-mono">Where We Work</span>
                 </div>
                 <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight leading-tight">
-                  Regional Logistical Offices
+                  Our Office in Junnar Taluka
                 </h2>
                 <p className="text-sm text-gray-500 leading-relaxed">
-                  We deploy localized operational bases directly inside the primary geographical sectors we support, keeping administrative cost low.
+                  We operate from Kaldare village, serving surrounding gram panchayats across Junnar Taluka, Pune district.
                 </p>
  
                 <div className="space-y-3" id="regional-hubs-menu">
@@ -404,7 +404,7 @@ export default function AboutClient({
                 <div className="space-y-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
                     <div>
-                      <span className="text-[10px] text-brand-primary font-extrabold uppercase font-mono tracking-widest block">ACTIVE HUB FOCUS</span>
+                      <span className="text-[10px] text-brand-primary font-extrabold uppercase font-mono tracking-widest block">HEAD OFFICE</span>
                       <h3 className="font-display font-bold text-xl text-gray-950 mt-1">{selectedHub.name}</h3>
                     </div>
                     <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl">
@@ -419,21 +419,21 @@ export default function AboutClient({
  
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-5 rounded-2xl border border-gray-100/70">
                     <div className="space-y-1">
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Regional Director</span>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Chairperson</span>
                       <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
                         <Users className="h-3.5 w-3.5 text-brand-primary" /> {selectedHub.coordinator}
                       </span>
                     </div>
                     <div className="space-y-1">
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Full-time Logistics Crew</span>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Committee Members</span>
                       <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
-                        <Building className="h-3.5 w-3.5 text-brand-primary" /> {selectedHub.staffCount} Dedicated Experts
+                        <Building className="h-3.5 w-3.5 text-brand-primary" /> {selectedHub.staffCount} Members
                       </span>
                     </div>
                   </div>
  
                   <div className="space-y-2">
-                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Active Regional Operations</span>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Active Programmes</span>
                     <div className="flex flex-wrap gap-2">
                       {selectedHub.activePrograms.map((program) => (
                         <span
@@ -458,14 +458,14 @@ export default function AboutClient({
                     className="inline-flex items-center justify-center gap-1 px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
                     id="hub-volunteer-btn"
                   >
-                    Deploy to this Hub
+                    Contact This Office
                     <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
               ) : (
               <div className="bg-white rounded-3xl border border-gray-200/80 p-8 shadow-md flex items-center justify-center h-full min-h-[300px]">
-                <p className="text-sm text-gray-400">Select a regional hub to view details.</p>
+                <p className="text-sm text-gray-400">Office details coming soon — contact us at ashwininavale83@gmail.com.</p>
               </div>
               )}
             </ScrollAnimate>
@@ -487,7 +487,7 @@ export default function AboutClient({
               </div>
               <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">Transparency &amp; Compliance</h2>
               <p className="text-sm sm:text-base text-gray-500 leading-relaxed">
-                Download our official registration certificates, annual reports, and compliance documents. We believe in full transparency for our donors and stakeholders.
+                Rupashree Mahila Vikas Sanstha is a registered public charitable trust recognised by multiple state and central government bodies. Download our registration and empanelment certificates below.
               </p>
             </ScrollAnimate>
 
@@ -557,15 +557,15 @@ export default function AboutClient({
         <ScrollAnimate variant="scaleUp" className="max-w-4xl mx-auto px-4 sm:px-6 relative z-10 space-y-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-primary/20 text-brand-mint border border-brand-primary/30 mx-auto">
             <Heart className="h-3.5 w-3.5 fill-brand-mint text-brand-mint" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Join Our Vision</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Get Involved</span>
           </div>
- 
+  
           <h2 className="font-display font-bold text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-tight max-w-2xl mx-auto">
-            Be part of the solution today
+            Be Part of the Next Chapter
           </h2>
           
           <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-xl mx-auto">
-            Whether you choose to support a clinical medical outpost, register as a skilled digital educator, or fund water pipelines—your involvement changes live corridors.
+            Whether you want to support a skill training batch, volunteer as a trainer, or fund a women farmers&apos; initiative — your involvement helps rural women in Junnar Taluka build lasting self-reliance.
           </p>
  
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6" id="about-cta-btns">
@@ -575,14 +575,14 @@ export default function AboutClient({
               id="cta-donate-btn"
             >
               <Heart className="mr-2 h-4 w-4 fill-white text-white group-hover:scale-110 transition-transform duration-200" />
-              Support Active Field Work
+              Support Our Work
             </button>
             <button
               onClick={() => { router.push('/volunteer'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-white/10 hover:bg-white/15 text-white hover:text-white border border-white/20 font-bold text-sm transition-all cursor-pointer"
               id="cta-volunteer-btn"
             >
-              Register as Volunteer
+              Become a Volunteer
             </button>
           </div>
         </ScrollAnimate>
@@ -630,7 +630,7 @@ export default function AboutClient({
 
             <div className="space-y-4 text-xs leading-relaxed text-gray-600">
               <div className="space-y-1.5">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Professional Biography</span>
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Biography</span>
                 <p className="text-gray-600 font-medium leading-relaxed">
                   {selectedLeader.bio}
                 </p>
@@ -638,7 +638,7 @@ export default function AboutClient({
 
               {selectedLeader.quote && (
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-2">
-                  <span className="text-[10px] text-brand-primary font-bold uppercase tracking-wider block font-mono">Personal Quote</span>
+                  <span className="text-[10px] text-brand-primary font-bold uppercase tracking-wider block font-mono">In Their Words</span>
                   <p className="italic font-medium text-gray-500">
                     &quot;{selectedLeader.quote}&quot;
                   </p>
@@ -651,7 +651,7 @@ export default function AboutClient({
                 href={`mailto:${selectedLeader.name.toLowerCase().replace(/\s+/g, '')}@compassionglobal.org`}
                 className="py-3 bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-brand-primary font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 text-center"
               >
-                <Mail className="h-4 w-4" /> Contact Office
+                <Mail className="h-4 w-4" /> Contact Us
               </a>
               <button
                 onClick={() => { setSelectedLeader(null); router.push('/volunteer'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}

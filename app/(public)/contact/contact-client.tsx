@@ -71,7 +71,7 @@ export default function ContactClient({ phone, email, address, officeHours, face
             Contact <span className="text-brand-primary">Us</span>
           </h1>
           <p className="text-sm sm:text-base text-gray-500 leading-relaxed max-w-xl mx-auto">
-            Have questions about our programs, partnerships, or how you can help? Our team is ready to assist you.
+            Have a question about our training programmes, government scheme partnerships, or volunteering opportunities? We&apos;d love to hear from you.
           </p>
         </div>
       </section>
@@ -237,8 +237,8 @@ export default function ContactClient({ phone, email, address, officeHours, face
         <section className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-xl mx-auto space-y-3 mb-16">
-              <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">Our Regional Offices</h2>
-              <p className="text-sm text-gray-500">Connect with our local teams around the world.</p>
+              <h2 className="font-display font-bold text-3xl text-gray-900 tracking-tight">Our Office</h2>
+              <p className="text-sm text-gray-500">Connect with our team in Junnar Taluka.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {offices.map(office => (

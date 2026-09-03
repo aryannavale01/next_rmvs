@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'Our Impact',
-    description: 'See the real impact of CompassionGlobal\'s work through photos, videos, and stories from communities we serve across India.',
+    title: 'Our Impact | Rupashree Mahila Vikas Sanstha',
+    description: 'See training camps, government scheme milestones, and community initiatives from RMVS across Junnar Taluka, Pune district.',
     path: '/impact',
   });
 }

@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'Global Offices',
-    description: 'Find CompassionGlobal regional offices around the world. Connect with our local teams in India and beyond.',
+    title: 'Our Office | Rupashree Mahila Vikas Sanstha, Junnar',
+    description: 'Visit or contact Rupashree Mahila Vikas Sanstha\'s office in Kaldare village, Junnar Taluka, Pune district, Maharashtra.',
     path: '/offices',
   });
 }
@@ -24,13 +24,13 @@ export default async function OfficesPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-4">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/80 text-brand-primary border border-emerald-200/40">
             <MapPin className="h-4 w-4" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Our Locations</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Our Location</span>
           </div>
           <h1 className="font-display font-bold text-4xl sm:text-5xl text-gray-900 tracking-tight">
-            Global Offices
+            Our Office
           </h1>
           <p className="text-gray-500 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto">
-            Connect with our regional teams working on the ground to empower communities worldwide.
+            Visit our head office in Kaldare village, Junnar Taluka, or reach out to plan a training batch, volunteering visit, or partnership meeting.
           </p>
         </div>
       </section>

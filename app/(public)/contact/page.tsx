@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'Contact Us',
-    description: 'Get in touch with CompassionGlobal. Reach out for partnerships, volunteering, or general inquiries. We\'d love to hear from you.',
+    title: 'Contact Us | Rupashree Mahila Vikas Sanstha',
+    description: 'Get in touch with Rupashree Mahila Vikas Sanstha (RMVS) in Junnar, Pune district — for training enrolment, volunteering, partnerships, or general queries.',
     path: '/contact',
   });
 }

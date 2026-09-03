@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   return generatePageMetadata({
-    title: 'Donate',
-    description: 'Support CompassionGlobal\'s mission. Your donation helps fund skill development training, education programs, and community empowerment initiatives.',
+    title: 'Donate | Support Rupashree Mahila Vikas Sanstha',
+    description: 'Support women\'s skill development and livelihood training in Junnar Taluka, Pune. Your contribution helps RMVS train more women and girls.',
     path: '/donate',
   });
 }
