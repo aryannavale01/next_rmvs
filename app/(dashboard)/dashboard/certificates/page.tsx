@@ -12,11 +12,13 @@ import {
   Clock,
   Sparkles,
   X,
+  ShieldCheck,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useToast } from '@/components/ui/toast';
 import { Modal } from '@/components/ui/modal';
 import { EmptyState } from '@/components/dashboard-ui';
+import CertificateQr from '@/components/certificate-qr';
 
 export default function CertificatesPage() {
   const router = useRouter();
@@ -243,6 +245,26 @@ export default function CertificatesPage() {
                           <span className="block text-foreground mt-0.5">{cert.completionDate}</span>
                         </div>
                       </div>
+
+                      {/* Verification (QR + code + link) */}
+                      {cert.status !== 'revoked' && cert.verificationCode && (
+                        <div className="mt-3 flex items-start gap-3 rounded-lg border border-border bg-background/60 p-2.5">
+                          <CertificateQr value={cert.verificationUrl || `/verify/${cert.verificationCode}`} size={64} className="shrink-0 rounded-md border border-border" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wide mb-0.5">Verification Code</p>
+                            <p className="font-mono text-[11px] text-foreground break-all" title={cert.verificationCode}>{cert.verificationCode}</p>
+                            <a
+                              href={cert.verificationUrl || `/verify/${cert.verificationCode}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold text-primary hover:text-primary-hover"
+                            >
+                              <ShieldCheck size={12} />
+                              Verify Online
+                            </a>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action buttons */}
@@ -394,6 +416,25 @@ export default function CertificatesPage() {
                   <p className="font-bold text-foreground mt-0.5">{previewCert.completionDate}</p>
                 </div>
               </div>
+
+              {previewCert.status !== 'revoked' && previewCert.verificationCode && (
+                <div className="mt-5 flex items-center justify-center gap-4 rounded-xl border border-border bg-card p-3">
+                  <CertificateQr value={previewCert.verificationUrl || `/verify/${previewCert.verificationCode}`} size={80} className="rounded-md border border-border" />
+                  <div className="text-left">
+                    <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Verification Code</p>
+                    <p className="font-mono text-xs font-bold text-foreground break-all">{previewCert.verificationCode}</p>
+                    <a
+                      href={previewCert.verificationUrl || `/verify/${previewCert.verificationCode}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 mt-1 text-xs font-bold text-primary hover:text-primary-hover"
+                    >
+                      <ShieldCheck size={13} />
+                      Verify Online
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
 
             {previewCert.pdfStoragePath ? (

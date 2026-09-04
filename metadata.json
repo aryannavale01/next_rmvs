@@ -1,6 +1,0 @@
-{
-  "name": "User Dashboard",
-  "description": "A minimalistic, modern user dashboard for course training and application tracking built with Next.js 15, Tailwind CSS v4, and motion.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

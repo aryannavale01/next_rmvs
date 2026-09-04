@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { 
   Heart, ArrowRight, CheckCircle2, Shield, BarChart3, Globe, HeartHandshake,
   Users, CheckSquare, Sparkles, Star, ArrowUpRight, X, Eye, FileText,
-  Building2, GraduationCap, Leaf, Megaphone, HandHeart, Landmark, Lightbulb, Stethoscope
+  Building2, GraduationCap, Leaf, Megaphone, HandHeart, Landmark, Lightbulb, Stethoscope, Camera
 } from 'lucide-react';
 import ScrollAnimate, { StaggerItem } from '@/components/public/ScrollAnimate';
 import { useToast } from '@/components/ui/toast';
@@ -26,9 +26,10 @@ type MissionPageClientProps = {
   partners: { id: string; name: string; icon: string }[];
   testimonials: TestimonialData[];
   settings: Record<string, string>;
+  heroImages: string[];
 };
 
-export default function MissionPageClient({ milestones, leaders, programs, partners, testimonials, settings }: MissionPageClientProps) {
+export default function MissionPageClient({ milestones, leaders, programs, partners, testimonials, settings, heroImages }: MissionPageClientProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [activeMilestone, setActiveMilestone] = useState<string | null>(null);
@@ -65,69 +66,173 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
   return (
     <div className="space-y-0" id="mission-page-root">
       
-      {/* 1. HERO SECTION */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#F5F8F6] to-white pt-10 pb-20 lg:pt-16 lg:pb-28" id="section-hero">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-            
+      {/* 1. HERO SECTION — Minimal Rounded Floating Card Frame */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#F5F8F6] to-white px-6 md:px-10 lg:px-16 pt-8 md:pt-12 lg:pt-20 pb-16 md:pb-24 lg:pb-28" id="section-hero">
+        {/* Soft organic background accents */}
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-emerald-100/60 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -left-24 w-96 h-96 rounded-full bg-brand-mint/10 blur-3xl pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto relative">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-10 items-center">
+
             {/* Left Content */}
-            <ScrollAnimate variant="fadeInLeft" className="lg:col-span-7 space-y-8">
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100/80 text-brand-primary border border-emerald-200/50" id="badge-purpose">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span className="text-xs font-display font-semibold tracking-wider uppercase">Since 2014</span>
+            <ScrollAnimate variant="fadeInLeft" className="lg:col-span-7 space-y-7">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 backdrop-blur-sm text-brand-primary border border-emerald-200/60 shadow-sm" id="badge-purpose">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-primary opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-primary" />
+                </span>
+                <span className="text-xs font-display font-semibold tracking-wide text-emerald-800">Serving communities since 2014</span>
               </div>
-              
-              <h1 className="font-display font-bold text-4xl sm:text-5xl lg:text-6xl text-gray-900 tracking-tight leading-[1.08]" id="hero-heading">
+
+              <h1 className="font-display font-bold text-4xl sm:text-5xl lg:text-[3.6rem] text-gray-900 tracking-tight leading-[1.08]" id="hero-heading">
                 {settings.home_hero_heading ? settings.home_hero_heading.split('\n').map((line, i) => (
-                  <span key={i}>{line}{i === 0 && <br className="hidden sm:inline" />}</span>
+                  <span key={i}>
+                    {line}
+                    {i === 0 && (
+                      <>
+                        {' '}
+                        <span className="relative inline-block">
+                          <span className="relative z-10 text-brand-primary">{'Empowerment'}</span>
+                          <span className="absolute left-0 right-0 bottom-0.5 h-3 bg-brand-mint/40 -z-0 rounded-full" />
+                        </span>
+                        <br className="hidden sm:inline" />
+                      </>
+                    )}
+                  </span>
                 )) : (
                   <>Women&apos;s Development Is Our Only Mission</>
                 )}
               </h1>
-              
+
               <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-xl" id="hero-description">
                 {settings.home_hero_description || 'Founded in 2014 in Kaldare village, Junnar Taluka, Rupashree Mahila Vikas Sanstha has trained 1,520+ women and girls across Pune district through government-linked skill development, digital literacy, and self-employment programmes — helping them become financially, socially, and mentally self-reliant.'}
               </p>
-              
-              {/* Mission & Vision Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2" id="hero-cards-grid">
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-                  <h3 className="font-display font-bold text-base text-gray-900 mb-2">Our Mission</h3>
+
+              {/* CTA */}
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  onClick={() => router.push('/donate')}
+                  className="group inline-flex items-center gap-2 px-6 py-3 bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-sm rounded-full shadow-lg shadow-brand-primary/20 hover:shadow-brand-primary/30 translate-y-0 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+                  id="hero-cta-donate"
+                >
+                  <Heart className="h-4 w-4 fill-white" />
+                  Support a woman today
+                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+                <button
+                  onClick={() => {
+                    const el = document.getElementById('section-core-programs');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-emerald-50/60 text-gray-700 font-semibold text-sm rounded-full border border-gray-200 hover:border-emerald-200 transition-colors duration-300 cursor-pointer"
+                  id="hero-cta-programs"
+                >
+                  Explore our programmes
+                </button>
+              </div>
+
+              {/* Mission & Vision Cards — human, friendly rounded cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3" id="hero-cards-grid">
+                <div className="group bg-white p-6 rounded-3xl border border-gray-100 hover:border-brand-primary/20 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-lg">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3 text-brand-primary">
+                    <HandHeart className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-display font-bold text-base text-gray-900 mb-1.5">Our Mission</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">
                     {settings.home_mission_text || 'To economically empower women and support the sustainable development of women farmers across rural and tribal Maharashtra.'}
                   </p>
                 </div>
-                
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-                  <h3 className="font-display font-bold text-base text-gray-900 mb-2">Our Vision</h3>
+
+                <div className="group bg-white p-6 rounded-3xl border border-gray-100 hover:border-brand-primary/20 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-lg">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3 text-brand-primary">
+                    <Lightbulb className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-display font-bold text-base text-gray-900 mb-1.5">Our Vision</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">
                     {settings.home_vision_text || 'A society where every woman — empowered physically, socially, and mentally — can stand on her own feet with dignity and self-reliance.'}
                   </p>
                 </div>
               </div>
             </ScrollAnimate>
-            
-            {/* Right Asset Container (Dark Emerald holding Framed Image) */}
+
+            {/* Right Asset — Floating Frame with Polaroid Photo Cards */}
             <ScrollAnimate variant="fadeInRight" className="lg:col-span-5 flex justify-center" id="hero-asset-container">
-              <div className="relative w-full max-w-md aspect-square bg-[#063426] rounded-[2.5rem] flex items-center justify-center p-8 sm:p-12 shadow-xl overflow-hidden group">
-                {/* Decorative glow */}
-                <div className="absolute inset-0 bg-radial-gradient from-emerald-500/10 to-transparent pointer-events-none" />
-                
-                {/* Framed Image */}
-                <div className="relative bg-[#FAFAFA] p-4 pb-8 rounded-xl shadow-lg border border-white/25 transform rotate-[-2deg] hover:rotate-0 transition-transform duration-500 w-full">
-                  <div className="aspect-[4/3] bg-gray-200 rounded-lg overflow-hidden relative">
-                    <img
-                      src={settings.home_hero_image || "https://images.unsplash.com/photo-1531538606174-0f90ff5dce83?auto=format&fit=crop&w=800&q=80"}
-                      alt="Rupashree Mahila Vikas Sanstha skill training session for women in Junnar"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
+              <div className="relative w-full max-w-md">
+                {/* Colored backdrop frame */}
+                <div className="relative rounded-[2.5rem] bg-brand-primary p-8 sm:p-10 lg:p-12 shadow-2xl shadow-brand-primary/20">
+                  {/* Organic inner shapes */}
+                  <div className="absolute -top-8 -right-6 w-32 h-32 rounded-[2.5rem] bg-white/10 rotate-12 pointer-events-none" />
+                  <div className="absolute -bottom-6 -left-8 w-24 h-24 rounded-full bg-brand-mint/20 pointer-events-none" />
+
+                  {heroImages.length === 1 ? (
+                    /* Single centered photo card — slightly tilted, hand-placed feel */
+                    <div className="relative max-w-[20rem] mx-auto rotate-[-1.5deg] hover:rotate-0 transition-transform duration-500">
+                      <div className="group bg-[#fbfaf7] p-3.5 pb-7 sm:p-4 sm:pb-8 rounded-2xl border border-white shadow-xl transition-transform duration-300 hover:translate-y-[-5px]">
+                        <div className="aspect-[4/3] bg-gray-200 rounded-xl overflow-hidden">
+                          <img
+                            src={heroImages[0]}
+                            alt="Rupashree Mahila Vikas Sanstha skill training session for women in Junnar"
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <p className="mt-4 text-center text-[11px] sm:text-xs text-gray-500 font-medium italic font-display">
+                          Skill development training, Junnar Taluka
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Multi-image stacked overlap — front card larger, back card peeking behind */
+                    <div className="relative max-w-[24rem] mx-auto">
+                      {heroImages.slice(1).map((src, i) => (
+                        <div
+                          key={`back-${i}`}
+                          className="absolute rounded-xl border border-white/80 shadow-md overflow-hidden"
+                          style={{
+                            top: `${12 + i * 6}px`,
+                            left: `${-8 - i * 5}px`,
+                            width: '56%',
+                            transform: `rotate(${-4 - i * 2}deg)`,
+                            zIndex: 1,
+                          }}
+                        >
+                          <div className="aspect-[4/3] bg-gray-300 w-full">
+                            <img src={src} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                          </div>
+                        </div>
+                      ))}
+                      <div className="relative z-10 rotate-[-1.5deg] hover:rotate-0 transition-transform duration-500">
+                        <div className="group bg-[#fbfaf7] p-3.5 pb-7 sm:p-4 sm:pb-8 rounded-2xl border border-white shadow-xl transition-transform duration-300 hover:translate-y-[-5px]">
+                          <div className="aspect-[4/3] bg-gray-200 rounded-xl overflow-hidden">
+                            <img
+                              src={heroImages[0]}
+                              alt="Rupashree Mahila Vikas Sanstha skill training session for women in Junnar"
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <p className="mt-4 text-center text-[11px] sm:text-xs text-gray-500 font-medium italic font-display">
+                            Skill development training, Junnar Taluka
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Small camera label chip */}
+                  <div className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-md px-3 py-1.5 text-[10px] font-medium text-white/90 border border-white/20">
+                    <Camera className="h-3 w-3" />
+                    On the ground
                   </div>
-                  <div className="mt-4 text-center">
-                    <span className="font-mono text-[9px] tracking-widest text-gray-400 uppercase">
-                      Skill development training session, Junnar Taluka
-                    </span>
+
+                  {/* Floating stat bubble */}
+                  {settings.home_stat_volunteers && (
+                  <div className="absolute -top-5 -left-5 bg-white rounded-2xl shadow-lg border border-gray-100 px-4 py-3 text-center rotate-[-4deg]">
+                    <div className="font-display font-bold text-xl text-brand-primary leading-none">{settings.home_stat_volunteers}</div>
+                    <div className="text-[9px] text-gray-500 font-medium mt-1">Women trained</div>
                   </div>
+                  )}
                 </div>
               </div>
             </ScrollAnimate>
@@ -376,6 +481,128 @@ export default function MissionPageClient({ milestones, leaders, programs, partn
               );
             })}
           </ScrollAnimate>
+        </div>
+      </section>
+
+      {/* 5b. OUR IMPACT — ASYMMETRIC BENTO CARDS INSIDE ROUNDED CONTAINER */}
+      <section className="py-24 bg-white" id="section-impact-cards">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <ScrollAnimate variant="fadeInUp" className="text-center space-y-3 mb-12">
+            <span className="inline-block text-xs font-mono font-bold tracking-widest text-emerald-600 uppercase">Our Impact</span>
+            <h2 className="font-display font-bold text-3xl sm:text-4xl text-gray-900 tracking-tight">Measurable Change, Real Livelihoods</h2>
+            <p className="text-sm text-gray-500 max-w-lg mx-auto">Every training, every sapling, every scheme joined — real numbers behind our work in Junnar Taluka.</p>
+          </ScrollAnimate>
+
+          {/* Rounded container */}
+          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-emerald-50/80 via-[#F3F7F5] to-white border border-emerald-100/70 shadow-sm p-5 sm:p-6 md:p-8">
+            {/* Organic inner accents */}
+            <div className="absolute -top-16 -right-16 w-60 h-60 rounded-full bg-brand-mint/20 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-20 -left-16 w-72 h-72 rounded-full bg-emerald-100/60 blur-3xl pointer-events-none" />
+
+            <ScrollAnimate variant="stagger" className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5" id="impact-bento-grid">
+
+              {/* LARGE HIGHLIGHT CARD — Women Trained Since 2014 (2x2) */}
+              {settings.home_lives_impacted && (
+                <StaggerItem className="group relative lg:col-span-2 lg:row-span-2 bg-brand-primary text-white rounded-3xl p-7 sm:p-9 overflow-hidden flex flex-col justify-between shadow-lg shadow-brand-primary/20 hover:shadow-xl hover:-translate-y-1 transition-all duration-300" id="impact-card-lives">
+                  <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white/10 translate-x-10 -translate-y-10 pointer-events-none" />
+                  <div className="absolute bottom-6 left-6 w-20 h-20 rounded-[1.5rem] bg-white/5 rotate-12 pointer-events-none" />
+
+                  <div className="relative z-10 w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center text-white">
+                    <Users className="h-6 w-6" />
+                  </div>
+
+                  <div className="relative z-10 space-y-2">
+                    <div className="font-display font-bold text-6xl sm:text-7xl leading-none">{settings.home_lives_impacted}</div>
+                    <div className="text-sm font-semibold text-emerald-50/90 uppercase tracking-wide">Women Trained Since 2014</div>
+                    <p className="text-xs text-white/70 leading-relaxed max-w-xs">
+                      From beauty &amp; wellness to digital literacy — government-linked skills that create lasting livelihoods.
+                    </p>
+                  </div>
+
+                  <div className="relative z-10 inline-flex items-center gap-1.5 text-[11px] font-semibold text-white/80">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                    </span>
+                    Growing every batch
+                  </div>
+                </StaggerItem>
+              )}
+
+              {/* FAMILIES SUPPORTED — PMKVY Beauty & Wellness Trainees */}
+              {settings.home_stat_families_supported && (
+                <StaggerItem className="group bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex flex-col justify-between" id="impact-card-families">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-brand-primary mb-4">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-display font-bold text-4xl text-gray-900 group-hover:text-brand-primary transition-colors">{settings.home_stat_families_supported}</div>
+                    <div className="text-xs font-semibold text-gray-800 mt-1">PMKVY Beauty &amp; Wellness Trainees</div>
+                    <div className="w-8 h-0.5 bg-emerald-100 mt-3" />
+                  </div>
+                </StaggerItem>
+              )}
+
+              {/* SCHEMES PARTNERED */}
+              {settings.home_stat_families_helped && (
+                <StaggerItem className="group bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex flex-col justify-between" id="impact-card-schemes">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-brand-primary mb-4">
+                    <Landmark className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-display font-bold text-4xl text-gray-900 group-hover:text-brand-primary transition-colors">{settings.home_stat_families_helped}</div>
+                    <div className="text-xs font-semibold text-gray-800 mt-1">Government Schemes Partnered</div>
+                    <div className="w-8 h-0.5 bg-emerald-100 mt-3" />
+                  </div>
+                </StaggerItem>
+              )}
+
+              {/* LIVELIHOOD TRAINEES */}
+              {settings.home_stat_students && (
+                <StaggerItem className="group bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex flex-col justify-between" id="impact-card-students">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-brand-primary mb-4">
+                    <CheckSquare className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-display font-bold text-4xl text-gray-900 group-hover:text-brand-primary transition-colors">{settings.home_stat_students}</div>
+                    <div className="text-xs font-semibold text-gray-800 mt-1">Gram Panchayat Livelihood Trainees</div>
+                    <div className="w-8 h-0.5 bg-emerald-100 mt-3" />
+                  </div>
+                </StaggerItem>
+              )}
+
+              {/* SAPLINGS PLANTED */}
+              {settings.home_stat_trees && (
+                <StaggerItem className="group bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex flex-col justify-between" id="impact-card-trees">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-brand-primary mb-4">
+                    <Leaf className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-display font-bold text-4xl text-gray-900 group-hover:text-brand-primary transition-colors">{settings.home_stat_trees}</div>
+                    <div className="text-xs font-semibold text-gray-800 mt-1">Saplings Planted, Green Drive</div>
+                    <div className="w-8 h-0.5 bg-emerald-100 mt-3" />
+                  </div>
+                </StaggerItem>
+              )}
+
+              {/* PROGRAM EFFICIENCY — wide bottom card */}
+              {settings.home_efficiency && (
+                <StaggerItem className="group lg:col-span-4 bg-white/70 border border-dashed border-emerald-200 rounded-3xl p-6 flex flex-col sm:flex-row sm:items-center gap-5 hover:bg-white transition-colors duration-300" id="impact-card-efficiency">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-brand-primary shrink-0">
+                    <BarChart3 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <span className="font-display font-bold text-4xl text-brand-primary">{settings.home_efficiency}</span>
+                      <span className="text-sm font-semibold text-gray-800">Program Efficiency</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Funds channelled directly into programme delivery for measurable, accountable impact.</p>
+                  </div>
+                </StaggerItem>
+              )}
+
+            </ScrollAnimate>
+          </div>
         </div>
       </section>
 

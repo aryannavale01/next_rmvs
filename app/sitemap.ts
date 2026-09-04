@@ -9,7 +9,7 @@ const STATIC_PAGES: { path: string; changeFrequency: MetadataRoute.Sitemap[numbe
   { path: "/impact", changeFrequency: "monthly", priority: 0.8 },
   { path: "/programs", changeFrequency: "weekly", priority: 0.9 },
   { path: "/resources", changeFrequency: "monthly", priority: 0.7 },
-  { path: "/volunteer", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/verify", changeFrequency: "monthly", priority: 0.7 },
   { path: "/contact", changeFrequency: "yearly", priority: 0.6 },
   { path: "/donate", changeFrequency: "monthly", priority: 0.8 },
   { path: "/offices", changeFrequency: "yearly", priority: 0.5 },

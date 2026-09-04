@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/session';
+import { requireOtpVerified } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import AdminLayoutWrapper from '@/components/admin-layout-wrapper';
 import DbUnavailableInterstitial from '@/components/db-unavailable-interstitial';
@@ -9,13 +9,16 @@ import { safeBrandColor } from '@/lib/brand-color';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
-  const auth = await requireAdmin();
+  const auth = await requireOtpVerified();
   if (!auth.success) {
     if (auth.error === 'DATABASE_UNAVAILABLE') {
       return <DbUnavailableInterstitial />;
     }
     if (auth.error === 'Forbidden') {
       redirect('/unauthorized');
+    }
+    if (auth.error === 'OTP_REQUIRED') {
+      redirect('/admin/verify-otp');
     }
     redirect('/admin/login');
   }

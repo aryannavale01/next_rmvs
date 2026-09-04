@@ -171,6 +171,46 @@ export async function requireStepUp(headers?: Headers): Promise<AuthResult> {
 }
 
 /**
+ * Verify the request has a valid ADMIN session with recent OTP verification.
+ *
+ * This gates the /admin area: an administrator must complete the email OTP
+ * challenge shortly after signing in. It reuses the same session marker
+ * (stepUpVerifiedAt) as the sensitive-action step-up flow, so a completed OTP
+ * also satisfies requireStepUp and vice-versa.
+ */
+export async function requireOtpVerified(headers?: Headers): Promise<AuthResult> {
+  const result = await requireAdmin(headers);
+
+  if (!result.success) {
+    return result;
+  }
+
+  try {
+    const [session, stepUpWindowMs] = await Promise.all([
+      prisma.session.findUnique({
+        where: { id: result.session.session.id },
+        select: { stepUpVerifiedAt: true },
+      }),
+      getStepUpWindowMs(),
+    ]);
+
+    if (
+      !session?.stepUpVerifiedAt ||
+      Date.now() - session.stepUpVerifiedAt.getTime() > stepUpWindowMs
+    ) {
+      return { success: false, error: "OTP_REQUIRED" };
+    }
+  } catch (error) {
+    if (isTransientPrismaError(error)) {
+      return { success: false, error: "DATABASE_UNAVAILABLE" };
+    }
+    throw error;
+  }
+
+  return result;
+}
+
+/**
  * Convert a failed step-up guard into an HTTP response for API routes.
  * Returns null when the guard passed so the route can proceed.
  *

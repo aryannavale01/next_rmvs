@@ -74,6 +74,23 @@ const nextConfig: NextConfig = {
     ],
   },
   output: 'standalone',
+  // better-auth ships ESM with dynamic import() (e.g. adapter-base.mjs
+  // lazily loads @better-auth/memory-adapter). Bundling it through webpack
+  // intermittently blows up the server runtime with
+  // "Cannot read properties of undefined (reading 'call')" -> sign-up 500.
+  // Externalize it (and its adapters/plugins) so Node loads them natively.
+  serverExternalPackages: [
+    'better-auth',
+    '@better-auth/core',
+    '@better-auth/utils',
+    '@better-auth/telemetry',
+    '@better-auth/prisma-adapter',
+    '@better-auth/kysely-adapter',
+    '@better-auth/memory-adapter',
+    '@better-auth/drizzle-adapter',
+    '@better-auth/mongo-adapter',
+    'kysely',
+  ],
   transpilePackages: ['motion'],
   headers: async () => [
     {

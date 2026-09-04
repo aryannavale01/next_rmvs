@@ -65,14 +65,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     if (pathname === '/dashboard') return t.dashboard;
     if (pathname?.startsWith('/dashboard/profile')) return t.myProfile;
     if (pathname?.startsWith('/dashboard/training/my-courses')) return t.myCourses;
-    if (pathname?.startsWith('/dashboard/training/apply')) return `${t.training} - Apply`;
-    if (pathname?.startsWith('/dashboard/training/')) return `${t.training} - Details`;
-    if (pathname?.startsWith('/dashboard/training')) return t.training;
-    if (pathname?.startsWith('/dashboard/applications')) return t.applications;
-    if (pathname?.startsWith('/dashboard/certificates')) return t.certificates;
-    if (pathname?.startsWith('/dashboard/notifications')) return t.notifications;
-    if (pathname?.startsWith('/dashboard/activity')) return t.activity;
-    return "Dashboard";
+    return t.dashboard;
   };
 
   const handleLogout = async () => {
@@ -80,10 +73,10 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       const { authClient } = await import('@/lib/auth-client');
       await authClient.signOut();
     } catch {
-      // proceed with local logout even if API fails
+      // proceed with local logout even if the API call fails
     }
     resetDashboard();
-    window.location.href = '/login';
+    router.replace('/login');
   };
 
   return (

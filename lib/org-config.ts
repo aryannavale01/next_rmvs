@@ -125,7 +125,6 @@ const KEY_TO_FIELD: Record<string, keyof OrgConfig> = {
   "general.language": "language",
   "email.senderName": "senderName",
   "email.senderEmail": "senderEmail",
-  "email.smtpUser": "senderFromAddress",
   contact_phone: "contactPhone",
   contact_email: "contactEmail",
   contact_address: "contactAddress",

@@ -32,6 +32,20 @@ export function buildVerificationUrl(baseUrl: string, verificationCode: string):
   return `${origin}/verify/${verificationCode}`;
 }
 
+/**
+ * Canonical site origin used when building public certificate verification
+ * URLs and QR codes. Prefers the configured NEXT_PUBLIC_SITE_URL so that
+ * codes generated in any environment (e.g. local/staging) still resolve to
+ * the production domain. Falls back to the request origin when unset.
+ */
+export function getVerificationBaseUrl(requestOrigin?: string): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configured && configured.trim() !== "") {
+    return configured.replace(/\/+$/, "");
+  }
+  return (requestOrigin ?? "").replace(/\/+$/, "");
+}
+
 // Landscape A4
 const pageWidth = 841.89;
 const pageHeight = 595.28;

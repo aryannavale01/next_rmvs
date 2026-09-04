@@ -45,7 +45,9 @@ function AdminLoginForm() {
         return;
       }
 
-      window.location.href = redirectTo;
+      // Admins complete an email OTP challenge before entering the portal.
+      // Members are never routed here.
+      window.location.href = `/admin/verify-otp?redirectTo=${encodeURIComponent(redirectTo)}`;
     } catch {
       setError("Network error. Please try again.");
     } finally {

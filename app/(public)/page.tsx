@@ -28,6 +28,10 @@ export default async function MissionPage() {
   const s: Record<string, string> = {};
   settings.forEach(setting => { s[setting.key] = setting.value; });
 
+  // Build hero images array from CMS — single URL now, ready for multi-image when schema evolves
+  const fallbackImage = "https://images.unsplash.com/photo-1531538606174-0f90ff5dce83?auto=format&fit=crop&w=800&q=80";
+  const heroImages: string[] = [s.home_hero_image || fallbackImage];
+
   return (
     <MissionPageClient
       milestones={milestones.map(m => ({ id: m.id, year: m.year, title: m.title, description: m.description ?? '' }))}
@@ -36,6 +40,7 @@ export default async function MissionPage() {
       partners={partners.map(p => ({ id: p.id, name: p.name, icon: p.icon }))}
       testimonials={testimonials.map(t => ({ id: t.id, name: t.name, role: t.role ?? '', quote: t.quote, rating: t.rating, initials: t.initials ?? '', avatarUrl: t.avatarUrl ?? '' }))}
       settings={s}
+      heroImages={heroImages}
     />
   );
 }

@@ -30,39 +30,40 @@ enum BA_Role {
 
 /// Better Auth — Authentication identity
 model user {
-  id           String   @id
-  email        String   @unique
-  emailVerified Boolean @default(false) @map("emailVerified")
-  name         String?
-  image        String?
-  role                BA_Role   @default(MEMBER)
-  mustChangePassword  Boolean   @default(false) @map("mustChangePassword")
-  twoFactorEnabled    Boolean   @default(false) @map("twoFactorEnabled")
-  lastLoginAt         DateTime? @map("lastLoginAt")
-  createdAt           DateTime  @default(now()) @map("createdAt")
-  updatedAt           DateTime  @updatedAt @map("updatedAt")
+  id                 String    @id
+  email              String    @unique
+  emailVerified      Boolean   @default(false) @map("emailVerified")
+  name               String?
+  image              String?
+  role               BA_Role   @default(MEMBER)
+  mustChangePassword Boolean   @default(false) @map("mustChangePassword")
+  twoFactorEnabled   Boolean   @default(false) @map("twoFactorEnabled")
+  lastLoginAt        DateTime? @map("lastLoginAt")
+  createdAt          DateTime  @default(now()) @map("createdAt")
+  updatedAt          DateTime  @updatedAt @map("updatedAt")
 
-  sessions            session[]
-  accounts            account[]
-  profiles            Profile[]
-  loginAttempts       loginAttempt[]
-  authActivityLogs    AuthActivityLog[]
-  twoFactorRecords    twoFactor[]
+  sessions         session[]
+  accounts         account[]
+  profiles         Profile[]
+  loginAttempts    loginAttempt[]
+  authActivityLogs AuthActivityLog[]
+  twoFactorRecords twoFactor[]
+  adminOtps        AdminOtp[]
 
   @@map("User")
 }
 
 /// Better Auth — Active sessions
 model session {
-  id              String    @id
-  token           String    @unique
-  userId          String    @map("userId")
-  expiresAt       DateTime  @map("expiresAt")
-  ipAddress       String?   @map("ipAddress")
-  userAgent       String?   @map("userAgent")
+  id               String    @id
+  token            String    @unique
+  userId           String    @map("userId")
+  expiresAt        DateTime  @map("expiresAt")
+  ipAddress        String?   @map("ipAddress")
+  userAgent        String?   @map("userAgent")
   stepUpVerifiedAt DateTime? @map("stepUpVerifiedAt")
-  createdAt       DateTime  @default(now()) @map("createdAt")
-  updatedAt       DateTime  @updatedAt @map("updatedAt")
+  createdAt        DateTime  @default(now()) @map("createdAt")
+  updatedAt        DateTime  @updatedAt @map("updatedAt")
 
   user user @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -92,25 +93,25 @@ model account {
 
 /// Better Auth — Email verification tokens
 model verification {
-  id          String    @id
-  identifier  String
-  value       String
-  expiresAt   DateTime  @map("expiresAt")
-  createdAt   DateTime  @default(now()) @map("createdAt")
-  updatedAt   DateTime  @updatedAt @map("updatedAt")
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expiresAt")
+  createdAt  DateTime @default(now()) @map("createdAt")
+  updatedAt  DateTime @updatedAt @map("updatedAt")
 
   @@map("Verification")
 }
 
 /// Better Auth — Two-factor authentication (TOTP)
 model twoFactor {
-  id                     String    @id @default(uuid())
-  secret                 String
-  backupCodes            String
-  userId                 String    @map("userId")
-  verified               Boolean   @default(true)
-  failedVerificationCount Int      @default(0) @map("failedVerificationCount")
-  lockedUntil            DateTime? @map("lockedUntil")
+  id                      String    @id @default(uuid())
+  secret                  String
+  backupCodes             String
+  userId                  String    @map("userId")
+  verified                Boolean   @default(true)
+  failedVerificationCount Int       @default(0) @map("failedVerificationCount")
+  lockedUntil             DateTime? @map("lockedUntil")
 
   user user @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -120,18 +121,53 @@ model twoFactor {
 
 /// Better Auth — Login attempt tracking (used by rate limiter when storage: "database")
 model loginAttempt {
-  id          String    @id
-  email       String?
-  ip          String
-  successful  Boolean   @default(false)
-  userId      String?   @map("userId")
-  createdAt   DateTime  @default(now()) @map("createdAt")
+  id         String   @id
+  email      String?
+  ip         String
+  successful Boolean  @default(false)
+  userId     String?  @map("userId")
+  createdAt  DateTime @default(now()) @map("createdAt")
 
   user user? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([email, createdAt], map: "idx_login_attempt_email_time")
   @@index([ip, createdAt], map: "idx_login_attempt_ip_time")
   @@map("LoginAttempt")
+}
+
+// =============================================================
+// Admin email OTP challenges (admin-only 2-step login)
+// =============================================================
+model AdminOtp {
+  id         String    @id @default(dbgenerated("gen_random_uuid()"))
+  userId     String    @map("userId")
+  email      String
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at")
+  attempts   Int       @default(0)
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user user? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, createdAt], map: "idx_admin_otp_email_time")
+  @@map("AdminOtp")
+}
+
+// =============================================================
+// Password-reset OTP challenges (public forgot-password flow)
+// =============================================================
+model PasswordResetOtp {
+  id         String    @id @default(dbgenerated("gen_random_uuid()"))
+  email      String
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at")
+  attempts   Int       @default(0)
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([email, createdAt], map: "idx_pwreset_otp_email_time")
+  @@map("PasswordResetOtp")
 }
 
 // =============================================================
@@ -464,7 +500,7 @@ model Profile {
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  user                 user?          @relation(fields: [id], references: [id], onDelete: Cascade)
+  user                 user?                 @relation(fields: [id], references: [id], onDelete: Cascade)
   beneficiaryDetail    BeneficiaryDetail?
   beneficiaryAddresses BeneficiaryAddress[]
   beneficiaryDocuments BeneficiaryDocument[]
@@ -536,13 +572,13 @@ model BeneficiaryAddress {
 }
 
 model BeneficiaryDocument {
-  id           String         @id @default(uuid())
-  profileId    String         @map("profile_id")
-  type         String
-  label        String
-  fileUrl      String?        @map("file_url")
-  status       DocumentStatus @default(not_uploaded)
-  uploadedDate DateTime?      @map("uploaded_date")
+  id              String         @id @default(uuid())
+  profileId       String         @map("profile_id")
+  type            String
+  label           String
+  fileUrl         String?        @map("file_url")
+  status          DocumentStatus @default(not_uploaded)
+  uploadedDate    DateTime?      @map("uploaded_date")
   /// Set when a document's status transitions to `verified` or `rejected`.
   /// As of 2026-07-24, no admin document-review UI exists — this is only
   /// written via automated flows if applicable. Check for null before use;
@@ -679,8 +715,8 @@ model CourseEnrollment {
   updatedAt            DateTime         @updatedAt @map("updated_at")
 
   // Relations
-  profile      Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  course       Course          @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  profile      Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Restrict)
   certificates Certificate[]
 
   @@unique([profileId, courseId])
@@ -763,7 +799,7 @@ model Certificate {
   templateName      String?           @map("template_name")
   language          String            @default("English")
   verificationUrl   String?           @map("verification_url")
-  verificationCode  String?           @unique @db.VarChar(32) @map("verification_code")
+  verificationCode  String?           @unique @map("verification_code") @db.VarChar(32)
   pdfUrl            String?           @map("pdf_url")
   pdfStoragePath    String?           @map("pdf_storage_path")
   memberName        String?           @map("member_name")
@@ -777,8 +813,8 @@ model Certificate {
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
   // Relations
-  profile  Profile           @relation(fields: [profileId], references: [id], onDelete: Restrict)
-  course   Course?           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  profile    Profile           @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  course     Course?           @relation(fields: [courseId], references: [id], onDelete: Restrict)
   enrollment CourseEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
 
   @@index([profileId], map: "idx_certificates_profile")
@@ -791,16 +827,16 @@ model Certificate {
 }
 
 model CertificateTemplate {
-  id           String   @id @default(uuid())
+  id           String         @id @default(uuid())
   name         String
   description  String?
-  courseId     String?  @map("course_id")
-  orientation  String   @default("Landscape")
-  status       TemplateStatus   @default(active)
-  isDefault    Boolean  @default(false) @map("is_default")
-  previewColor String   @default("purple") @map("preview_color")
-  lastUpdated  DateTime @default(now()) @map("last_updated")
-  createdAt    DateTime @default(now()) @map("created_at")
+  courseId     String?        @map("course_id")
+  orientation  String         @default("Landscape")
+  status       TemplateStatus @default(active)
+  isDefault    Boolean        @default(false) @map("is_default")
+  previewColor String         @default("purple") @map("preview_color")
+  lastUpdated  DateTime       @default(now()) @map("last_updated")
+  createdAt    DateTime       @default(now()) @map("created_at")
 
   // Relations
   course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
@@ -809,14 +845,14 @@ model CertificateTemplate {
 }
 
 model CertificateRequest {
-  id          String   @id @default(uuid())
-  profileId   String   @map("profile_id")
-  courseId    String?  @map("course_id")
+  id          String        @id @default(uuid())
+  profileId   String        @map("profile_id")
+  courseId    String?       @map("course_id")
   batch       String?
-  requestDate DateTime @default(now()) @map("request_date")
-  status      RequestStatus   @default(pending)
+  requestDate DateTime      @default(now()) @map("request_date")
+  status      RequestStatus @default(pending)
   notes       String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
 
   // Relations
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -884,16 +920,16 @@ model TeacherDocument {
 }
 
 model TeacherCourse {
-  id             String            @id @default(uuid())
-  teacherId      String            @map("teacher_id")
-  courseId       String            @map("course_id")
+  id             String              @id @default(uuid())
+  teacherId      String              @map("teacher_id")
+  courseId       String              @map("course_id")
   batch          String?
-  startDate      DateTime?         @map("start_date") @db.Date
-  endDate        DateTime?         @map("end_date") @db.Date
-  totalStudents  Int               @default(0) @map("total_students")
-  completionRate Int               @default(0) @map("completion_rate")
+  startDate      DateTime?           @map("start_date") @db.Date
+  endDate        DateTime?           @map("end_date") @db.Date
+  totalStudents  Int                 @default(0) @map("total_students")
+  completionRate Int                 @default(0) @map("completion_rate")
   status         TeacherCourseStatus @default(ongoing)
-  createdAt      DateTime          @default(now()) @map("created_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
 
   // Relations
   teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -942,18 +978,18 @@ model Leader {
 }
 
 model GalleryItem {
-  id          String    @id @default(uuid())
+  id          String        @id @default(uuid())
   title       String
   category    String
   image       String?
   description String?
   location    String?
-  loggedDate  DateTime? @db.Date @map("logged_date")
-  isVideo     Boolean   @default(false) @map("is_video")
+  loggedDate  DateTime?     @map("logged_date") @db.Date
+  isVideo     Boolean       @default(false) @map("is_video")
   status      ContentStatus @default(active)
-  deletedAt   DateTime? @map("deleted_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime?     @map("deleted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
 
   @@map("gallery_items")
 }
@@ -976,31 +1012,31 @@ model BlogPost {
 }
 
 model Newsletter {
-  id        String    @id @default(uuid())
+  id        String        @id @default(uuid())
   title     String
   body      String?
-  date      DateTime? @db.Date
-  readTime  String?   @map("read_time")
+  date      DateTime?     @db.Date
+  readTime  String?       @map("read_time")
   image     String?
-  fileUrl   String?   @map("file_url")
-  sentAt    DateTime? @map("sent_at")
-  sentCount Int?      @map("sent_count")
+  fileUrl   String?       @map("file_url")
+  sentAt    DateTime?     @map("sent_at")
+  sentCount Int?          @map("sent_count")
   status    ContentStatus @default(active)
-  deletedAt DateTime? @map("deleted_at")
-  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime?     @map("deleted_at")
+  createdAt DateTime      @default(now()) @map("created_at")
 
   @@map("newsletters")
 }
 
 model Location {
-  id             String       @id @default(uuid())
+  id             String        @id @default(uuid())
   name           String
   location       String?
-  type           LocationType @default(office)
+  type           LocationType  @default(office)
   coordinator    String?
-  staffCount     Int?         @map("staff_count")
-  activePrograms String[]     @default([]) @map("active_programs")
-  contactEmail   String?      @map("contact_email")
+  staffCount     Int?          @map("staff_count")
+  activePrograms String[]      @default([]) @map("active_programs")
+  contactEmail   String?       @map("contact_email")
   phone          String?
   address        String?
   coordinates    String?
@@ -1041,18 +1077,18 @@ model SocialLink {
 }
 
 model Testimonial {
-  id        String   @id @default(uuid())
-  profileId String?  @map("profile_id")
-  courseId  String?  @map("course_id")
+  id        String        @id @default(uuid())
+  profileId String?       @map("profile_id")
+  courseId  String?       @map("course_id")
   initials  String?
   name      String
   role      String?
   quote     String
-  rating    Int      @default(5)
-  avatarUrl String?  @map("avatar_url")
+  rating    Int           @default(5)
+  avatarUrl String?       @map("avatar_url")
   status    ContentStatus @default(active)
-  deletedAt DateTime? @map("deleted_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  deletedAt DateTime?     @map("deleted_at")
+  createdAt DateTime      @default(now()) @map("created_at")
 
   // Relations
   profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -1064,13 +1100,13 @@ model Testimonial {
 }
 
 model Milestone {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   year        Int
   title       String
   description String?
   status      ContentStatus @default(active)
-  deletedAt   DateTime? @map("deleted_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+  deletedAt   DateTime?     @map("deleted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
 
   @@map("milestones")
 }
@@ -1090,12 +1126,12 @@ model Scheme {
 }
 
 model Partner {
-  id        String   @id @default(uuid())
+  id        String        @id @default(uuid())
   name      String
-  icon      String   @default("HeartHandshake")
+  icon      String        @default("HeartHandshake")
   status    ContentStatus @default(active)
-  deletedAt DateTime? @map("deleted_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  deletedAt DateTime?     @map("deleted_at")
+  createdAt DateTime      @default(now()) @map("created_at")
 
   @@map("partners")
 }
@@ -1105,18 +1141,18 @@ model Partner {
 // -------------------------------------------------------------
 
 model Coupon {
-  id            String       @id @default(uuid())
-  code          String       @unique
-  courseId      String?      @map("course_id")
-  isActive      Boolean      @default(true) @map("is_active")
-  expiresAt     DateTime?    @map("expires_at")
-  validFrom     DateTime?    @map("valid_from")
-  maxUses       Int?         @map("max_uses")
-  usedCount     Int          @default(0) @map("used_count")
-  perUserLimit  Int?         @map("per_user_limit")
-  discountType  DiscountType @default(percentage) @map("discount_type")
-  discountValue Decimal?     @default(0) @map("discount_value") @db.Decimal(10, 2)
-  minAmount     Decimal?     @map("min_amount") @db.Decimal(10, 2)
+  id            String        @id @default(uuid())
+  code          String        @unique
+  courseId      String?       @map("course_id")
+  isActive      Boolean       @default(true) @map("is_active")
+  expiresAt     DateTime?     @map("expires_at")
+  validFrom     DateTime?     @map("valid_from")
+  maxUses       Int?          @map("max_uses")
+  usedCount     Int           @default(0) @map("used_count")
+  perUserLimit  Int?          @map("per_user_limit")
+  discountType  DiscountType  @default(percentage) @map("discount_type")
+  discountValue Decimal?      @default(0) @map("discount_value") @db.Decimal(10, 2)
+  minAmount     Decimal?      @map("min_amount") @db.Decimal(10, 2)
   description   String?
   status        ContentStatus @default(active)
   deletedAt     DateTime?     @map("deleted_at")
@@ -1193,12 +1229,12 @@ model Activity {
 
 /// Auth audit log — tracks login, password change, step-up, and TOTP events
 model AuthActivityLog {
-  id        String    @id @default(uuid())
-  userId    String?   @map("userId")
+  id        String   @id @default(uuid())
+  userId    String?  @map("userId")
   action    String
   metadata  String?
   ip        String?
-  createdAt DateTime  @default(now()) @map("createdAt")
+  createdAt DateTime @default(now()) @map("createdAt")
 
   user user? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
@@ -1269,21 +1305,21 @@ enum OrgDocumentType {
 
 /// Organisation-level compliance documents (certificates, annual reports, etc.)
 model OrgDocument {
-  id           String           @id @default(uuid())
+  id           String          @id @default(uuid())
   type         OrgDocumentType
   title        String
-  description  String?          @db.Text
-  fileUrl      String?          @map("file_url")
-  storagePath  String?          @map("storage_path")
-  mimeType     String?          @map("mime_type")
-  fileSize     Int?             @map("file_size")
+  description  String?         @db.Text
+  fileUrl      String?         @map("file_url")
+  storagePath  String?         @map("storage_path")
+  mimeType     String?         @map("mime_type")
+  fileSize     Int?            @map("file_size")
   year         Int?
-  isPublic     Boolean          @default(true) @map("is_public")
-  displayOrder Int              @default(0) @map("display_order")
-  isActive     Boolean          @default(true) @map("is_active")
-  uploadedBy   String?          @map("uploaded_by")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
+  isPublic     Boolean         @default(true) @map("is_public")
+  displayOrder Int             @default(0) @map("display_order")
+  isActive     Boolean         @default(true) @map("is_active")
+  uploadedBy   String?         @map("uploaded_by")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
 
   @@index([type], map: "idx_org_documents_type")
   @@index([isPublic, isActive], map: "idx_org_documents_public")
@@ -1304,43 +1340,28 @@ model BroadcastNotification {
 }
 
 // -------------------------------------------------------------
-// GROUP 9: PUBLIC FORMS — VOLUNTEER & DONATIONS
+// GROUP 9: PUBLIC FORMS — DONATIONS
 // -------------------------------------------------------------
 
-model VolunteerInquiry {
-  id           String   @id @default(uuid())
-  name         String
-  email        String
-  role         String
-  hoursPerWeek String   @map("hours_per_week")
-  motivation   String
-  status       String   @default("pending")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  @@index([status], map: "idx_volunteer_inquiries_status")
-  @@index([createdAt], map: "idx_volunteer_inquiries_created")
-  @@map("volunteer_inquiries")
-}
-
 model Donation {
-  id                String         @id @default(uuid())
-  donorName         String         @map("donor_name")
-  donorEmail        String         @map("donor_email")
-  donorPhone        String?        @map("donor_phone")
+  id                String    @id @default(uuid())
+  donorName         String    @map("donor_name")
+  donorEmail        String    @map("donor_email")
+  donorPhone        String?   @map("donor_phone")
   amount            Float
-  currency          String         @default("INR")
-  frequency         String         @default("one-time")
-  receiptId         String?        @unique @map("receipt_id")
-  status            String         @default("pending")
-  razorpayOrderId   String?        @unique @map("razorpay_order_id")
-  razorpayPaymentId String?        @unique @map("razorpay_payment_id")
-  razorpaySignature String?        @map("razorpay_signature")
-  paymentMethod     String?        @map("payment_method")
-  failureReason     String?        @map("failure_reason")
-  paidAt            DateTime?      @map("paid_at") @db.Timestamptz(3)
+  currency          String    @default("INR")
+  frequency         String    @default("one-time")
+  receiptId         String?   @unique @map("receipt_id")
+  status            String    @default("pending")
+  razorpayOrderId   String?   @unique @map("razorpay_order_id")
+  razorpayPaymentId String?   @unique @map("razorpay_payment_id")
+  razorpaySignature String?   @map("razorpay_signature")
+  paymentMethod     String?   @map("payment_method")
+  failureReason     String?   @map("failure_reason")
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz(3)
   message           String?
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([donorEmail], map: "idx_donations_donor_email")
   @@index([status], map: "idx_donations_status")
@@ -1354,12 +1375,12 @@ model Donation {
 // -------------------------------------------------------------
 
 model NewsletterSubscriber {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  source        String    @default("footer")
-  unsubscribed  Boolean   @default(false)
+  id             String    @id @default(uuid())
+  email          String    @unique
+  source         String    @default("footer")
+  unsubscribed   Boolean   @default(false)
   unsubscribedAt DateTime? @map("unsubscribed_at") @db.Timestamptz(3)
-  createdAt     DateTime  @default(now()) @map("created_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   @@index([email], map: "idx_newsletter_subscribers_email")
   @@map("newsletter_subscribers")

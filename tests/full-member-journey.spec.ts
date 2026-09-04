@@ -91,6 +91,7 @@ test("Full member journey: register -> certificate download", async ({ browser }
   await test.step("1. register via UI", async () => {
     await member.goto("/register");
     await member.fill("#fullName", "Journey Test Member");
+    await member.fill("#reg-phone", "9876543210");
     await member.fill("#reg-email", memberEmail);
     await member.fill("#reg-password", MEMBER_PASSWORD);
     await member.fill("#confirmPassword", MEMBER_PASSWORD);
@@ -114,12 +115,15 @@ test("Full member journey: register -> certificate download", async ({ browser }
     await expect(member.getByText(/identity documents/i)).toBeVisible({ timeout: 30_000 });
 
     const form = member.locator("form").first();
-    const textInputs = form.locator('input[type="text"]');
-    await textInputs.nth(0).fill("Journey");
-    await textInputs.nth(1).fill("Member");
-    await textInputs.nth(3).fill("9876543210");
-    await textInputs.nth(4).fill("123456789012");
-    await textInputs.nth(5).fill("ABCDE1234F");
+    // Fill personal fields by their labels (input sibling of the label text) and
+    // unique placeholders, so the test is robust to input ordering.
+    const fieldByLabel = (label: string) =>
+      form.locator(`xpath=.//label[contains(text(), "${label}")]/following-sibling::input[1]`);
+    await fieldByLabel("First Name").fill("Journey");
+    await fieldByLabel("Last Name").fill("Member");
+    await fieldByLabel("Mobile Phone").fill("9876543210");
+    await member.getByPlaceholder(/1234 5678 9012/).fill("123456789012");
+    await member.getByPlaceholder(/ABCDE1234F/).fill("ABCDE1234F");
 
     const aadhaarInput = member.locator('input[accept="application/pdf,image/*"]').nth(0);
     await aadhaarInput.setInputFiles(fixtureAadhaar);

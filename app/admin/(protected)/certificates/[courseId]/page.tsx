@@ -13,6 +13,7 @@ import {
   Download,
   Check,
   Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -69,6 +70,7 @@ interface CertificateRow {
   completionDate: string | null;
   batch: string | null;
   teacherName: string | null;
+  verificationCode: string | null;
   verificationUrl: string | null;
 }
 
@@ -660,13 +662,14 @@ export default function CertificateWorkspacePage({ params }: { params: Promise<{
                     <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Member</th>
                     <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Issue Date</th>
                     <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Verification</th>
                     <th className="px-4 py-3 text-right text-[10px] font-bold text-muted-foreground uppercase tracking-wider w-52">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filteredCertificates.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-12">
+                      <td colSpan={6} className="py-12">
                         <EmptyState
                           icon={Award}
                           title="No certificates yet"
@@ -687,6 +690,22 @@ export default function CertificateWorkspacePage({ params }: { params: Promise<{
                         <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusStyle(c.status)}`}>
                           {STATUS_LABELS[c.status] ?? c.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.status !== "pending" && c.verificationCode ? (
+                          <a
+                            href={c.verificationUrl || `/verify/${c.verificationCode}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open public verification page"
+                            className="inline-flex max-w-[180px] items-center gap-1 text-[10px] font-mono text-primary hover:text-primary-hover"
+                          >
+                            <ExternalLink className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{c.verificationCode}</span>
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">

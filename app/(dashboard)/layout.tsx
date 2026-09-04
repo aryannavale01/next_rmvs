@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     if (auth.error === 'DATABASE_UNAVAILABLE') {
       return <DbUnavailableInterstitial />;
     }
-    redirect('/admin/login');
+    redirect('/login');
   }
   const config = await getOrgConfig();
   return <DashboardLayoutWrapper siteName={config.siteName}>{children}</DashboardLayoutWrapper>;

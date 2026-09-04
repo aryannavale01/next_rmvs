@@ -11,10 +11,14 @@ export default defineConfig({
   timeout: 120_000,
   retries: 1,
   webServer: {
-    command: "npm run dev",
+    command: `node scripts/dev-with-log.mjs`,
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
+    env: {
+      PORT: "3000",
+      BASE_URL: "http://localhost:3000",
+    },
   },
   use: {
     baseURL: process.env.BASE_URL || "http://localhost:3000",

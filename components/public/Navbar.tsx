@@ -20,7 +20,7 @@ const navItems = [
   { label: 'Programmes', href: '/programs' },
   { label: 'Impact', href: '/impact' },
   { label: 'Resources', href: '/resources' },
-  { label: 'Volunteer', href: '/volunteer' },
+  { label: 'Verify Certificate', href: '/verify' },
   { label: 'Contact', href: '/contact' },
 ];
 

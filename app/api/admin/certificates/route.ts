@@ -119,6 +119,7 @@ export async function GET(request: NextRequest) {
         completionDate: c.completionDate?.toISOString() ?? null,
         batch: c.batch,
         teacherName: c.teacherName,
+        verificationCode: c.verificationCode,
         verificationUrl: c.verificationUrl,
       }));
 

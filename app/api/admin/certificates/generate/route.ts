@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStepUp, stepUpErrorResponse } from "@/lib/session";
 import { prisma, withRetry, dbErrorResponse } from "@/lib/prisma";
 import { generateCertificatesForEnrollments } from "@/lib/certificates";
-import { buildCertificatePdfBlob } from "@/lib/certificate-pdf";
+import { buildCertificatePdfBlob, getVerificationBaseUrl } from "@/lib/certificate-pdf";
 import { uploadFile } from "@/lib/supabase-storage";
 import { logActivity } from "@/lib/activity-log";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const baseUrl = new URL(request.url).origin;
+    const baseUrl = getVerificationBaseUrl(new URL(request.url).origin);
 
     const created = await withRetry(() =>
       prisma.$transaction(

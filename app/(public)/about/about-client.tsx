@@ -454,7 +454,7 @@ export default function AboutClient({
                   </div>
                   <button
                     type="button"
-                    onClick={() => { router.push('/volunteer'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    onClick={() => { router.push('/contact'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                     className="inline-flex items-center justify-center gap-1 px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
                     id="hub-volunteer-btn"
                   >
@@ -578,7 +578,7 @@ export default function AboutClient({
               Support Our Work
             </button>
             <button
-              onClick={() => { router.push('/volunteer'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              onClick={() => { router.push('/contact'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-white/10 hover:bg-white/15 text-white hover:text-white border border-white/20 font-bold text-sm transition-all cursor-pointer"
               id="cta-volunteer-btn"
             >
@@ -654,7 +654,7 @@ export default function AboutClient({
                 <Mail className="h-4 w-4" /> Contact Us
               </a>
               <button
-                onClick={() => { setSelectedLeader(null); router.push('/volunteer'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                onClick={() => { setSelectedLeader(null); router.push('/contact'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 className="py-3 bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer text-center"
               >
                 Support {selectedLeader.name.split(' ')[0]}&apos;s Team

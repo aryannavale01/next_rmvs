@@ -9,6 +9,9 @@ export const AuditActions = {
   STEP_UP_FAILED: "step_up_failed",
   TOTP_ENABLED: "totp_enabled",
   TOTP_DISABLED: "totp_disabled",
+  OTP_SENT: "admin_otp_sent",
+  OTP_VERIFIED: "admin_otp_verified",
+  OTP_FAILED: "admin_otp_failed",
 } as const;
 
 export type AuditAction = (typeof AuditActions)[keyof typeof AuditActions];

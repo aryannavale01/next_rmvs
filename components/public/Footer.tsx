@@ -99,8 +99,8 @@ export default function Footer({ config }: { config?: FooterConfig }) {
                 </Link>
               </li>
               <li>
-                <Link href="/volunteer" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-careers">
-                  Volunteer With Us
+                <Link href="/verify" className="text-sm text-gray-500 hover:text-brand-primary" id="footer-link-verify">
+                  Verify Certificate
                 </Link>
               </li>
               <li>

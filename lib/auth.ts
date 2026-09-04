@@ -66,46 +66,50 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     password: {},
     sendResetPassword: async ({ user, url }) => {
-      if (process.env.NODE_ENV !== "production") {
-        const token = url.split("token=")[1]?.split("&")[0] || "unknown";
+      const token = url.split("token=")[1]?.split("&")[0] || "unknown";
+      if (process.env.NODE_ENV !== "production" && process.env.SEND_REAL_EMAIL_IN_DEV !== "1") {
         console.log(`[Password Reset] ${user.email} — token: ${token.substring(0, 8)}...`);
         return;
       }
       try {
         const { getOrgConfig } = await import("./org-config");
         const config = await getOrgConfig();
-        const { Resend } = await import("resend");
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: `${config.senderName} <${config.senderFromAddress}>`,
-          to: user.email,
+        const { sendTransactionEmail } = await import("./email-sender");
+        const { resetPasswordEmail } = await import("./email-templates");
+        await sendTransactionEmail({
+          to: [user.email],
           subject: `Reset Your Password — ${config.siteName}`,
-          html: `<p>Click the link below to reset your password. This link expires in 1 hour.</p>
-                 <p><a href="${url}">Reset Password</a></p>
-                 <p>If you didn't request this, ignore this email.</p>`,
+          html: resetPasswordEmail({
+            siteName: config.siteName,
+            brandColor: config.brandColor,
+            userName: user.name,
+            url,
+          }),
         });
       } catch (e) {
         console.error("[sendResetPassword] Failed to send email:", e);
       }
     },
-    sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
-      if (process.env.NODE_ENV !== "production") {
-        const token = url.split("token=")[1]?.split("&")[0] || "unknown";
+    sendVerificationEmail: async ({ user, url }: { user: { email: string; name?: string | null }; url: string }) => {
+      const token = url.split("token=")[1]?.split("&")[0] || "unknown";
+      if (process.env.NODE_ENV !== "production" && process.env.SEND_REAL_EMAIL_IN_DEV !== "1") {
         console.log(`[Email Verification] ${user.email} — token: ${token.substring(0, 8)}...`);
         return;
       }
       try {
         const { getOrgConfig } = await import("./org-config");
         const config = await getOrgConfig();
-        const { Resend } = await import("resend");
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: `${config.senderName} <${config.senderFromAddress}>`,
-          to: user.email,
+        const { sendTransactionEmail } = await import("./email-sender");
+        const { verifyEmail } = await import("./email-templates");
+        await sendTransactionEmail({
+          to: [user.email],
           subject: `Verify Your Email — ${config.siteName}`,
-          html: `<p>Welcome to ${config.siteName}! Please verify your email address by clicking the link below.</p>
-                 <p><a href="${url}">Verify Email</a></p>
-                 <p>This link expires in 24 hours. If you didn't create an account, ignore this email.</p>`,
+          html: verifyEmail({
+            siteName: config.siteName,
+            brandColor: config.brandColor,
+            userName: user.name,
+            url,
+          }),
         });
       } catch (e) {
         console.error("[sendVerificationEmail] Failed to send email:", e);
@@ -174,8 +178,18 @@ export const auth = betterAuth({
           }
           return { data: user };
         },
-        after: async (user) => {
+        after: async (user, ctx) => {
           try {
+            // Captured from the signup request body (register page sends it).
+            const phone = (ctx?.body as Record<string, unknown> | undefined)?.phone as string | undefined;
+            // In dev there is no email delivery, so auto-verify new signups so
+            // they can log in immediately. Production still requires verification.
+            if (!isProd) {
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { emailVerified: true },
+              });
+            }
             const existing = await prisma.profile.findUnique({ where: { id: user.id } });
             if (existing) return;
             await prisma.profile.create({
@@ -183,6 +197,7 @@ export const auth = betterAuth({
                 id: user.id,
                 fullName: (user as Record<string, unknown>).name as string || user.email.split("@")[0],
                 email: user.email,
+                phone: phone || null,
                 role: "member" as const,
               },
             });

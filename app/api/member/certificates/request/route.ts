@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, authErrorResponse } from "@/lib/session";
 import { prisma, withRetry, dbErrorResponse } from "@/lib/prisma";
 import { generateCertificatesForEnrollments } from "@/lib/certificates";
+import { getVerificationBaseUrl } from "@/lib/certificate-pdf";
 import { logActivity } from "@/lib/activity-log";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const baseUrl = new URL(request.url).origin;
+    const baseUrl = getVerificationBaseUrl(new URL(request.url).origin);
 
     const created = await withRetry(() =>
       prisma.$transaction(

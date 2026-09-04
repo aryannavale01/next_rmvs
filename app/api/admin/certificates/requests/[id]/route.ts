@@ -5,7 +5,7 @@ import {
   generateCertificatesForEnrollments,
   nextCertificateNumber,
 } from "@/lib/certificates";
-import { buildVerificationUrl } from "@/lib/certificate-pdf";
+import { buildVerificationUrl, getVerificationBaseUrl } from "@/lib/certificate-pdf";
 import { logActivity } from "@/lib/activity-log";
 import crypto from "crypto";
 
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ data: { request: updated } });
     }
 
-    const baseUrl = new URL(request.url).origin;
+    const baseUrl = getVerificationBaseUrl(new URL(request.url).origin);
     const year = new Date().getFullYear();
     const now = new Date();
 

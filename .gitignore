@@ -31,3 +31,10 @@ chw-*.pdf
 .utim_tmp/
 screenshots/
 test-certificates-e2e.mjs
+# Tool output / build artifacts — should never be committed
+graphify-out/
+full_schema_production.sql
+metadata.json
+full_flow
+bun.lock
+.opencode
